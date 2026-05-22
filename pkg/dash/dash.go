@@ -1,0 +1,103 @@
+// Package dash provides MPEG-DASH MPD generation and an in-process MPD cache.
+package dash
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/google/uuid"
+)
+
+// RenditionInfo describes a single adaptive bitrate rendition.
+type RenditionInfo struct {
+	Name          string
+	Height        int
+	VideoBitrateK int
+	AudioBitrateK int
+}
+
+// SubtitleInfo describes an extracted subtitle track.
+type SubtitleInfo struct {
+	Language string // e.g. "eng"
+	VTTPath  string // absolute path to the .vtt file
+}
+
+// GenerateMPD creates a DASH MPD XML file at mpdPath that references the
+// fMP4 segments produced by ffmpeg. Each rendition directory is expected to
+// contain init.mp4 and seg_00001.m4s … seg_NNNNN.m4s files.
+func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitles []SubtitleInfo, duration float64) error {
+	var sb strings.Builder
+
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	sb.WriteString(`<MPD xmlns="urn:mpeg:dash:schema:mpd:2011"` + "\n")
+	sb.WriteString(`     profiles="urn:mpeg:dash:profile:isoff-live:2011"` + "\n")
+	sb.WriteString(`     type="static"` + "\n")
+	sb.WriteString(`     minBufferTime="PT2S"` + "\n")
+	sb.WriteString(fmt.Sprintf(`     mediaPresentationDuration="PT%.3fS">`, duration) + "\n")
+	sb.WriteString(`  <Period>` + "\n")
+
+	// Video + audio adaptation sets (one per rendition).
+	sb.WriteString(`    <AdaptationSet mimeType="video/mp4" codecs="avc1.42E01E,mp4a.40.2" segmentAlignment="true">` + "\n")
+	for _, r := range renditions {
+		bandwidth := (r.VideoBitrateK + r.AudioBitrateK) * 1000
+		relDir := r.Name // relative path from MPD location
+
+		sb.WriteString(fmt.Sprintf(
+			`      <Representation id=%q bandwidth="%d" width="auto" height="%d">`+"\n",
+			r.Name, bandwidth, r.Height,
+		))
+		sb.WriteString(fmt.Sprintf(`        <BaseURL>segments/%s/</BaseURL>`+"\n", relDir))
+		sb.WriteString(`        <SegmentTemplate initialization="init.mp4" media="seg_$Number%05d$.m4s" startNumber="1" duration="4"/>` + "\n")
+		sb.WriteString(`      </Representation>` + "\n")
+	}
+	sb.WriteString(`    </AdaptationSet>` + "\n")
+
+	// Text adaptation sets (one per subtitle track).
+	for _, sub := range subtitles {
+		relVTT := filepath.Base(sub.VTTPath)
+		sb.WriteString(fmt.Sprintf(
+			`    <AdaptationSet mimeType="text/vtt" lang=%q>`+"\n",
+			sub.Language,
+		))
+		sb.WriteString(fmt.Sprintf(`      <Representation id="sub_%s" bandwidth="0">`+"\n", sub.Language))
+		sb.WriteString(fmt.Sprintf(`        <BaseURL>segments/%s</BaseURL>`+"\n", relVTT))
+		sb.WriteString(`      </Representation>` + "\n")
+		sb.WriteString(`    </AdaptationSet>` + "\n")
+	}
+
+	sb.WriteString(`  </Period>` + "\n")
+	sb.WriteString(`</MPD>` + "\n")
+
+	if err := os.MkdirAll(filepath.Dir(mpdPath), 0o755); err != nil {
+		return fmt.Errorf("creating mpd directory: %w", err)
+	}
+	return os.WriteFile(mpdPath, []byte(sb.String()), 0o644)
+}
+
+// Cache is an in-process cache mapping media item IDs to their generated MPD
+// file paths. It is invalidated when a transcode job is re-enqueued.
+type Cache struct {
+	mu sync.Map // map[uuid.UUID]string
+}
+
+// Get returns the cached MPD path for id, or ("", false) if not present.
+func (c *Cache) Get(id uuid.UUID) (string, bool) {
+	v, ok := c.mu.Load(id)
+	if !ok {
+		return "", false
+	}
+	return v.(string), true
+}
+
+// Set stores the MPD path for id.
+func (c *Cache) Set(id uuid.UUID, mpdPath string) {
+	c.mu.Store(id, mpdPath)
+}
+
+// Invalidate removes the cached entry for id.
+func (c *Cache) Invalidate(id uuid.UUID) {
+	c.mu.Delete(id)
+}

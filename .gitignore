@@ -1,0 +1,23 @@
+# Binaries
+galactic
+/web/node_modules/
+/web/dist/
+
+# Environment
+.env
+config.yaml
+
+# Data directories (local dev)
+dev-media/
+data/
+
+# Go
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
