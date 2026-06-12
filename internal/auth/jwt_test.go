@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/auth"
+	"github.com/ringmaster217/prism/internal/auth"
 )
 
 const testSecret = "test-secret-key-32-bytes-long!!!"

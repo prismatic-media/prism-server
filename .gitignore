@@ -1,11 +1,11 @@
 # Binaries
-galactic
+prism
 /web/node_modules/
 /web/dist/
+prism
 
 # Environment
 .env
-config.yaml
 
 # Data directories (local dev)
 dev-media/
@@ -21,3 +21,15 @@ vendor/
 
 # OS
 .DS_Store
+
+# Local Build / Watcher Binaries and Temp Files
+/bin/
+/tmp/
+
+prism.db
+prism.db-shm
+prism.db-wal
+*.test
+server
+prism-worker
+worker

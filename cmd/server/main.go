@@ -1,43 +1,33 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"golang.org/x/term"
-
-	"github.com/ringmaster217/galactic-media-server/internal/api"
-	"github.com/ringmaster217/galactic-media-server/internal/auth"
-	"github.com/ringmaster217/galactic-media-server/internal/config"
-	"github.com/ringmaster217/galactic-media-server/internal/metadata"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/scanner"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
-	"github.com/ringmaster217/galactic-media-server/internal/transcoder"
-	"github.com/ringmaster217/galactic-media-server/pkg/dash"
-	"github.com/ringmaster217/galactic-media-server/pkg/events"
+	"github.com/ringmaster217/prism/internal/api"
+	"github.com/ringmaster217/prism/internal/config"
+	"github.com/ringmaster217/prism/internal/metadata"
+	"github.com/ringmaster217/prism/internal/scanner"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/transcoder"
+	"github.com/ringmaster217/prism/pkg/dash"
+	"github.com/ringmaster217/prism/pkg/events"
 )
 
+// Main entry point for the Prism media server.
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
 
-	cfg, err := config.Load()
-	if err != nil {
-		slog.Error("failed to load config", "error", err)
-		os.Exit(1)
-	}
+	cfg := config.Load()
 
 	db, err := sqlite.Open(cfg.DBPath)
 	if err != nil {
@@ -51,33 +41,47 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := sqlite.BootstrapSettings(context.Background(), db); err != nil {
+		slog.Error("failed to bootstrap settings", "error", err)
+		os.Exit(1)
+	}
+
 	if err := sqlite.DeleteExpiredTokens(context.Background(), db); err != nil {
 		slog.Warn("failed to clean up expired refresh tokens", "error", err)
 	}
 
-	if err := maybeFirstRun(db); err != nil {
-		slog.Error("first-run setup failed", "error", err)
+	rawSettings, err := sqlite.GetAllSettings(context.Background(), db, false)
+	if err != nil {
+		slog.Error("failed to load settings", "error", err)
+		os.Exit(1)
+	}
+	rs := config.RuntimeSettingsFromMap(rawSettings)
+
+	if rs.JWTSecret == "" {
+		slog.Error("jwt_secret is empty after bootstrap — cannot start")
 		os.Exit(1)
 	}
 
-	enricher := metadata.NewEnricher(db, cfg.TMDBApiKey, cfg.ThumbsDir)
+	enricher := metadata.NewEnricher(db)
 	bus := events.NewBus()
-	scanManager := scanner.NewManager(db, cfg.FFprobePath, enricher, bus)
+	scanManager := scanner.NewManager(db, enricher, bus)
 	if err := scanManager.StartAll(context.Background()); err != nil {
 		slog.Warn("failed to start library scanners", "error", err)
 	}
 
-	workers := cfg.TranscodeWorkers
-	if workers <= 0 {
+	workers := rs.TranscodeWorkers
+	if val, ok := rawSettings["transcode_workers"]; ok && val == "0" {
+		workers = 0
+	} else if workers <= 0 {
 		workers = 2
 	}
 	mpdCache := &dash.Cache{}
-	pool := transcoder.NewPool(db, cfg.FFmpegPath, cfg.FFprobePath, cfg.SegmentsDir, workers, mpdCache, bus)
+	pool := transcoder.NewPool(db, workers, mpdCache, bus)
 	if err := pool.Start(context.Background()); err != nil {
 		slog.Warn("failed to start transcode pool", "error", err)
 	}
 
-	router := api.NewRouter(cfg, db, scanManager, pool, bus)
+	router := api.NewRouter(&rs, db, enricher, scanManager, pool, bus)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
@@ -105,75 +109,4 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("forced shutdown", "error", err)
 	}
-}
-
-// maybeFirstRun interactively creates the initial admin account when no users
-// exist in the database. It is a no-op on every subsequent startup.
-func maybeFirstRun(db *sql.DB) error {
-	count, err := sqlite.CountUsers(context.Background(), db)
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-
-	fmt.Println()
-	fmt.Println("═══════════════════════════════════════════")
-	fmt.Println("  Galactic Media — First-Run Setup")
-	fmt.Println("  No users found. Create an admin account.")
-	fmt.Println("═══════════════════════════════════════════")
-	fmt.Println()
-
-	scanner := bufio.NewScanner(os.Stdin)
-
-	fmt.Print("Username: ")
-	scanner.Scan()
-	username := strings.TrimSpace(scanner.Text())
-	if username == "" {
-		return fmt.Errorf("username cannot be empty")
-	}
-
-	fmt.Print("Email: ")
-	scanner.Scan()
-	email := strings.TrimSpace(scanner.Text())
-	if email == "" {
-		return fmt.Errorf("email cannot be empty")
-	}
-
-	var password string
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		fmt.Print("Password: ")
-		raw, err := term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Println()
-		if err != nil {
-			return fmt.Errorf("reading password: %w", err)
-		}
-		password = string(raw)
-	} else {
-		fmt.Print("Password: ")
-		scanner.Scan()
-		password = scanner.Text()
-	}
-	if password == "" {
-		return fmt.Errorf("password cannot be empty")
-	}
-
-	hash, err := auth.HashPassword(password)
-	if err != nil {
-		return fmt.Errorf("hashing password: %w", err)
-	}
-
-	u := &models.User{
-		Username:     username,
-		Email:        email,
-		PasswordHash: hash,
-		IsAdmin:      true,
-	}
-	if err := sqlite.CreateUser(context.Background(), db, u); err != nil {
-		return fmt.Errorf("creating admin user: %w", err)
-	}
-
-	fmt.Printf("\nAdmin account '%s' created. Starting server...\n\n", username)
-	return nil
 }

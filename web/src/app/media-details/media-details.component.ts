@@ -1,0 +1,501 @@
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { forkJoin, map, of, switchMap, Subscription } from 'rxjs';
+import { AuthService } from '../auth.service';
+import { EventService } from '../event.service';
+
+export interface Movie {
+  id: string;
+  title: string;
+  media_type: string;
+  file_path: string;
+  file_size: number;
+  duration: number;
+  width: number;
+  height: number;
+  video_codec: string;
+  audio_codec: string;
+  tmdb_id?: number;
+  year?: number;
+  overview?: string;
+  poster_path?: string;
+  transcode_status: string;
+  transcode_progress?: number;
+  mpd_path?: string;
+  source_status: string;
+  bundle_status: string;
+  tv_show_id?: string;
+  tv_season_id?: string;
+  season_number?: number;
+  episode_number?: number;
+  tv_show_title?: string;
+  director?: string;
+  cast?: { name: string; character: string; profile_path: string; }[];
+  backdrop_path?: string;
+  extra_posters?: string[];
+}
+
+export interface TVShow {
+  id: string;
+  library_id: string;
+  name: string;
+  tmdb_id?: number;
+  overview?: string;
+  poster_path?: string;
+  first_air_year?: number;
+  director?: string;
+  cast?: { name: string; character: string; profile_path: string; }[];
+  backdrop_path?: string;
+  extra_posters?: string[];
+}
+
+export interface TVSeason {
+  id: string;
+  tv_show_id: string;
+  season_number: number;
+  tmdb_id?: number;
+  overview?: string;
+  poster_path?: string;
+}
+
+export interface Episode {
+  id: string;
+  library_id: string;
+  title: string;
+  media_type: string;
+  file_path: string;
+  file_size: number;
+  duration: number;
+  width: number;
+  height: number;
+  video_codec: string;
+  audio_codec: string;
+  season_number: number;
+  episode_number: number;
+  transcode_status: string;
+  transcode_progress?: number;
+  mpd_path?: string;
+  source_status: string;
+  bundle_status: string;
+  poster_path?: string;
+}
+
+export interface WatchHistory {
+  id: string;
+  user_id: string;
+  media_item_id: string;
+  position: number;
+  completed: boolean;
+  updated_at: string;
+}
+
+@Component({
+  selector: 'app-media-details',
+  standalone: true,
+  imports: [CommonModule],
+  templateUrl: './media-details.component.html',
+  styleUrl: './media-details.component.css'
+})
+export class MediaDetailsComponent implements OnInit, OnDestroy {
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private http = inject(HttpClient);
+  private cdr = inject(ChangeDetectorRef);
+  private authService = inject(AuthService);
+  private eventService = inject(EventService);
+
+  protected readonly Math = Math;
+
+  private eventSub?: Subscription;
+
+  mediaType: 'movie' | 'tvshow' = 'movie';
+  id = '';
+
+  // Movie Data
+  movie: Movie | null = null;
+
+  // TV Show Data
+  tvShow: TVShow | null = null;
+  seasons: TVSeason[] = [];
+  selectedSeason: TVSeason | null = null;
+  episodes: Episode[] = [];
+
+  // View States
+  loading = true;
+  error = '';
+  seasonsLoading = false;
+  episodesLoading = false;
+  watchHistoryList: WatchHistory[] = [];
+
+  ngOnInit(): void {
+    // Determine media type from URL path
+    const urlSegment = this.route.snapshot.url[0]?.path || '';
+    if (urlSegment === 'tv-shows') {
+      this.mediaType = 'tvshow';
+    } else {
+      this.mediaType = 'movie';
+    }
+
+    this.route.paramMap.subscribe(params => {
+      this.id = params.get('id') || '';
+      if (this.id) {
+        this.loadDetails();
+      }
+    });
+
+    this.eventSub = this.eventService.events$.subscribe(events => {
+      let changed = false;
+      let shouldReloadDetails = false;
+
+      for (const evt of events) {
+        if (evt.type === 'job.progress') {
+          if (this.handleJobProgressEvent(evt.payload)) {
+            changed = true;
+          }
+        } else if (evt.type === 'media.updated' || evt.type === 'media.created') {
+          if (this.handleMediaUpdatedEvent(evt.payload)) {
+            changed = true;
+          }
+        } else if (evt.type === 'media.enriched') {
+          const payload = evt.payload;
+          if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
+            shouldReloadDetails = true;
+          } else if (this.mediaType === 'tvshow') {
+            if (this.tvShow && (this.tvShow.id === payload.media_item_id || this.episodes.some(e => e.id === payload.media_item_id))) {
+              shouldReloadDetails = true;
+            }
+          }
+        }
+      }
+
+      if (shouldReloadDetails) {
+        this.loadDetails(true);
+      } else if (changed) {
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.eventSub) {
+      this.eventSub.unsubscribe();
+    }
+  }
+
+  loadDetails(silent = false): void {
+    if (!silent) {
+      this.loading = true;
+      this.error = '';
+      this.movie = null;
+      this.tvShow = null;
+      this.seasons = [];
+      this.selectedSeason = null;
+      this.episodes = [];
+    }
+
+    this.http.get<WatchHistory[]>('/api/v1/history').subscribe({
+      next: (historyList) => {
+        this.watchHistoryList = historyList || [];
+        this.cdr.detectChanges();
+      }
+    });
+
+    if (this.mediaType === 'movie') {
+      this.http.get<Movie>(`/api/v1/media/${this.id}`).subscribe({
+        next: (data) => {
+          this.movie = data;
+          this.loading = false;
+          this.cdr.detectChanges();
+        },
+        error: (err) => {
+          if (!silent) {
+            this.error = 'Could not load movie details.';
+            this.movie = null;
+          }
+          this.loading = false;
+          this.cdr.detectChanges();
+        }
+      });
+    } else {
+      this.http.get<TVShow>(`/api/v1/tv/shows/${this.id}`).subscribe({
+        next: (data) => {
+          this.tvShow = data;
+          this.loadSeasons(this.id, silent);
+        },
+        error: (err) => {
+          if (!silent) {
+            this.error = 'Could not load TV show details.';
+            this.tvShow = null;
+          }
+          this.loading = false;
+          this.cdr.detectChanges();
+        }
+      });
+    }
+  }
+
+  loadSeasons(showId: string, silent = false): void {
+    if (!silent) {
+      this.seasonsLoading = true;
+    }
+    this.http.get<TVSeason[]>(`/api/v1/tv/shows/${showId}/seasons`).subscribe({
+      next: (seasonsList) => {
+        const prevSelectedSeasonNumber = this.selectedSeason ? this.selectedSeason.season_number : null;
+        this.seasons = seasonsList ? seasonsList.sort((a, b) => a.season_number - b.season_number) : [];
+        this.seasonsLoading = false;
+        this.loading = false;
+
+        if (this.seasons.length > 0) {
+          let toSelect = this.seasons[0];
+          if (prevSelectedSeasonNumber !== null) {
+            const found = this.seasons.find(s => s.season_number === prevSelectedSeasonNumber);
+            if (found) {
+              toSelect = found;
+            }
+          }
+          this.selectSeason(toSelect, silent);
+        }
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.seasonsLoading = false;
+        this.loading = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  selectSeason(season: TVSeason, silent = false): void {
+    this.selectedSeason = season;
+    if (!silent) {
+      this.episodes = [];
+    }
+    if (this.tvShow) {
+      this.loadEpisodes(this.tvShow.id, season.season_number, silent);
+    }
+  }
+
+  loadEpisodes(showId: string, seasonNumber: number, silent = false): void {
+    if (!silent) {
+      this.episodesLoading = true;
+    }
+    this.http.get<Episode[]>(`/api/v1/tv/shows/${showId}/seasons/${seasonNumber}/episodes`).subscribe({
+      next: (episodesList) => {
+        this.episodes = episodesList ? episodesList.sort((a, b) => a.episode_number - b.episode_number) : [];
+        this.episodesLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.episodesLoading = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  getPosterUrl(): string {
+    if (this.mediaType === 'movie' && this.movie) {
+      if (this.movie.poster_path) {
+        return `/api/v1/media/${this.movie.id}/poster`;
+      }
+    } else if (this.mediaType === 'tvshow' && this.tvShow) {
+      if (this.tvShow.poster_path) {
+        return `/api/v1/tv/shows/${this.tvShow.id}/poster`;
+      }
+    }
+    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+  }
+
+  getSeasonPosterUrl(season: TVSeason): string {
+    if (season && season.poster_path && this.tvShow) {
+      return `/api/v1/tv/shows/${this.tvShow.id}/seasons/${season.season_number}/poster`;
+    }
+    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+  }
+
+  getEpisodeStillUrl(ep: Episode): string {
+    if (ep && ep.poster_path) {
+      return `/api/v1/media/${ep.id}/poster`;
+    }
+    return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=400&auto=format&fit=crop';
+  }
+
+  goBack(): void {
+    if (this.mediaType === 'movie') {
+      this.router.navigate(['/movies']);
+    } else {
+      this.router.navigate(['/tv-shows']);
+    }
+  }
+
+  playMovie(movie: Movie): void {
+    this.router.navigate(['/watch', movie.id]);
+  }
+
+  playMovieFromBeginning(movie: Movie): void {
+    this.router.navigate(['/watch', movie.id], { queryParams: { startOver: true } });
+  }
+
+  playEpisode(episode: Episode, event: MouseEvent): void {
+    event.stopPropagation();
+    this.router.navigate(['/watch', episode.id]);
+  }
+
+  playEpisodeFromBeginning(episode: Episode, event: MouseEvent): void {
+    event.stopPropagation();
+    this.router.navigate(['/watch', episode.id], { queryParams: { startOver: true } });
+  }
+
+  triggerTranscode(item: Movie | Episode, event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.http.post(`/api/v1/media/${item.id}/transcode`, {}).subscribe({
+      next: () => {
+        item.transcode_status = 'pending';
+        this.cdr.detectChanges();
+        // If it's the main movie, reload after a bit or update state
+        if (this.mediaType === 'movie' && this.movie && this.movie.id === item.id) {
+          this.movie.transcode_status = 'pending';
+        }
+      },
+      error: (err) => {
+        alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
+      }
+    });
+  }
+
+  formatDuration(seconds: number | undefined): string {
+    if (!seconds) return 'N/A';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.round((seconds % 3600) / 60);
+    if (hrs > 0) {
+      return `${hrs}h ${mins}m`;
+    }
+    return `${mins}m`;
+  }
+
+  formatSize(bytes: number | undefined): string {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  getBackdropUrl(): string {
+    if (this.mediaType === 'movie' && this.movie) {
+      if (this.movie.backdrop_path) {
+        return `/api/v1/media/${this.movie.id}/backdrop`;
+      }
+    } else if (this.mediaType === 'tvshow' && this.tvShow) {
+      if (this.tvShow.backdrop_path) {
+        return `/api/v1/tv/shows/${this.tvShow.id}/backdrop`;
+      }
+    }
+    return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=1600&auto=format&fit=crop';
+  }
+
+  getExtraPosterUrls(): string[] {
+    const urls: string[] = [];
+    if (this.mediaType === 'movie' && this.movie && this.movie.extra_posters) {
+      for (let i = 0; i < this.movie.extra_posters.length; i++) {
+        urls.push(`/api/v1/media/${this.movie.id}/extra-posters/${i}`);
+      }
+    } else if (this.mediaType === 'tvshow' && this.tvShow && this.tvShow.extra_posters) {
+      for (let i = 0; i < this.tvShow.extra_posters.length; i++) {
+        urls.push(`/api/v1/tv/shows/${this.tvShow.id}/extra-posters/${i}`);
+      }
+    }
+    return urls;
+  }
+
+
+
+  handleJobProgressEvent(payload: any): boolean {
+    let changed = false;
+    if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
+      this.movie.transcode_progress = payload.progress;
+      if (payload.done) {
+        this.movie.transcode_status = payload.error ? 'failed' : 'done';
+      } else {
+        this.movie.transcode_status = 'processing';
+      }
+      changed = true;
+    } else if (this.mediaType === 'tvshow' && this.episodes) {
+      const ep = this.episodes.find(e => e.id === payload.media_item_id);
+      if (ep) {
+        ep.transcode_progress = payload.progress;
+        if (payload.done) {
+          ep.transcode_status = payload.error ? 'failed' : 'done';
+        } else {
+          ep.transcode_status = 'processing';
+        }
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  handleMediaUpdatedEvent(payload: any): boolean {
+    let changed = false;
+    if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
+      this.movie.transcode_status = payload.transcode_status;
+      changed = true;
+    } else if (this.mediaType === 'tvshow' && this.episodes) {
+      const ep = this.episodes.find(e => e.id === payload.media_item_id);
+      if (ep) {
+        ep.transcode_status = payload.transcode_status;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  getMovieHistory(): WatchHistory | undefined {
+    if (!this.movie) return undefined;
+    return this.watchHistoryList.find(h => h.media_item_id === this.movie!.id);
+  }
+
+  getEpisodeHistory(ep: Episode): WatchHistory | undefined {
+    return this.watchHistoryList.find(h => h.media_item_id === ep.id);
+  }
+
+  calculateProgressPercent(hist: WatchHistory, duration: number): number {
+    if (!duration) return 0;
+    return Math.min(100, Math.max(0, (hist.position / duration) * 100));
+  }
+
+  formatRemainingTime(hist: WatchHistory, duration: number): string {
+    if (!duration) return '0m';
+    const remaining = Math.max(0, duration - hist.position);
+    return this.formatDurationCompact(remaining);
+  }
+
+  formatDurationCompact(seconds: number): string {
+    if (isNaN(seconds) || seconds < 0) return '0m';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.round((seconds % 3600) / 60);
+    if (hrs > 0) {
+      return `${hrs}h ${mins}m`;
+    }
+    return `${mins}m`;
+  }
+
+  trackByEpisodeId(index: number, ep: Episode): string {
+    return ep.id;
+  }
+
+  trackBySeasonId(index: number, season: TVSeason): string {
+    return season.id;
+  }
+
+  trackByCastName(index: number, member: { name: string; character: string }): string {
+    return member.name + '-' + member.character;
+  }
+
+  trackByUrl(index: number, url: string): string {
+    return url;
+  }
+}

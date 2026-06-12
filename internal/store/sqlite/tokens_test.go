@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 func mustNewUUID(t *testing.T) uuid.UUID {

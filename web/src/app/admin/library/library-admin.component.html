@@ -1,0 +1,272 @@
+<div class="library-admin-container">
+  <!-- Header Section -->
+  <div class="page-header">
+    <div class="header-text">
+      <h2 class="page-title spectral-gradient-text">Library Management</h2>
+      <p class="page-subtitle">Orchestrate and optimize your media ecosystem.</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-primary" (click)="scanAllLibraries()" [disabled]="isScanningAll">
+        <span class="material-symbols-outlined" [class.spin-icon]="isScanningAll">refresh</span>
+        {{ isScanningAll ? 'Scanning All...' : 'Manual Scan All' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="state-container">
+    <div class="spinner"></div>
+    <p class="state-text">Loading media libraries...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="!loading && error" class="state-container error-state">
+    <span class="material-symbols-outlined error-icon">error</span>
+    <p class="state-text">{{ error }}</p>
+    <button class="btn-glass" (click)="fetchData()">Retry</button>
+  </div>
+
+  <ng-container *ngIf="!loading && !error">
+    <!-- Bento Stats Grid -->
+    <div class="bento-grid">
+      <!-- Total Inventory -->
+      <div class="bento-card inventory-card glass-card">
+        <div class="card-icon-bg">
+          <span class="material-symbols-outlined">analytics</span>
+        </div>
+        <div class="card-content">
+          <p class="card-label">Total Inventory</p>
+          <h3 class="inventory-number">{{ stats.totalTitles }}</h3>
+          <div class="inventory-breakdown">
+            <div class="breakdown-row">
+              <div class="breakdown-label">
+                <span class="material-symbols-outlined text-teal">movie</span>
+                <span>Movies</span>
+              </div>
+              <span class="breakdown-value">{{ stats.moviesCount }}</span>
+            </div>
+            <div class="breakdown-row">
+              <div class="breakdown-label">
+                <span class="material-symbols-outlined text-violet">tv</span>
+                <span>Series</span>
+              </div>
+              <span class="breakdown-value">{{ stats.showsCount }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metadata Health -->
+      <div class="bento-card health-card glass-card">
+        <p class="card-label">Metadata Enrichment Health</p>
+        <div class="health-metrics">
+          <!-- Metric 1: Poster Coverage -->
+          <div class="metric-container">
+            <div class="metric-header">
+              <span class="metric-name">Poster Art Coverage</span>
+              <span class="metric-pct text-teal">{{ stats.posterCoverage }}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-teal glow-teal" [style.width.%]="stats.posterCoverage"></div>
+            </div>
+            <p class="metric-desc">
+              <span class="material-symbols-outlined text-green">check_circle</span>
+              {{ stats.resolvedTitles }} titles resolved
+            </p>
+          </div>
+
+          <!-- Metric 2: Subtitle Indexing -->
+          <div class="metric-container">
+            <div class="metric-header">
+              <span class="metric-name">Subtitle Indexing / Transcodes</span>
+              <span class="metric-pct text-violet">{{ stats.subtitleCoverage }}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-violet glow-violet" [style.width.%]="stats.subtitleCoverage"></div>
+            </div>
+            <p class="metric-desc">
+              <span class="material-symbols-outlined text-amber">info</span>
+              {{ stats.missingLocalAssetsCount }} titles missing optimal local transcode assets
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Directories Sections -->
+    <div class="directories-section-container">
+      
+      <!-- Movie Directories -->
+      <div class="glass-card panel-card">
+        <div class="panel-header">
+          <h3 class="panel-title">Movie Directories</h3>
+          <button class="btn-text-teal" (click)="openAddModal(); newLibType = 'movie'">
+            <span class="material-symbols-outlined">add</span>
+            Add Mapping
+          </button>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Directory Path</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let lib of getLibrariesByType('movie')" class="table-row">
+                <td>
+                  <div class="type-cell">
+                    <span class="material-symbols-outlined text-teal">movie</span>
+                    <span class="type-label">Movies</span>
+                  </div>
+                </td>
+                <td>
+                  <code class="path-code">{{ lib.path }}</code>
+                </td>
+                <td class="action-cell">
+                  <div class="action-buttons">
+                    <button class="btn-icon" title="Scan directory" (click)="scanLibrary(lib.id, $event)">
+                      <span class="material-symbols-outlined">refresh</span>
+                    </button>
+                    <button class="btn-icon btn-delete" title="Delete mapping" (click)="deleteLibrary(lib.id)">
+                      <span class="material-symbols-outlined">delete</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="getLibrariesByType('movie').length === 0">
+                <td colspan="3" class="empty-table-cell">No movie mappings defined.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TV Show Directories -->
+      <div class="glass-card panel-card">
+        <div class="panel-header">
+          <h3 class="panel-title">TV Show Directories</h3>
+          <button class="btn-text-teal" (click)="openAddModal(); newLibType = 'tvshow'">
+            <span class="material-symbols-outlined">add</span>
+            Add Mapping
+          </button>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Directory Path</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let lib of getLibrariesByType('tvshow')" class="table-row">
+                <td>
+                  <div class="type-cell">
+                    <span class="material-symbols-outlined text-violet">tv</span>
+                    <span class="type-label">Series</span>
+                  </div>
+                </td>
+                <td>
+                  <code class="path-code">{{ lib.path }}</code>
+                </td>
+                <td class="action-cell">
+                  <div class="action-buttons">
+                    <button class="btn-icon" title="Scan directory" (click)="scanLibrary(lib.id, $event)">
+                      <span class="material-symbols-outlined">refresh</span>
+                    </button>
+                    <button class="btn-icon btn-delete" title="Delete mapping" (click)="deleteLibrary(lib.id)">
+                      <span class="material-symbols-outlined">delete</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="getLibrariesByType('tvshow').length === 0">
+                <td colspan="3" class="empty-table-cell">No TV show mappings defined.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </ng-container>
+</div>
+
+<!-- Add Library Mapping Modal -->
+<div class="modal-backdrop" *ngIf="isAddModalOpen" (click)="closeAddModal()">
+  <div class="modal-card glass-card-elevated" (click)="$event.stopPropagation()">
+    <button class="modal-close-btn" (click)="closeAddModal()">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+    <div class="modal-header">
+      <h3 class="modal-title">Add Directory Mapping</h3>
+    </div>
+    
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Media Type</label>
+        <div class="radio-buttons">
+          <label class="radio-label">
+            <input type="radio" name="libType" [(ngModel)]="newLibType" value="movie" />
+            <span class="radio-custom-btn">
+              <span class="material-symbols-outlined">movie</span>
+              Movies
+            </span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="libType" [(ngModel)]="newLibType" value="tvshow" />
+            <span class="radio-custom-btn">
+              <span class="material-symbols-outlined">tv</span>
+              TV Shows
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Directory Path</label>
+        <div class="path-input-group">
+          <input type="text" class="input-glass" [(ngModel)]="newLibPath" placeholder="e.g. /mnt/storage/movies" />
+        </div>
+      </div>
+
+      <!-- File Browser / Autocomplete Section -->
+      <div class="fs-browser">
+        <div class="browser-header">
+          <span class="browser-title-text">Browse Filesystem</span>
+          <button class="btn-browse-parent" (click)="browseParentDir()" [disabled]="browsingPath === '/'">
+            <span class="material-symbols-outlined">arrow_upward</span>
+            Up
+          </button>
+        </div>
+        <p class="current-path">Current Path: <code class="current-path-code">{{ browsingPath }}</code></p>
+        <div class="browser-list" *ngIf="!isBrowsing">
+          <div *ngFor="let item of fsItems" class="browser-item" (click)="selectBrowsedPath(item)">
+            <span class="material-symbols-outlined folder-icon">folder</span>
+            <span class="item-text">{{ item }}</span>
+          </div>
+          <div *ngIf="fsItems.length === 0" class="empty-browser-state">
+            No subdirectories found.
+          </div>
+        </div>
+        <div *ngIf="isBrowsing" class="browser-loading">
+          <div class="spinner-small"></div>
+          <span>Browsing directory...</span>
+        </div>
+      </div>
+
+      <p class="modal-error-text" *ngIf="modalError">{{ modalError }}</p>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-glass" (click)="closeAddModal()">Cancel</button>
+      <button class="btn-primary" (click)="saveLibraryMapping()" [disabled]="isSaving || !newLibPath">
+        {{ isSaving ? 'Saving...' : 'Add Mapping' }}
+      </button>
+    </div>
+  </div>
+</div>

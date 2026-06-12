@@ -1,48 +1,66 @@
 import { Routes } from '@angular/router';
-import { authGuard, adminGuard } from './core/guards/auth.guard';
-import { ShellComponent } from './shell/shell.component';
+import { authGuard, loginGuard } from './auth.guard';
 
 export const routes: Routes = [
   {
     path: 'login',
-    loadComponent: () =>
-      import('./features/login/login.component').then((m) => m.LoginComponent),
+    loadComponent: () => import('./login/login.component').then(m => m.LoginComponent),
+    canActivate: [loginGuard]
+  },
+  {
+    path: 'setup',
+    loadComponent: () => import('./setup/setup.component').then(m => m.SetupComponent)
+  },
+  {
+    path: 'watch/:id',
+    loadComponent: () => import('./player/player.component').then(m => m.PlayerComponent),
+    canActivate: [authGuard]
   },
   {
     path: '',
-    component: ShellComponent,
+    loadComponent: () => import('./layout/layout.component').then(m => m.LayoutComponent),
     canActivate: [authGuard],
     children: [
       {
         path: '',
-        loadComponent: () =>
-          import('./features/library/library.component').then((m) => m.LibraryComponent),
+        loadComponent: () => import('./home/home.component').then(m => m.HomeComponent)
       },
       {
-        path: 'media/:id',
-        loadComponent: () =>
-          import('./features/media-detail/media-detail.component').then(
-            (m) => m.MediaDetailComponent,
-          ),
+        path: 'movies',
+        loadComponent: () => import('./movies/movies.component').then(m => m.MoviesComponent)
       },
       {
-        path: 'player/:id',
-        loadComponent: () =>
-          import('./features/player/player.component').then((m) => m.PlayerComponent),
+        path: 'movies/:id',
+        loadComponent: () => import('./media-details/media-details.component').then(m => m.MediaDetailsComponent)
       },
       {
-        path: 'history',
-        loadComponent: () =>
-          import('./features/history/history.component').then((m) => m.HistoryComponent),
+        path: 'tv-shows',
+        loadComponent: () => import('./tv-shows/tv-shows.component').then(m => m.TVShowsComponent)
       },
       {
-        path: 'admin',
-        loadComponent: () =>
-          import('./features/admin/admin.component').then((m) => m.AdminComponent),
-        canActivate: [adminGuard],
+        path: 'tv-shows/:id',
+        loadComponent: () => import('./media-details/media-details.component').then(m => m.MediaDetailsComponent)
       },
-    ],
+      {
+        path: 'admin/library',
+        loadComponent: () => import('./admin/library/library-admin.component').then(m => m.LibraryAdminComponent)
+      },
+      {
+        path: 'admin/storage',
+        loadComponent: () => import('./admin/storage/storage-admin.component').then(m => m.StorageAdminComponent)
+      },
+      {
+        path: 'admin/transcoding',
+        loadComponent: () => import('./admin/transcoding/transcoding-admin.component').then(m => m.TranscodingAdminComponent)
+      },
+      {
+        path: 'admin/settings',
+        loadComponent: () => import('./admin/settings/settings-admin.component').then(m => m.SettingsAdminComponent)
+      }
+    ]
   },
-  { path: '**', redirectTo: '' },
+  {
+    path: '**',
+    redirectTo: ''
+  }
 ];
-

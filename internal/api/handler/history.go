@@ -8,10 +8,17 @@ import (
 
 	"github.com/google/uuid"
 
-	apimw "github.com/ringmaster217/galactic-media-server/internal/api/middleware"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	apimw "github.com/ringmaster217/prism/internal/api/middleware"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
+
+// nowPlayingResponse bundles a watch-history entry with its media item so the
+// client needs only one request to render the Now Playing bar.
+type nowPlayingResponse struct {
+	History *models.WatchHistory `json:"history"`
+	Media   *models.MediaItem    `json:"media"`
+}
 
 // HistoryHandler manages watch-history reads and writes.
 type HistoryHandler struct {
@@ -38,13 +45,13 @@ func (h *HistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := uuid.Parse(claims.UserID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "invalid user id in token")
+		respondError(w, http.StatusInternalServerError, "invalid user id in token", err)
 		return
 	}
 
 	items, err := sqlite.ListWatchHistory(r.Context(), h.db, userID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch watch history")
+		respondError(w, http.StatusInternalServerError, "could not fetch watch history", err)
 		return
 	}
 	if items == nil {
@@ -53,8 +60,48 @@ func (h *HistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, items)
 }
 
-// UpsertHistory handles PUT /api/v1/history/{mediaID}.
-// Creates or updates the watch position for the authenticated user and the
+// GetNowPlaying handles GET /api/v1/history/now-playing.
+// Returns the most recently updated in-progress item for the authenticated user,
+// bundled with its full media metadata. Responds with 204 No Content when
+// nothing is currently in progress.
+func (h *HistoryHandler) GetNowPlaying(w http.ResponseWriter, r *http.Request) {
+	claims := apimw.ClaimsFromContext(r.Context())
+	if claims == nil {
+		respondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "invalid user id in token", err)
+		return
+	}
+
+	entry, err := sqlite.GetMostRecentHistory(r.Context(), h.db, userID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch now playing", err)
+		return
+	}
+	if entry == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	media, err := sqlite.GetMediaItemByID(r.Context(), h.db, entry.MediaItemID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		// Media was deleted; treat as nothing playing.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, &nowPlayingResponse{History: entry, Media: media})
+}
+
+// UpsertHistory handles PUT /api/v1/history/{mediaID}.// Creates or updates the watch position for the authenticated user and the
 // given media item. Clients should call this periodically (e.g. every 10 s).
 func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
@@ -65,7 +112,7 @@ func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := uuid.Parse(claims.UserID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "invalid user id in token")
+		respondError(w, http.StatusInternalServerError, "invalid user id in token", err)
 		return
 	}
 
@@ -88,7 +135,7 @@ func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not verify media item")
+		respondError(w, http.StatusInternalServerError, "could not verify media item", err)
 		return
 	}
 
@@ -99,7 +146,7 @@ func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 		Completed:   req.Completed,
 	}
 	if err := sqlite.UpsertWatchHistory(r.Context(), h.db, entry); err != nil {
-		respondError(w, http.StatusInternalServerError, "could not save watch history")
+		respondError(w, http.StatusInternalServerError, "could not save watch history", err)
 		return
 	}
 

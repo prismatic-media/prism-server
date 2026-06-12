@@ -4,28 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/ringmaster217/galactic-media-server/internal/api/handler"
-	apimw "github.com/ringmaster217/galactic-media-server/internal/api/middleware"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/scanner"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/api/handler"
+	apimw "github.com/ringmaster217/prism/internal/api/middleware"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/scanner"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 // newTestRouterPhase2 extends the Phase 1 test router with Phase 2 routes.
 func newTestRouterPhase2(t *testing.T) (http.Handler, func()) {
 	t.Helper()
 	db := openTestDB(t)
-	mgr := scanner.NewManager(db, "", nil) // no ffprobe or enricher in tests
+	mgr := scanner.NewManager(db, nil, nil) // no ffprobe, enricher, or bus in tests
 
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 	libH := handler.NewLibraryHandler(db, mgr)
-	mediaH := handler.NewMediaHandler(db, "")
+	mediaH := handler.NewMediaHandler(db)
+
+	indexer := scanner.NewIndexer(db, nil)
+	artifactH := handler.NewArtifactHandler(db, indexer)
 
 	r := chi.NewRouter()
 	r.Use(chimw.Recoverer)
@@ -47,6 +52,7 @@ func newTestRouterPhase2(t *testing.T) (http.Handler, func()) {
 		r.Get("/api/v1/media", mediaH.ListMedia)
 		r.Get("/api/v1/media/{id}", mediaH.GetMedia)
 		r.With(apimw.RequireAdmin).Delete("/api/v1/media/{id}", mediaH.DeleteMedia)
+		r.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/write-sidecars", artifactH.HandleWriteSidecars)
 	})
 
 	cleanup := func() { db.Close() }
@@ -90,7 +96,7 @@ func TestCreateLibrary_Success(t *testing.T) {
 	token := setupAdminUser(t, router)
 
 	rec := do(t, router, http.MethodPost, "/api/v1/libraries",
-		jsonBody(map[string]any{"name": "Movies", "path": "/tmp/movies", "media_type": "movie"}),
+		jsonBody(map[string]any{"path": "/tmp/movies", "media_type": "movie"}),
 		adminHeader(token),
 	)
 	if rec.Code != http.StatusCreated {
@@ -118,7 +124,7 @@ func TestCreateLibrary_RequiresAdmin(t *testing.T) {
 	normalToken := bearerToken(t, normalUser.ID, false)
 
 	rec := do(t, router, http.MethodPost, "/api/v1/libraries",
-		jsonBody(map[string]any{"name": "M", "path": "/tmp/x", "media_type": "movie"}),
+		jsonBody(map[string]any{"path": "/tmp/x", "media_type": "movie"}),
 		map[string]string{"Authorization": "Bearer " + normalToken},
 	)
 	if rec.Code != http.StatusForbidden {
@@ -132,7 +138,7 @@ func TestCreateLibrary_InvalidMediaType(t *testing.T) {
 	token := setupAdminUser(t, router)
 
 	rec := do(t, router, http.MethodPost, "/api/v1/libraries",
-		jsonBody(map[string]any{"name": "M", "path": "/tmp/x", "media_type": "podcast"}),
+		jsonBody(map[string]any{"path": "/tmp/x", "media_type": "podcast"}),
 		adminHeader(token),
 	)
 	if rec.Code != http.StatusBadRequest {
@@ -146,7 +152,7 @@ func TestCreateLibrary_MissingFields(t *testing.T) {
 	token := setupAdminUser(t, router)
 
 	rec := do(t, router, http.MethodPost, "/api/v1/libraries",
-		jsonBody(map[string]any{"name": "M"}),
+		jsonBody(map[string]any{"path": "/tmp/movies"}),
 		adminHeader(token),
 	)
 	if rec.Code != http.StatusBadRequest {
@@ -188,7 +194,7 @@ func TestDeleteLibrary_Success(t *testing.T) {
 	token := setupAdminUser(t, router)
 
 	createRec := do(t, router, http.MethodPost, "/api/v1/libraries",
-		jsonBody(map[string]any{"name": "M", "path": "/tmp/del", "media_type": "movie"}),
+		jsonBody(map[string]any{"path": "/tmp/del", "media_type": "movie"}),
 		adminHeader(token),
 	)
 	var lib map[string]any
@@ -212,7 +218,7 @@ func TestScanLibrary_Accepted(t *testing.T) {
 	token := setupAdminUser(t, router)
 
 	createRec := do(t, router, http.MethodPost, "/api/v1/libraries",
-		jsonBody(map[string]any{"name": "M", "path": t.TempDir(), "media_type": "movie"}),
+		jsonBody(map[string]any{"path": t.TempDir(), "media_type": "movie"}),
 		adminHeader(token),
 	)
 	var lib map[string]any
@@ -245,6 +251,64 @@ func TestListMedia_EmptyArray(t *testing.T) {
 	}
 }
 
+func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeTVShow}
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	movie := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Movie Title", MediaType: models.MediaTypeMovie,
+		FilePath: "/l/movie.mkv", TranscodeStatus: models.TranscodeStatusPending,
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, movie); err != nil {
+		t.Fatal(err)
+	}
+
+	episode := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Episode Title", MediaType: models.MediaTypeEpisode,
+		FilePath: "/l/episode.mkv", TranscodeStatus: models.TranscodeStatusPending,
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, episode); err != nil {
+		t.Fatal(err)
+	}
+
+	mediaH := handler.NewMediaHandler(db)
+	r := chi.NewRouter()
+	r.Use(apimw.Authenticate(testSecret))
+	r.Get("/api/v1/media", mediaH.ListMedia)
+
+	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
+	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
+
+	// 1. Without all=true, episode should be excluded
+	rec1 := do(t, r, http.MethodGet, "/api/v1/media", nil, hdr)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec1.Code)
+	}
+	var resp1 []models.MediaItem
+	json.NewDecoder(rec1.Body).Decode(&resp1)
+	if len(resp1) != 1 {
+		t.Errorf("expected 1 media item (movie), got %d", len(resp1))
+	} else if resp1[0].Title != "Movie Title" {
+		t.Errorf("expected Movie Title, got %s", resp1[0].Title)
+	}
+
+	// 2. With all=true, episode should be included
+	rec2 := do(t, r, http.MethodGet, "/api/v1/media?all=true", nil, hdr)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec2.Code)
+	}
+	var resp2 []models.MediaItem
+	json.NewDecoder(rec2.Body).Decode(&resp2)
+	if len(resp2) != 2 {
+		t.Errorf("expected 2 media items (movie + episode), got %d", len(resp2))
+	}
+}
+
 func TestGetMedia_NotFound(t *testing.T) {
 	router, cleanup := newTestRouterPhase2(t)
 	defer cleanup()
@@ -264,7 +328,7 @@ func TestDeleteMedia_Success(t *testing.T) {
 
 	// Insert a library + media item directly via the store.
 	db := openTestDB(t)
-	lib := &models.Library{Name: "L", Path: "/l", MediaType: models.MediaTypeMovie}
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +341,7 @@ func TestDeleteMedia_Success(t *testing.T) {
 	}
 
 	// Build a minimal router backed by the same db.
-	mediaH2 := handler.NewMediaHandler(db, "")
+	mediaH2 := handler.NewMediaHandler(db)
 	r2 := chi.NewRouter()
 	r2.Use(apimw.Authenticate(testSecret))
 	r2.With(apimw.RequireAdmin).Delete("/api/v1/media/{id}", mediaH2.DeleteMedia)
@@ -297,3 +361,79 @@ func TestDeleteMedia_Success(t *testing.T) {
 		t.Errorf("after delete, GET status = %d, want 404", getRec.Code)
 	}
 }
+
+func TestWriteSidecars_Endpoint(t *testing.T) {
+	router, cleanup := newTestRouterPhase2(t)
+	defer cleanup()
+	token := setupAdminUser(t, router)
+
+	// Re-route check
+	recNotFound := do(t, router, http.MethodPost, "/api/v1/admin/artifacts/write-sidecars", nil, adminHeader(token))
+	if recNotFound.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d: %s", recNotFound.Code, recNotFound.Body)
+	}
+
+	// We'll test with a real DB and some items to see bulk behavior
+	db := openTestDB(t)
+	lib := &models.Library{Path: t.TempDir(), MediaType: models.MediaTypeMovie}
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	// Media 1: No transcode bundle (mpd_path is null/empty) -> skipped
+	m1 := &models.MediaItem{
+		LibraryID: lib.ID, Title: "M1", MediaType: models.MediaTypeMovie,
+		FilePath: filepath.Join(lib.Path, "m1.mp4"), TranscodeStatus: models.TranscodeStatusPending,
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m1); err != nil {
+		t.Fatal(err)
+	}
+
+	// Media 2: Has transcode bundle, file exists -> written successfully
+	m2 := &models.MediaItem{
+		LibraryID: lib.ID, Title: "M2", MediaType: models.MediaTypeMovie,
+		FilePath: filepath.Join(lib.Path, "m2.mp4"), TranscodeStatus: models.TranscodeStatusDone,
+	}
+	outputDir := t.TempDir()
+	mpdPath := filepath.Join(outputDir, "manifest.mpd")
+	m2.MPDPath = &mpdPath
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Make sure the file exists for the fingerprinting step
+	if err := os.WriteFile(m2.FilePath, []byte("m2 test data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	indexer := scanner.NewIndexer(db, nil)
+	artifactH := handler.NewArtifactHandler(db, indexer)
+
+	r2 := chi.NewRouter()
+	r2.Use(apimw.Authenticate(testSecret))
+	r2.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/write-sidecars", artifactH.HandleWriteSidecars)
+
+	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
+	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
+
+	rec := do(t, r2, http.MethodPost, "/api/v1/admin/artifacts/write-sidecars", nil, hdr)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d: %s", rec.Code, rec.Body)
+	}
+
+	var resp map[string]int
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if resp["written"] != 1 {
+		t.Errorf("expected written = 1, got %d", resp["written"])
+	}
+	if resp["skipped"] != 1 {
+		t.Errorf("expected skipped = 1, got %d", resp["skipped"])
+	}
+	if resp["errors"] != 0 {
+		t.Errorf("expected errors = 0, got %d", resp["errors"])
+	}
+}
+

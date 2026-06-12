@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 func newMovieItem(libraryID uuid.UUID, title, path string) *models.MediaItem {
@@ -29,7 +29,7 @@ func newMovieItem(libraryID uuid.UUID, title, path string) *models.MediaItem {
 
 func TestUpsertMediaItem_Insert(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("Movies", "/movies", models.MediaTypeMovie)
+	lib := newLib("/movies", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestUpsertMediaItem_Insert(t *testing.T) {
 
 func TestUpsertMediaItem_UpdateOnConflict(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("Lib", "/lib", models.MediaTypeMovie)
+	lib := newLib("/lib", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestUpsertMediaItem_UpdateOnConflict(t *testing.T) {
 
 func TestGetMediaItemByID_Found(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -106,8 +106,8 @@ func TestGetMediaItemByID_NotFound(t *testing.T) {
 
 func TestListMediaItems_FiltersByLibrary(t *testing.T) {
 	db := openTestDB(t)
-	lib1 := newLib("L1", "/l1", models.MediaTypeMovie)
-	lib2 := newLib("L2", "/l2", models.MediaTypeMovie)
+	lib1 := newLib("/l1", models.MediaTypeMovie)
+	lib2 := newLib("/l2", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib1); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestListMediaItems_FiltersByLibrary(t *testing.T) {
 
 func TestDeleteMediaItem(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -160,22 +160,34 @@ func TestDeleteMediaItem(t *testing.T) {
 	}
 }
 
-func TestDeleteMediaItemsNotIn_PrunesStale(t *testing.T) {
+func TestPruneStaleMediaItems_PrunesStale(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
 
-	paths := []string{"/l/keep.mkv", "/l/gone.mkv"}
-	for _, p := range paths {
-		if err := sqlite.UpsertMediaItem(context.Background(), db, newMovieItem(lib.ID, p, p)); err != nil {
-			t.Fatal(err)
-		}
+	// 1. Setup items:
+	// a) /l/keep.mkv - bundle 'none' -> remains
+	// b) /l/gone_no_bundle.mkv - bundle 'none' -> deleted
+	// c) /l/gone_with_bundle.mkv - bundle 'available' -> remains with source_status missing
+	mKeep := newMovieItem(lib.ID, "keep", "/l/keep.mkv")
+	mGoneNoBundle := newMovieItem(lib.ID, "gone_no_bundle", "/l/gone_no_bundle.mkv")
+	mGoneWithBundle := newMovieItem(lib.ID, "gone_with_bundle", "/l/gone_with_bundle.mkv")
+	mGoneWithBundle.BundleStatus = models.BundleStatusAvailable
+
+	if err := sqlite.UpsertMediaItem(context.Background(), db, mKeep); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, mGoneNoBundle); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, mGoneWithBundle); err != nil {
+		t.Fatal(err)
 	}
 
-	// Only "/l/keep.mkv" remains.
-	if err := sqlite.DeleteMediaItemsNotIn(context.Background(), db, lib.ID, []string{"/l/keep.mkv"}); err != nil {
+	// Run Prune
+	if err := sqlite.PruneStaleMediaItems(context.Background(), db, lib.ID, []string{"/l/keep.mkv"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -183,17 +195,38 @@ func TestDeleteMediaItemsNotIn_PrunesStale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 {
-		t.Errorf("want 1 item, got %d", len(items))
+	if len(items) != 2 {
+		t.Errorf("want 2 items remaining, got %d", len(items))
 	}
-	if items[0].FilePath != "/l/keep.mkv" {
-		t.Errorf("remaining item = %q, want /l/keep.mkv", items[0].FilePath)
+
+	// Find the items
+	var gotKeep, gotGoneWithBundle *models.MediaItem
+	for _, item := range items {
+		if item.FilePath == "/l/keep.mkv" {
+			gotKeep = item
+		} else if item.FilePath == "/l/gone_with_bundle.mkv" {
+			gotGoneWithBundle = item
+		}
+	}
+
+	if gotKeep == nil {
+		t.Error("expected /l/keep.mkv to remain")
+	} else if gotKeep.SourceStatus != models.SourceStatusAvailable {
+		t.Errorf("expected keep source status available, got %s", gotKeep.SourceStatus)
+	}
+
+	if gotGoneWithBundle == nil {
+		t.Error("expected /l/gone_with_bundle.mkv to remain")
+	} else {
+		if gotGoneWithBundle.SourceStatus != models.SourceStatusMissing {
+			t.Errorf("expected gone_with_bundle source status missing, got %s", gotGoneWithBundle.SourceStatus)
+		}
 	}
 }
 
-func TestDeleteMediaItemsNotIn_RemovesAllWhenEmpty(t *testing.T) {
+func TestPruneStaleMediaItems_RemovesAllWhenEmpty(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +234,7 @@ func TestDeleteMediaItemsNotIn_RemovesAllWhenEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := sqlite.DeleteMediaItemsNotIn(context.Background(), db, lib.ID, nil); err != nil {
+	if err := sqlite.PruneStaleMediaItems(context.Background(), db, lib.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	items, _ := sqlite.ListMediaItems(context.Background(), db, lib.ID)
@@ -210,10 +243,69 @@ func TestDeleteMediaItemsNotIn_RemovesAllWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestFingerprintAndStatusQueries(t *testing.T) {
+	db := openTestDB(t)
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	fp := "sha256-test-fingerprint"
+	m := newMovieItem(lib.ID, "Fingerprint test", "/l/fp.mkv")
+	m.SourceFingerprint = &fp
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Test GetMediaItemByFingerprint
+	got, err := sqlite.GetMediaItemByFingerprint(context.Background(), db, lib.ID, fp)
+	if err != nil {
+		t.Fatalf("GetMediaItemByFingerprint: %v", err)
+	}
+	if got.ID != m.ID {
+		t.Errorf("GetMediaItemByFingerprint: got ID %s, want %s", got.ID, m.ID)
+	}
+
+	// 2. Test UpdateMediaItemFilePath
+	newPath := "/l/new_fp.mkv"
+	if err := sqlite.UpdateMediaItemFilePath(context.Background(), db, m.ID, newPath); err != nil {
+		t.Fatalf("UpdateMediaItemFilePath: %v", err)
+	}
+	got, err = sqlite.GetMediaItemByID(context.Background(), db, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FilePath != newPath {
+		t.Errorf("FilePath: got %s, want %s", got.FilePath, newPath)
+	}
+	if got.SourceStatus != models.SourceStatusAvailable {
+		t.Errorf("SourceStatus: got %s, want %s", got.SourceStatus, models.SourceStatusAvailable)
+	}
+
+	// 3. Test SetMediaSourceStatus & SetMediaBundleStatus
+	if err := sqlite.SetMediaSourceStatus(context.Background(), db, m.ID, models.SourceStatusMissing); err != nil {
+		t.Fatalf("SetMediaSourceStatus: %v", err)
+	}
+	if err := sqlite.SetMediaBundleStatus(context.Background(), db, m.ID, models.BundleStatusAvailable); err != nil {
+		t.Fatalf("SetMediaBundleStatus: %v", err)
+	}
+
+	got, err = sqlite.GetMediaItemByID(context.Background(), db, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SourceStatus != models.SourceStatusMissing {
+		t.Errorf("SourceStatus: got %s, want %s", got.SourceStatus, models.SourceStatusMissing)
+	}
+	if got.BundleStatus != models.BundleStatusAvailable {
+		t.Errorf("BundleStatus: got %s, want %s", got.BundleStatus, models.BundleStatusAvailable)
+	}
+}
+
 // Ensure nullable fields round-trip correctly.
 func TestMediaItem_NullableFields(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +345,7 @@ func TestMediaItem_NullableFields(t *testing.T) {
 
 func TestUpdateMediaMetadata(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +354,7 @@ func TestUpdateMediaMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, 27205, 2010, "A mind-bending thriller", ""); err != nil {
+	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, 27205, 2010, "A mind-bending thriller", "", "", nil, "", nil); err != nil {
 		t.Fatalf("UpdateMediaMetadata: %v", err)
 	}
 
@@ -287,7 +379,7 @@ func TestUpdateMediaMetadata(t *testing.T) {
 
 func TestUpdateMediaMetadata_ZerosTreatedAsNull(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L2", "/l2", models.MediaTypeMovie)
+	lib := newLib("/l2", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +389,7 @@ func TestUpdateMediaMetadata_ZerosTreatedAsNull(t *testing.T) {
 	}
 
 	// Passing 0 tmdbID, 0 year, "" strings — all should store as NULL.
-	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, 0, 0, "", ""); err != nil {
+	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, 0, 0, "", "", "", nil, "", nil); err != nil {
 		t.Fatalf("UpdateMediaMetadata: %v", err)
 	}
 
@@ -310,5 +402,49 @@ func TestUpdateMediaMetadata_ZerosTreatedAsNull(t *testing.T) {
 	}
 	if got.Year != nil {
 		t.Errorf("Year = %v, want nil", got.Year)
+	}
+}
+
+func TestListMediaItems_SortingIgnoreThe(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert items in non-alphabetical order
+	// Expected alphabetical sort order ignoring "The ":
+	// 1. Arrival (A)
+	// 2. The Matrix (Matrix - M)
+	// 3. Prestige (P)
+	// 4. The Terminal (Terminal - T)
+	items := []*models.MediaItem{
+		newMovieItem(lib.ID, "The Terminal", "/l/terminal.mkv"),
+		newMovieItem(lib.ID, "Arrival", "/l/arrival.mkv"),
+		newMovieItem(lib.ID, "Prestige", "/l/prestige.mkv"),
+		newMovieItem(lib.ID, "The Matrix", "/l/matrix.mkv"),
+	}
+
+	for _, item := range items {
+		if err := sqlite.UpsertMediaItem(ctx, db, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := sqlite.ListMediaItems(ctx, db, lib.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(got) != 4 {
+		t.Fatalf("expected 4 items, got %d", len(got))
+	}
+
+	expectedOrder := []string{"Arrival", "The Matrix", "Prestige", "The Terminal"}
+	for i, title := range expectedOrder {
+		if got[i].Title != title {
+			t.Errorf("expected item %d to be %q, got %q", i, title, got[i].Title)
+		}
 	}
 }

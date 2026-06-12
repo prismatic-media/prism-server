@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 // openTestDB opens an in-memory SQLite database, runs all migrations, and

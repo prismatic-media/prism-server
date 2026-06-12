@@ -1,0 +1,167 @@
+.login-wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  overflow: hidden;
+}
+
+/* Atmospheric glow placements */
+.login-glow-1 {
+  top: -15%;
+  right: -5%;
+  width: 70%;
+  height: 70%;
+}
+
+.login-glow-2 {
+  bottom: -10%;
+  left: -5%;
+  width: 60%;
+  height: 60%;
+}
+
+/* Glassmorphic Container */
+.login-container {
+  width: 100%;
+  max-width: 440px;
+  padding: 40px;
+  animation: floatIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+}
+
+@keyframes floatIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header logo */
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.prism-title {
+  font-size: 42px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--surface-tint) 0%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 4px;
+}
+
+.prism-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: var(--on-surface-variant);
+  opacity: 0.8;
+}
+
+/* Credentials form styling */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label-mono {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--on-surface-variant);
+  opacity: 0.6;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--on-surface-variant);
+  opacity: 0.4;
+  transition: color 0.3s;
+}
+
+.input-glass {
+  padding-left: 48px; /* Offset text to make room for icon */
+}
+
+.input-wrapper:focus-within .input-icon {
+  color: var(--spectral-indigo);
+  opacity: 0.8;
+}
+
+/* Error Banner styling */
+.error-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(147, 0, 10, 0.15);
+  border: 1px solid rgba(255, 180, 171, 0.2);
+  padding: 12px 16px;
+  border-radius: var(--rounded);
+  color: var(--error);
+  font-size: 14px;
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.error-icon {
+  font-size: 20px;
+}
+
+/* Submit Action Button styling */
+.login-btn {
+  width: 100%;
+  margin-top: 10px;
+  position: relative;
+  height: 48px;
+}
+
+.btn-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s infinite linear;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

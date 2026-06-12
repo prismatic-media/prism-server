@@ -1,0 +1,252 @@
+<div class="storage-admin-container">
+  <!-- Header Section -->
+  <div class="page-header">
+    <div class="header-text">
+      <h2 class="page-title spectral-gradient-text">Storage Management</h2>
+      <p class="page-subtitle">Configure and monitor your server storage systems.</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-primary" (click)="openAddModal()">
+        <span class="material-symbols-outlined">add_circle</span>
+        Add Storage Path
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="state-container">
+    <div class="spinner"></div>
+    <p class="state-text">Loading storage configurations...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="!loading && error" class="state-container error-state">
+    <span class="material-symbols-outlined error-icon">error</span>
+    <p class="state-text">{{ error }}</p>
+    <button class="btn-glass" (click)="fetchData()">Retry</button>
+  </div>
+
+  <ng-container *ngIf="!loading && !error">
+    <!-- Bento Stats Grid -->
+    <div class="bento-grid">
+      <!-- Total Capacity Card -->
+      <div class="bento-card capacity-card glass-card">
+        <div class="card-icon-bg">
+          <span class="material-symbols-outlined">data_thresholding</span>
+        </div>
+        <div class="card-content">
+          <p class="card-label">Total Capacity</p>
+          <div class="capacity-total">
+            <h3 class="capacity-number">{{ formatBytes(totalCapacityBytes).split(' ')[0] }}</h3>
+            <span class="capacity-unit">{{ formatBytes(totalCapacityBytes).split(' ')[1] }}</span>
+          </div>
+          <div class="capacity-details">
+            <div class="details-row">
+              <span class="detail-label">Utilized Space</span>
+              <span class="detail-value text-teal">{{ formatBytes(totalUsedBytes) }}</span>
+            </div>
+            <div class="details-row">
+              <span class="detail-label">Free Space</span>
+              <span class="detail-value text-violet">{{ formatBytes(totalFreeBytes) }}</span>
+            </div>
+          </div>
+          <div class="progress-section">
+            <div class="progress-header">
+              <span class="progress-label">Overall Utilization</span>
+              <span class="progress-pct">{{ totalUtilizationPct }}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-teal glow-teal" [style.width.%]="totalUtilizationPct"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings / Minimum Free Space Card -->
+      <div class="bento-card settings-card glass-card">
+        <p class="card-label">Global Storage Rules</p>
+        <div class="settings-content">
+          <h4 class="settings-title">Minimum Free Space Reservation</h4>
+          <p class="settings-desc">
+            Define a safety threshold. Prism will refuse to transcode or segment new files on any storage area if its free space falls below this limit.
+          </p>
+          <div class="slider-group">
+            <div class="slider-header">
+              <span class="slider-label">
+                Threshold Limit
+                <span class="save-indicator" *ngIf="isSavingConfig">Saving...</span>
+              </span>
+              <span class="slider-value text-teal">{{ minFreeGB }} GB</span>
+            </div>
+            <div class="slider-container">
+              <span class="slider-boundary-text">0 GB</span>
+              <input type="range" class="slider-input" min="0" max="500" step="5" [(ngModel)]="minFreeGB" (change)="saveConfig()" />
+              <span class="slider-boundary-text">500 GB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Storage Paths Section -->
+    <div class="storage-paths-section">
+      <div class="glass-card panel-card">
+        <div class="panel-header">
+          <h3 class="panel-title">Active Storage Mounts</h3>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Mount Point</th>
+                <th>Capacity & Utilization</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let area of areas" class="table-row" [class.row-active]="activeDropdownAreaId === area.id">
+                <!-- Mount Point Path -->
+                <td class="path-cell">
+                  <div *ngIf="editingAreaId !== area.id" class="path-view-container">
+                    <span class="material-symbols-outlined text-outline folder-icon">folder</span>
+                    <code class="path-code">{{ area.path }}</code>
+                  </div>
+                  <div *ngIf="editingAreaId === area.id" class="path-edit-container" (click)="$event.stopPropagation()">
+                    <input type="text" class="input-glass input-edit-path" [(ngModel)]="editingPathValue" />
+                    <button class="btn-icon btn-save-edit" (click)="saveEditedPath(area.id)">
+                      <span class="material-symbols-outlined text-teal">check</span>
+                    </button>
+                    <button class="btn-icon btn-cancel-edit" (click)="cancelEditPath()">
+                      <span class="material-symbols-outlined text-outline">close</span>
+                    </button>
+                  </div>
+                </td>
+                
+                <!-- Capacity Bar -->
+                <td>
+                  <div class="capacity-bar-container" *ngIf="area.enabled">
+                    <div class="capacity-stats">
+                      <span class="stats-text">{{ formatBytes(area.used_bytes) }} / {{ formatBytes(area.total_bytes) }} used</span>
+                      <span class="stats-pct">{{ Math.round(area.utilization_pct) }}%</span>
+                    </div>
+                    <div class="progress-track">
+                      <div class="progress-fill" 
+                           [class.fill-teal]="area.status === 'ok'" 
+                           [class.fill-warning]="area.status === 'below_reserve'"
+                           [class.fill-error]="area.status !== 'ok' && area.status !== 'below_reserve'" 
+                           [style.width.%]="area.utilization_pct"></div>
+                    </div>
+                  </div>
+                  <span class="disabled-stats-text" *ngIf="!area.enabled">N/A (Disabled)</span>
+                </td>
+
+                <!-- Status Pill -->
+                <td>
+                  <span class="status-pill" [class]="getStatusClass(area.status)">
+                    <span class="status-indicator"></span>
+                    {{ getStatusText(area) }}
+                  </span>
+                </td>
+
+                <!-- Action Dropdown Menu -->
+                <td class="action-cell">
+                  <div class="dropdown-wrapper" [class.dropdown-active]="activeDropdownAreaId === area.id">
+                    <button class="btn-icon btn-dropdown-trigger" (click)="toggleDropdown(area.id, $event)">
+                      <span class="material-symbols-outlined">more_vert</span>
+                    </button>
+                    <div class="dropdown-menu frosted-glass" *ngIf="activeDropdownAreaId === area.id" (click)="$event.stopPropagation()">
+                      <button class="dropdown-item" (click)="startEditPath(area, $event)">
+                        <span class="material-symbols-outlined">edit</span>
+                        <span>Edit Path</span>
+                      </button>
+                      <button class="dropdown-item" (click)="toggleAreaEnabled(area, $event)">
+                        <span class="material-symbols-outlined">{{ area.enabled ? 'block' : 'check_circle' }}</span>
+                        <span>{{ area.enabled ? 'Disable Storage' : 'Enable Storage' }}</span>
+                      </button>
+                      <div class="dropdown-divider"></div>
+                      <button class="dropdown-item item-delete" (click)="deleteArea(area.id, $event)">
+                        <span class="material-symbols-outlined">delete</span>
+                        <span>Remove Path</span>
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="areas.length === 0">
+                <td colspan="4" class="empty-table-cell">No active storage paths registered. Click "Add Storage Path" to add one.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</div>
+
+<!-- Add Storage Path Modal -->
+<div class="modal-backdrop" *ngIf="isAddModalOpen" (click)="closeAddModal()">
+  <div class="modal-card glass-card-elevated" (click)="$event.stopPropagation()">
+    <button class="modal-close-btn" (click)="closeAddModal()">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+    <div class="modal-header">
+      <h3 class="modal-title">
+        <span class="material-symbols-outlined title-icon text-teal">add_to_drive</span>
+        Add Storage Path
+      </h3>
+    </div>
+    
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Storage Path</label>
+        <div class="path-input-group">
+          <input type="text" class="input-glass" [(ngModel)]="newPath" placeholder="e.g. /mnt/storage/transcodes" />
+        </div>
+      </div>
+
+      <!-- File Browser / Autocomplete Section -->
+      <div class="fs-browser">
+        <div class="browser-header">
+          <span class="browser-title-text">Server Filesystem</span>
+          <button class="btn-browse-parent" (click)="browseParentDir()" [disabled]="browsingPath === '/'">
+            <span class="material-symbols-outlined">arrow_upward</span>
+            Up One Level
+          </button>
+        </div>
+        <p class="current-path">Location: <code class="current-path-code">{{ browsingPath }}</code></p>
+        <div class="browser-list" *ngIf="!isBrowsing">
+          <div *ngFor="let item of fsItems" class="browser-item" (click)="selectBrowsedPath(item)">
+            <span class="material-symbols-outlined folder-icon">folder</span>
+            <span class="item-text">{{ item }}</span>
+          </div>
+          <div *ngIf="fsItems.length === 0" class="empty-browser-state">
+            No directories found.
+          </div>
+        </div>
+        <div *ngIf="isBrowsing" class="browser-loading">
+          <div class="spinner-small"></div>
+          <span>Reading server directories...</span>
+        </div>
+      </div>
+
+      <!-- Enabled Toggle -->
+      <div class="form-group toggle-group">
+        <label class="toggle-container">
+          <input type="checkbox" [(ngModel)]="newEnabled" />
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Enable storage immediately</span>
+        </label>
+      </div>
+
+      <p class="modal-error-text" *ngIf="modalError">{{ modalError }}</p>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-glass" (click)="closeAddModal()">Cancel</button>
+      <button class="btn-primary" (click)="saveNewStorageArea()" [disabled]="isSaving || !newPath">
+        {{ isSaving ? 'Adding...' : 'Add Storage' }}
+      </button>
+    </div>
+  </div>
+</div>

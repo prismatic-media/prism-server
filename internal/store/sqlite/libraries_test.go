@@ -4,17 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
-func newLib(name, path string, mt models.MediaType) *models.Library {
-	return &models.Library{Name: name, Path: path, MediaType: mt}
+func newLib(path string, mt models.MediaType) *models.Library {
+	return &models.Library{Path: path, MediaType: mt}
 }
 
 func TestCreateLibrary_SetsIDAndTimestamps(t *testing.T) {
 	db := openTestDB(t)
-	l := newLib("Movies", "/media/movies", models.MediaTypeMovie)
+	l := newLib("/media/movies", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, l); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -28,17 +28,17 @@ func TestCreateLibrary_SetsIDAndTimestamps(t *testing.T) {
 
 func TestCreateLibrary_DuplicatePathReturnsError(t *testing.T) {
 	db := openTestDB(t)
-	if err := sqlite.CreateLibrary(context.Background(), db, newLib("A", "/dup", models.MediaTypeMovie)); err != nil {
+	if err := sqlite.CreateLibrary(context.Background(), db, newLib("/dup", models.MediaTypeMovie)); err != nil {
 		t.Fatal(err)
 	}
-	if err := sqlite.CreateLibrary(context.Background(), db, newLib("B", "/dup", models.MediaTypeMovie)); err == nil {
+	if err := sqlite.CreateLibrary(context.Background(), db, newLib("/dup", models.MediaTypeMovie)); err == nil {
 		t.Error("expected error for duplicate path")
 	}
 }
 
 func TestGetLibraryByID_Found(t *testing.T) {
 	db := openTestDB(t)
-	l := newLib("Shows", "/shows", models.MediaTypeTVShow)
+	l := newLib("/shows", models.MediaTypeTVShow)
 	if err := sqlite.CreateLibrary(context.Background(), db, l); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestListLibraries_Empty(t *testing.T) {
 func TestListLibraries_ReturnsAll(t *testing.T) {
 	db := openTestDB(t)
 	for _, name := range []string{"A", "B", "C"} {
-		if err := sqlite.CreateLibrary(context.Background(), db, newLib(name, "/"+name, models.MediaTypeMovie)); err != nil {
+		if err := sqlite.CreateLibrary(context.Background(), db, newLib("/"+name, models.MediaTypeMovie)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -91,7 +91,7 @@ func TestListLibraries_ReturnsAll(t *testing.T) {
 
 func TestDeleteLibrary_Removes(t *testing.T) {
 	db := openTestDB(t)
-	l := newLib("Del", "/del", models.MediaTypeMovie)
+	l := newLib("/del", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, l); err != nil {
 		t.Fatal(err)
 	}

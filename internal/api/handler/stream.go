@@ -10,24 +10,30 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
-	"github.com/ringmaster217/galactic-media-server/pkg/dash"
+	"github.com/ringmaster217/prism/internal/auth"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/ringmaster217/prism/pkg/dash"
 )
 
 // StreamHandler serves DASH manifests and fMP4 segment files.
 type StreamHandler struct {
 	db          *sql.DB
-	segmentsDir string
 	mpdCache    *dash.Cache
+	jwtSecret   string
 }
 
-func NewStreamHandler(db *sql.DB, segmentsDir string, mpdCache *dash.Cache) *StreamHandler {
-	return &StreamHandler{db: db, segmentsDir: segmentsDir, mpdCache: mpdCache}
+func NewStreamHandler(db *sql.DB, mpdCache *dash.Cache, jwtSecret string) *StreamHandler {
+	return &StreamHandler{db: db, mpdCache: mpdCache, jwtSecret: jwtSecret}
 }
 
 // ServeManifest handles GET /api/v1/stream/{id}/manifest.mpd.
 // It looks up the mpd_path from the database (falling back to the in-process
 // cache) and serves the file with the correct Content-Type.
+//
+// Migration safety: manifest resolution uses mpd_path from the database. The
+// artifact_records table is NOT consulted during normal streaming — it is only
+// used by admin operations (indexing, relinking) to repair and maintain links
+// between artifacts and media items.
 func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -41,7 +47,7 @@ func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item")
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
 		return
 	}
 
@@ -59,6 +65,20 @@ func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// If no mpd_path is available, try to find a linked artifact's manifest.
+	// This enables manifest resolution after database loss when artifact
+	// links have been repaired via the relink operation.
+	if mpdPath == "" {
+		links, err := sqlite.GetArtifactMediaLinkByMedia(r.Context(), h.db, id)
+		if err == nil && len(links) > 0 {
+			art, err := sqlite.GetArtifactRecordByID(r.Context(), h.db, links[0].ArtifactID)
+			if err == nil && art != nil && art.OutputDir != "" {
+				mpdPath = filepath.Join(art.OutputDir, art.MPDPath)
+			}
+		}
+		_ = links
+	}
+
 	w.Header().Set("Content-Type", "application/dash+xml")
 	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeFile(w, r, mpdPath)
@@ -74,6 +94,30 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "media item not found")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+		return
+	}
+
+	mpdPath := ""
+	if item.MPDPath != nil {
+		mpdPath = *item.MPDPath
+	}
+	if mpdPath == "" {
+		var ok bool
+		mpdPath, ok = h.mpdCache.Get(id)
+		if !ok {
+			respondError(w, http.StatusNotFound, "manifest not yet available — transcode pending")
+			return
+		}
+	}
+	outputDir := filepath.Dir(mpdPath)
+
 	// The wildcard captures everything after .../segments/
 	wildcardPath := chi.URLParam(r, "*")
 	if strings.Contains(wildcardPath, "..") {
@@ -81,7 +125,7 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	segPath := filepath.Join(h.segmentsDir, id.String(), filepath.FromSlash(wildcardPath))
+	segPath := filepath.Join(outputDir, filepath.FromSlash(wildcardPath))
 
 	// Set content type based on extension.
 	ext := strings.ToLower(filepath.Ext(segPath))
@@ -97,6 +141,25 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 
 	// http.ServeFile handles Range requests automatically.
 	http.ServeFile(w, r, segPath)
+}
+
+// IssueCastToken handles POST /api/v1/stream/{id}/cast-token.
+// It issues a short-lived token that Chromecast devices can embed in the
+// manifest URL as ?cast_token=... to authenticate without custom headers.
+func (h *StreamHandler) IssueCastToken(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id")
+		return
+	}
+
+	token, err := auth.IssueCastToken(h.jwtSecret, id.String())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not issue cast token", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"token": token})
 }
 
 func contentTypeForSegment(ext string) string {

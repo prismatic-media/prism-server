@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
+	"github.com/ringmaster217/prism/internal/models"
 )
 
 // UpsertWatchHistory inserts or updates a watch-history row (keyed by user+item).
@@ -72,7 +72,37 @@ func ListWatchHistory(ctx context.Context, db *sql.DB, userID uuid.UUID) ([]*mod
 		}
 		items = append(items, h)
 	}
-	return items, rows.Err()
+	rows.Close()
+
+	var populatedItems []*models.WatchHistory
+	for _, h := range items {
+		media, err := GetMediaItemByID(ctx, db, h.MediaItemID)
+		if err == nil {
+			h.Media = media
+			populatedItems = append(populatedItems, h)
+		} else if err != ErrNotFound {
+			return nil, fmt.Errorf("fetching media item in history: %w", err)
+		}
+	}
+	return populatedItems, nil
+}
+
+// GetMostRecentHistory returns the single most recently updated in-progress
+// watch-history entry for the user. Returns (nil, nil) when nothing is in progress.
+func GetMostRecentHistory(ctx context.Context, db *sql.DB, userID uuid.UUID) (*models.WatchHistory, error) {
+	row := db.QueryRowContext(ctx, `
+		SELECT id, user_id, media_item_id, position, completed, updated_at
+		FROM watch_history
+		WHERE user_id = ? AND completed = 0
+		ORDER BY updated_at DESC
+		LIMIT 1`,
+		userID.String(),
+	)
+	h, err := scanHistory(row)
+	if err == ErrNotFound {
+		return nil, nil
+	}
+	return h, err
 }
 
 // --- internal scan helpers ---

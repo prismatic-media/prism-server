@@ -20,10 +20,24 @@ const (
 type TranscodeStatus string
 
 const (
+	TranscodeStatusNone       TranscodeStatus = "none"
 	TranscodeStatusPending    TranscodeStatus = "pending"
 	TranscodeStatusProcessing TranscodeStatus = "processing"
 	TranscodeStatusDone       TranscodeStatus = "done"
 	TranscodeStatusFailed     TranscodeStatus = "failed"
+)
+
+// SourceStatus tracks file availability.
+const (
+	SourceStatusAvailable = "available"
+	SourceStatusMissing   = "missing"
+)
+
+// BundleStatus tracks transcode bundle availability.
+const (
+	BundleStatusNone      = "none"
+	BundleStatusAvailable = "available"
+	BundleStatusMissing   = "missing"
 )
 
 // User represents an application user.
@@ -37,14 +51,49 @@ type User struct {
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Library is a named collection of media at one or more paths.
+// Library is a collection of media at one or more paths.
 type Library struct {
 	ID        uuid.UUID `db:"id" json:"id"`
-	Name      string    `db:"name" json:"name"`
 	Path      string    `db:"path" json:"path"`
 	MediaType MediaType `db:"media_type" json:"media_type"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// CastMember represents a person in the cast.
+type CastMember struct {
+	Name        string `json:"name"`
+	Character   string `json:"character"`
+	ProfilePath string `json:"profile_path,omitempty"`
+}
+
+// TVShow represents a TV series tracked within a tvshow library.
+type TVShow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	LibraryID    uuid.UUID    `db:"library_id" json:"library_id"`
+	Name         string       `db:"name" json:"name"`
+	TMDBId       *int         `db:"tmdb_id" json:"tmdb_id,omitempty"`
+	Overview     *string      `db:"overview" json:"overview,omitempty"`
+	PosterPath   *string      `db:"poster_path" json:"poster_path,omitempty"`
+	FirstAirYear *int         `db:"first_air_year" json:"first_air_year,omitempty"`
+	Director     *string      `db:"director" json:"director,omitempty"`
+	Cast         []CastMember `db:"cast_members" json:"cast,omitempty"`
+	BackdropPath *string      `db:"backdrop_path" json:"backdrop_path,omitempty"`
+	ExtraPosters []string     `db:"extra_posters" json:"extra_posters,omitempty"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+// TVSeason represents a single season within a TVShow.
+type TVSeason struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	TVShowID     uuid.UUID `db:"tv_show_id" json:"tv_show_id"`
+	SeasonNumber int       `db:"season_number" json:"season_number"`
+	TMDBId       *int      `db:"tmdb_id" json:"tmdb_id,omitempty"`
+	Overview     *string   `db:"overview" json:"overview,omitempty"`
+	PosterPath   *string   `db:"poster_path" json:"poster_path,omitempty"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // MediaItem represents a single piece of media on disk.
@@ -61,23 +110,52 @@ type MediaItem struct {
 	VideoCodec string    `db:"video_codec" json:"video_codec"`
 	AudioCodec string    `db:"audio_codec" json:"audio_codec"`
 	// Enriched metadata (nullable)
-	TMDBId     *int    `db:"tmdb_id" json:"tmdb_id,omitempty"`
-	Year       *int    `db:"year" json:"year,omitempty"`
-	Overview   *string `db:"overview" json:"overview,omitempty"`
-	PosterPath *string `db:"poster_path" json:"poster_path,omitempty"`
+	TMDBId       *int         `db:"tmdb_id" json:"tmdb_id,omitempty"`
+	Year         *int         `db:"year" json:"year,omitempty"`
+	Overview     *string      `db:"overview" json:"overview,omitempty"`
+	PosterPath   *string      `db:"poster_path" json:"poster_path,omitempty"`
+	Director     *string      `db:"director" json:"director,omitempty"`
+	Cast         []CastMember `db:"cast_members" json:"cast,omitempty"`
+	BackdropPath *string      `db:"backdrop_path" json:"backdrop_path,omitempty"`
+	ExtraPosters []string     `db:"extra_posters" json:"extra_posters,omitempty"`
+	// TV episode fields (nullable; populated only for MediaTypeEpisode items)
+	TVShowID      *uuid.UUID `db:"tv_show_id" json:"tv_show_id,omitempty"`
+	TVSeasonID    *uuid.UUID `db:"tv_season_id" json:"tv_season_id,omitempty"`
+	SeasonNumber  *int       `db:"season_number" json:"season_number,omitempty"`
+	EpisodeNumber *int       `db:"episode_number" json:"episode_number,omitempty"`
+	TVShowTitle   *string    `json:"tv_show_title,omitempty"`
 	// Transcode
-	TranscodeStatus TranscodeStatus `db:"transcode_status" json:"transcode_status"`
-	MPDPath         *string         `db:"mpd_path" json:"mpd_path,omitempty"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	TranscodeStatus   TranscodeStatus `db:"transcode_status" json:"transcode_status"`
+	TranscodeProgress *float64        `json:"transcode_progress,omitempty"`
+	MPDPath           *string         `db:"mpd_path" json:"mpd_path,omitempty"`
+	SourceFingerprint *string         `db:"source_fingerprint" json:"source_fingerprint,omitempty"`
+	SourceStatus      string          `db:"source_status" json:"source_status"`
+	BundleStatus      string          `db:"bundle_status" json:"bundle_status"`
+	CreatedAt         time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+}
+
+// TranscodeWorker represents a remote transcode worker.
+type TranscodeWorker struct {
+	ID            uuid.UUID  `db:"id" json:"id"`
+	Name          string     `db:"name" json:"name"`
+	APIKey        string     `db:"api_key" json:"api_key,omitempty"`
+	Threads       int        `db:"threads" json:"threads"`
+	HWAccel       string     `db:"hwaccel" json:"hwaccel"`
+	Status        string     `db:"status" json:"status"`
+	LastHeartbeat *time.Time `db:"last_heartbeat" json:"last_heartbeat,omitempty"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 // TranscodeJob tracks an FFmpeg transcoding job.
 type TranscodeJob struct {
 	ID          uuid.UUID       `db:"id" json:"id"`
 	MediaItemID uuid.UUID       `db:"media_item_id" json:"media_item_id"`
+	WorkerID    *uuid.UUID      `db:"worker_id" json:"worker_id,omitempty"`
 	Status      TranscodeStatus `db:"status" json:"status"`
 	Progress    float64         `db:"progress" json:"progress"` // 0-100
+	Priority    int             `db:"priority" json:"priority"`
 	ErrorMsg    *string         `db:"error_msg" json:"error_msg,omitempty"`
 	StartedAt   *time.Time      `db:"started_at" json:"started_at,omitempty"`
 	FinishedAt  *time.Time      `db:"finished_at" json:"finished_at,omitempty"`
@@ -86,12 +164,13 @@ type TranscodeJob struct {
 
 // WatchHistory records playback position per user per item.
 type WatchHistory struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	MediaItemID uuid.UUID `db:"media_item_id" json:"media_item_id"`
-	Position    float64   `db:"position" json:"position"` // seconds
-	Completed   bool      `db:"completed" json:"completed"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID  `db:"id" json:"id"`
+	UserID      uuid.UUID  `db:"user_id" json:"user_id"`
+	MediaItemID uuid.UUID  `db:"media_item_id" json:"media_item_id"`
+	Position    float64    `db:"position" json:"position"` // seconds
+	Completed   bool       `db:"completed" json:"completed"`
+	UpdatedAt   time.Time  `db:"updated_at" json:"updated_at"`
+	Media       *MediaItem `json:"media,omitempty"`
 }
 
 // RefreshToken is a persisted, hashed refresh token used for JWT rotation.
@@ -104,3 +183,105 @@ type RefreshToken struct {
 	Revoked   bool      `db:"revoked" json:"revoked"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
+
+// StorageAreaKind classifies storage area purpose.
+type StorageAreaKind string
+
+const (
+	StorageAreaKindSegments StorageAreaKind = "segments"
+)
+
+// StorageArea describes a filesystem path managed by the storage subsystem.
+type StorageArea struct {
+	ID        uuid.UUID       `db:"id" json:"id"`
+	Kind      StorageAreaKind `db:"kind" json:"kind"`
+	Path      string          `db:"path" json:"path"`
+	Enabled   bool            `db:"enabled" json:"enabled"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time       `db:"updated_at" json:"updated_at"`
+}
+
+// ArtifactHealth classifies the state of a discovered transcode artifact bundle.
+type ArtifactHealth string
+
+const (
+	ArtifactHealthUnknown       ArtifactHealth = "unknown"
+	ArtifactHealthHealthy       ArtifactHealth = "healthy"
+	ArtifactHealthStale         ArtifactHealth = "stale"
+	ArtifactHealthMissing       ArtifactHealth = "missing"
+	ArtifactHealthMetadataInvalid ArtifactHealth = "metadata_invalid"
+	ArtifactHealthUnavailable   ArtifactHealth = "unavailable"
+)
+
+// ArtifactMatchedVia classifies how an artifact was linked to a media item.
+type ArtifactMatchedVia string
+
+const (
+	ArtifactMatchedViaFingerprint ArtifactMatchedVia = "fingerprint"
+	ArtifactMatchedViaHeuristic   ArtifactMatchedVia = "heuristic"
+	ArtifactMatchedViaManual      ArtifactMatchedVia = "manual"
+)
+
+// ArtifactLinkStatus classifies the confidence of an artifact-to-media link.
+type ArtifactLinkStatus string
+
+const (
+	ArtifactLinkLinked   ArtifactLinkStatus = "linked"
+	ArtifactLinkUnmatched ArtifactLinkStatus = "unmatched"
+	ArtifactLinkAmbiguous ArtifactLinkStatus = "ambiguous"
+)
+
+// ArtifactRecord represents a discovered transcode artifact bundle on disk.
+type ArtifactRecord struct {
+	ID               uuid.UUID       `db:"id" json:"id"`
+	StorageAreaID    uuid.UUID       `db:"storage_area_id" json:"storage_area_id"`
+	SourcePath       string          `db:"source_path" json:"source_path"`
+	SourceFingerprint *string        `db:"source_fingerprint" json:"source_fingerprint,omitempty"`
+	OutputDir        string          `db:"output_dir" json:"output_dir,omitempty"`
+	MPDPath          string          `db:"mpd_path" json:"mpd_path,omitempty"`
+	Health           ArtifactHealth  `db:"health" json:"health"`
+	LastSeenAt       time.Time       `db:"last_seen_at" json:"last_seen_at"`
+	RegisteredAt     time.Time       `db:"registered_at" json:"registered_at"`
+	UpdatedAt        time.Time       `db:"updated_at" json:"updated_at"`
+}
+
+// ArtifactMediaLink associates a discovered artifact with a media item.
+type ArtifactMediaLink struct {
+	ID          uuid.UUID         `db:"id" json:"id"`
+	ArtifactID  uuid.UUID         `db:"artifact_id" json:"artifact_id"`
+	MediaItemID uuid.UUID         `db:"media_item_id" json:"media_item_id"`
+	MatchedVia  ArtifactMatchedVia `db:"matched_via" json:"matched_via"`
+	Status      ArtifactLinkStatus `db:"status" json:"status"`
+	CreatedAt   time.Time         `db:"created_at" json:"created_at"`
+}
+
+// ArtifactIndexSummary provides counts from an indexing operation.
+type ArtifactIndexSummary struct {
+	TotalDiscovered   int `json:"total_discovered"`
+	RegisteredNew     int `json:"registered_new"`
+	UpdatedExisting   int `json:"updated_existing"`
+	MarkedMissing     int `json:"marked_missing"`
+	Invalid           int `json:"invalid"`
+	MediaItemsCreated int `json:"media_items_created"`
+}
+
+// ArtifactRelinkSummary provides counts from a relinking operation.
+type ArtifactRelinkSummary struct {
+	Linked    int `json:"linked"`
+	Unmatched int `json:"unmatched"`
+	Ambiguous int `json:"ambiguous"`
+	Invalid   int `json:"invalid"`
+}
+
+// SearchResult represents a single item matched in a global search.
+type SearchResult struct {
+	ID           uuid.UUID    `json:"id"`
+	Title        string       `json:"title"`
+	MediaType    string       `json:"media_type"` // "movie" or "tvshow"
+	Overview     *string      `json:"overview,omitempty"`
+	PosterPath   *string      `json:"poster_path,omitempty"`
+	Year         *int         `json:"year,omitempty"`
+	Director     *string      `json:"director,omitempty"`
+	Cast         []CastMember `json:"cast,omitempty"`
+}
+

@@ -2,14 +2,16 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
-	"github.com/ringmaster217/galactic-media-server/internal/transcoder"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/transcoder"
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -42,13 +44,13 @@ func (h *JobsHandler) EnqueueTranscode(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "media item not found")
 		return
 	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item")
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
 		return
 	}
 
 	job, err := h.pool.Enqueue(r.Context(), mediaID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not enqueue transcode job")
+		respondError(w, http.StatusInternalServerError, "could not enqueue transcode job", err)
 		return
 	}
 
@@ -59,7 +61,7 @@ func (h *JobsHandler) EnqueueTranscode(w http.ResponseWriter, r *http.Request) {
 func (h *JobsHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 	jobs, err := sqlite.ListTranscodeJobs(r.Context(), h.db)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not list jobs")
+		respondError(w, http.StatusInternalServerError, "could not list jobs", err)
 		return
 	}
 	respondJSON(w, http.StatusOK, emptySlice(jobs))
@@ -79,11 +81,68 @@ func (h *JobsHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch job")
+		respondError(w, http.StatusInternalServerError, "could not fetch job", err)
 		return
 	}
 
 	respondJSON(w, http.StatusOK, job)
+}
+
+type bulkEnqueueRequest struct {
+	Filter string `json:"filter"`
+}
+
+// BulkEnqueueJobs handles POST /api/v1/jobs/bulk-enqueue.
+func (h *JobsHandler) BulkEnqueueJobs(w http.ResponseWriter, r *http.Request) {
+	var req bulkEnqueueRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	switch strings.TrimSpace(req.Filter) {
+	case "untranscoded":
+		n, err := sqlite.BulkEnqueueUntranscoded(r.Context(), h.db)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
+	case "failed":
+		n, err := sqlite.BulkEnqueueFailed(r.Context(), h.db)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
+	default:
+		respondError(w, http.StatusBadRequest, "unknown filter")
+	}
+}
+
+// PrioritizeJob handles POST /api/v1/jobs/{id}/prioritize.
+func (h *JobsHandler) PrioritizeJob(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid job id")
+		return
+	}
+
+	err = sqlite.PrioritizeJob(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if errors.Is(err, sqlite.ErrJobNotPending) {
+		respondError(w, http.StatusConflict, "job is not pending")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not prioritize job", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // JobProgress handles GET /api/v1/ws/jobs/{id} — upgrades to WebSocket and
@@ -102,7 +161,7 @@ func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch job")
+		respondError(w, http.StatusInternalServerError, "could not fetch job", err)
 		return
 	}
 

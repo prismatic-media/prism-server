@@ -7,7 +7,7 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
-	"github.com/ringmaster217/galactic-media-server/migrations"
+	"github.com/ringmaster217/prism/migrations"
 )
 
 // Open opens (or creates) the SQLite database at path and configures it for

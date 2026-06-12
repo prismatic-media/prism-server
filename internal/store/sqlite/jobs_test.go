@@ -2,12 +2,13 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 // seedItemForJob creates a library + media item and returns the item ID.
@@ -20,7 +21,7 @@ func seedItemForJob(t *testing.T, db interface {
 
 func TestCreateTranscodeJob(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestCreateTranscodeJob(t *testing.T) {
 
 func TestGetTranscodeJobByID_Found(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +76,7 @@ func TestGetTranscodeJobByID_NotFound(t *testing.T) {
 
 func TestListTranscodeJobs(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +102,7 @@ func TestListTranscodeJobs(t *testing.T) {
 
 func TestListPendingJobs(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +135,7 @@ func TestListPendingJobs(t *testing.T) {
 
 func TestUpdateJobStatus_Processing(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestUpdateJobStatus_Processing(t *testing.T) {
 
 func TestUpdateJobStatus_Failed(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func TestUpdateJobStatus_Failed(t *testing.T) {
 
 func TestSetMediaMPDPath(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestSetMediaMPDPath(t *testing.T) {
 
 func TestUpdateJobProgress(t *testing.T) {
 	db := openTestDB(t)
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -241,3 +242,285 @@ func TestUpdateJobProgress(t *testing.T) {
 		t.Errorf("progress = %v, want 42.5", got.Progress)
 	}
 }
+
+func TestClaimNextJob_RespectsPriorityThenFIFO(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	m1 := newMovieItem(lib.ID, "A", "/l/a.mkv")
+	m2 := newMovieItem(lib.ID, "B", "/l/b.mkv")
+	for _, m := range []*models.MediaItem{m1, m2} {
+		if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	j1 := &models.TranscodeJob{MediaItemID: m1.ID}
+	j2 := &models.TranscodeJob{MediaItemID: m2.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j1); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j2); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sqlite.PrioritizeJob(ctx, db, j2.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	claimed1, err := sqlite.ClaimNextJob(ctx, db, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed1 == nil || claimed1.ID != j2.ID {
+		t.Fatalf("expected first claim to be prioritized job %s, got %+v", j2.ID, claimed1)
+	}
+
+	claimed2, err := sqlite.ClaimNextJob(ctx, db, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed2 == nil || claimed2.ID != j1.ID {
+		t.Fatalf("expected second claim to be remaining job %s, got %+v", j1.ID, claimed2)
+	}
+}
+
+func TestRecoverStaleJobs(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := newMovieItem(lib.ID, "Movie", "/l/movie.mkv")
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+	j := &models.TranscodeJob{MediaItemID: m.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpdateJobStatus(ctx, db, j.ID, models.TranscodeStatusProcessing, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sqlite.RecoverStaleJobs(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := sqlite.GetTranscodeJobByID(ctx, db, j.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != models.TranscodeStatusPending {
+		t.Fatalf("status = %q, want pending", got.Status)
+	}
+}
+
+func TestPrioritizeJob_NotPending(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := newMovieItem(lib.ID, "Movie", "/l/movie2.mkv")
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+	j := &models.TranscodeJob{MediaItemID: m.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpdateJobStatus(ctx, db, j.ID, models.TranscodeStatusDone, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	err := sqlite.PrioritizeJob(ctx, db, j.ID)
+	if !errors.Is(err, sqlite.ErrJobNotPending) {
+		t.Fatalf("expected ErrJobNotPending, got %v", err)
+	}
+}
+
+func TestBulkEnqueueUntranscoded(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	m1 := newMovieItem(lib.ID, "A", "/l/u1.mkv")
+	m2 := newMovieItem(lib.ID, "B", "/l/u2.mkv")
+	for _, m := range []*models.MediaItem{m1, m2} {
+		if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Seed one pre-existing job so only one media item is untouched.
+	j := &models.TranscodeJob{MediaItemID: m1.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := sqlite.BulkEnqueueUntranscoded(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("enqueued = %d, want 1", n)
+	}
+}
+
+func TestBulkEnqueueFailed(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	mFailed := newMovieItem(lib.ID, "F", "/l/failed.mkv")
+	mDone := newMovieItem(lib.ID, "D", "/l/done.mkv")
+	for _, m := range []*models.MediaItem{mFailed, mDone} {
+		if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	jFailed := &models.TranscodeJob{MediaItemID: mFailed.ID}
+	jDone := &models.TranscodeJob{MediaItemID: mDone.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, jFailed); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpdateJobStatus(ctx, db, jFailed.ID, models.TranscodeStatusFailed, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.CreateTranscodeJob(ctx, db, jDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpdateJobStatus(ctx, db, jDone.ID, models.TranscodeStatusDone, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := sqlite.BulkEnqueueFailed(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("enqueued = %d, want 1", n)
+	}
+}
+
+func TestGetTranscodeJobByMediaItem(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := newMovieItem(lib.ID, "Film", "/l/film.mkv")
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	// Not found initially
+	_, err := sqlite.GetTranscodeJobByMediaItem(ctx, db, m.ID)
+	if err == nil {
+		t.Fatal("expected error when no job exists")
+	}
+
+	j := &models.TranscodeJob{MediaItemID: m.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := sqlite.GetTranscodeJobByMediaItem(ctx, db, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != j.ID {
+		t.Errorf("got job ID %v, want %v", got.ID, j.ID)
+	}
+}
+
+func TestResetTranscodeJob(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := newMovieItem(lib.ID, "Film", "/l/film.mkv")
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	j := &models.TranscodeJob{MediaItemID: m.ID, Priority: 5}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update priority in DB manually to check if preserved
+	_, err := db.ExecContext(ctx, `UPDATE transcode_jobs SET priority = 5 WHERE id = ?`, j.ID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset job
+	if err := sqlite.ResetTranscodeJob(ctx, db, j); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := sqlite.GetTranscodeJobByID(ctx, db, j.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != models.TranscodeStatusPending {
+		t.Errorf("status = %q, want pending", got.Status)
+	}
+	if got.Priority != 5 {
+		t.Errorf("priority = %d, want 5", got.Priority)
+	}
+	if got.Progress != 0 {
+		t.Errorf("progress = %f, want 0", got.Progress)
+	}
+}
+
+func TestUniqueTranscodeJobConstraint(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := newMovieItem(lib.ID, "Film", "/l/film.mkv")
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	j1 := &models.TranscodeJob{MediaItemID: m.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j1); err != nil {
+		t.Fatal(err)
+	}
+
+	j2 := &models.TranscodeJob{MediaItemID: m.ID}
+	err := sqlite.CreateTranscodeJob(ctx, db, j2)
+	if err == nil {
+		t.Fatal("expected UNIQUE constraint failure error when creating second job for same media item")
+	}
+}
+

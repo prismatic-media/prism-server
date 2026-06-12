@@ -1,0 +1,104 @@
+<svg viewBox="0 0 500 500" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="background: transparent; overflow: visible;">
+  <defs>
+    <!-- Deep iridescent multi-stop spiral gradient -->
+    <linearGradient id="vortex-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="30%" stop-color="#6366f1" />
+      <stop offset="65%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+
+    <!-- Center core crystal luminous gradient -->
+    <linearGradient id="core-glow-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#c7d2fe" />
+    </linearGradient>
+
+    <!-- Subtle background container shadow -->
+    <filter id="soft-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="core-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Optional dark rounded presentation backing (removable or transparent when scaled) -->
+  <rect width="500" height="500" rx="40" fill="#050510" stroke="rgba(255,255,255,0.03)" stroke-width="2" />
+
+  <g transform="translate(0, 0)" style="filter: drop-shadow(0 15px 35px rgba(99, 102, 241, 0.15));">
+    <!-- Ambient back glow for depth -->
+    <circle cx="250" cy="250" r="160" fill="rgba(99, 102, 241, 0.04)" style="filter: blur(40px);" />
+
+    <!-- Outer swirl helix track (The Accelerator) -->
+    <circle 
+      cx="250" 
+      cy="250" 
+      r="185" 
+      fill="none" 
+      stroke="url(#vortex-gradient)" 
+      stroke-width="18" 
+      stroke-linecap="round"
+      stroke-dasharray="450 180 80 180"
+      opacity="0.95"
+      style="transform-origin: 250px 250px; filter: url(#soft-glow);"
+    />
+
+    <!-- Inner contrary swirl helix track (The Regulator) -->
+    <circle 
+      cx="250" 
+      cy="250" 
+      r="120" 
+      fill="none" 
+      stroke="url(#vortex-gradient)" 
+      stroke-width="12" 
+      stroke-linecap="round"
+      stroke-dasharray="210 140 70 140"
+      opacity="0.85"
+      style="transform-origin: 250px 250px; filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.3));"
+    />
+
+    <!-- Luminous Glass triangular prism core -->
+    <polygon 
+      points="250,165 175,305 325,305" 
+      fill="url(#core-glow-gradient)" 
+      opacity="0.95"
+      stroke="rgba(255, 255, 255, 0.9)"
+      stroke-width="5"
+      stroke-linejoin="round"
+      style="filter: url(#core-glow);"
+    />
+
+    <!-- Translucent highlight on right face for crystalline glass depth -->
+    <polygon 
+      points="250,165 250,305 325,305" 
+      fill="rgba(255, 255, 255, 0.08)" 
+      stroke="rgba(255, 255, 255, 0.2)"
+      stroke-width="2.5"
+      stroke-linejoin="round"
+    />
+
+    <!-- Scattered spectral light reflections from core refraction -->
+    <line x1="250" y1="240" x2="330" y2="180" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" opacity="0.85" />
+    <line x1="220" y1="270" x2="135" y2="320" stroke="#ec4899" stroke-width="6" stroke-linecap="round" opacity="0.8" />
+    <line x1="270" y1="270" x2="355" y2="320" stroke="#a855f7" stroke-width="6" stroke-linecap="round" opacity="0.8" />
+
+    <!-- Luminous node stars tracking the orbital fields -->
+    <!-- Top-Right -->
+    <circle cx="250" cy="55" r="9" fill="#6366f1" opacity="0.9" style="filter: drop-shadow(0 0 10px #6366f1);" />
+    <circle cx="250" cy="55" r="3" fill="#ffffff" />
+    
+    <!-- Outer Right -->
+    <circle cx="435" cy="250" r="6" fill="#38bdf8" opacity="0.85" style="filter: drop-shadow(0 0 8px #38bdf8);" />
+    
+    <!-- Bottom-Left -->
+    <circle cx="250" cy="445" r="8" fill="#a855f7" opacity="0.9" style="filter: drop-shadow(0 0 10px #1cfff8);" />
+    <circle cx="250" cy="445" r="2.5" fill="#ffffff" />
+
+    <!-- Left orbit spark -->
+    <circle cx="65" cy="250" r="5" fill="#ec4899" opacity="0.75" />
+  </g>
+</svg>

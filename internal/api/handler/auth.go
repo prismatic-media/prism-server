@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ringmaster217/galactic-media-server/internal/auth"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/auth"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 const (
@@ -67,18 +67,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, err := auth.IssueAccessToken(h.jwtSecret, user.ID, user.IsAdmin)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not issue token")
+		respondError(w, http.StatusInternalServerError, "could not issue token", err)
 		return
 	}
 
 	rawToken, tokenHash, err := generateRefreshToken()
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not generate refresh token")
+		respondError(w, http.StatusInternalServerError, "could not generate refresh token", err)
 		return
 	}
 
 	if _, err := sqlite.CreateRefreshToken(r.Context(), h.db, user.ID, tokenHash); err != nil {
-		respondError(w, http.StatusInternalServerError, "could not store refresh token")
+		respondError(w, http.StatusInternalServerError, "could not store refresh token", err)
 		return
 	}
 
@@ -115,7 +115,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, err := auth.IssueAccessToken(h.jwtSecret, user.ID, user.IsAdmin)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not issue token")
+		respondError(w, http.StatusInternalServerError, "could not issue token", err)
 		return
 	}
 

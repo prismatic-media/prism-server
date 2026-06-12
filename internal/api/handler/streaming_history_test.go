@@ -11,11 +11,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ringmaster217/galactic-media-server/internal/api/handler"
-	apimw "github.com/ringmaster217/galactic-media-server/internal/api/middleware"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
-	"github.com/ringmaster217/galactic-media-server/pkg/dash"
+	"github.com/ringmaster217/prism/internal/api/handler"
+	apimw "github.com/ringmaster217/prism/internal/api/middleware"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/ringmaster217/prism/pkg/dash"
 )
 
 // --- helpers ---
@@ -51,7 +51,7 @@ func newHistoryRouter(t *testing.T, h *handler.HistoryHandler) http.Handler {
 func TestServeManifest_MediaNotFound(t *testing.T) {
 	db := openTestDB(t)
 	cache := &dash.Cache{}
-	h := handler.NewStreamHandler(db, t.TempDir(), cache)
+	h := handler.NewStreamHandler(db, cache, testSecret)
 	r := newStreamRouter(t, h)
 
 	u := createUser(t, db, "user1", "u1@x.com", "pass", false)
@@ -68,7 +68,7 @@ func TestServeManifest_TranscodePending(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	lib := &models.Library{Name: "L", Path: "/l", MediaType: models.MediaTypeMovie}
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
 	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestServeManifest_TranscodePending(t *testing.T) {
 	// No MPDPath set — still pending.
 
 	cache := &dash.Cache{} // empty
-	h := handler.NewStreamHandler(db, t.TempDir(), cache)
+	h := handler.NewStreamHandler(db, cache, testSecret)
 	r := newStreamRouter(t, h)
 
 	u := createUser(t, db, "user2", "u2@x.com", "pass", false)
@@ -99,7 +99,7 @@ func TestServeManifest_FromCache(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	lib := &models.Library{Name: "L", Path: "/l", MediaType: models.MediaTypeMovie}
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
 	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestServeManifest_FromCache(t *testing.T) {
 	cache := &dash.Cache{}
 	cache.Set(m.ID, mpdPath)
 
-	h := handler.NewStreamHandler(db, segDir, cache)
+	h := handler.NewStreamHandler(db, cache, testSecret)
 	r := newStreamRouter(t, h)
 
 	u := createUser(t, db, "user3", "u3@x.com", "pass", false)
@@ -140,15 +140,36 @@ func TestServeManifest_FromCache(t *testing.T) {
 
 func TestServeSegment_PathTraversal(t *testing.T) {
 	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := &models.Library{Path: "/l-seg-path", MediaType: models.MediaTypeMovie}
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Film", FilePath: "/l-seg-path/f.mkv",
+		MediaType: models.MediaTypeMovie, TranscodeStatus: models.TranscodeStatusDone,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+	mpdPath := filepath.Join(t.TempDir(), "manifest.mpd")
+	if err := os.WriteFile(mpdPath, []byte("<MPD/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.SetMediaMPDPath(ctx, db, m.ID, mpdPath); err != nil {
+		t.Fatal(err)
+	}
+
 	cache := &dash.Cache{}
-	h := handler.NewStreamHandler(db, t.TempDir(), cache)
+	h := handler.NewStreamHandler(db, cache, testSecret)
 	r := newStreamRouter(t, h)
 
 	u := createUser(t, db, "user4", "u4@x.com", "pass", false)
 	tok := bearerToken(t, u.ID, false)
 
 	rec := do(t, r, http.MethodGet,
-		"/api/v1/stream/00000000-0000-0000-0000-000000000001/segments/../../etc/passwd",
+		"/api/v1/stream/"+m.ID.String()+"/segments/../../etc/passwd",
 		nil, map[string]string{"Authorization": "Bearer " + tok})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400 (path traversal rejected)", rec.Code)
@@ -157,26 +178,45 @@ func TestServeSegment_PathTraversal(t *testing.T) {
 
 func TestServeSegment_ContentTypeM4S(t *testing.T) {
 	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := &models.Library{Path: "/l-seg-content", MediaType: models.MediaTypeMovie}
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Film", FilePath: "/l-seg-content/f.mkv",
+		MediaType: models.MediaTypeMovie, TranscodeStatus: models.TranscodeStatusDone,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
 
 	segDir := t.TempDir()
-	mediaID := "00000000-0000-0000-0000-000000000002"
-	segFile := filepath.Join(segDir, mediaID, "seg-1.m4s")
+	segFile := filepath.Join(segDir, "seg-1.m4s")
 	if err := os.MkdirAll(filepath.Dir(segFile), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(segFile, []byte("data"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	mpdPath := filepath.Join(segDir, "manifest.mpd")
+	if err := os.WriteFile(mpdPath, []byte("<MPD/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.SetMediaMPDPath(ctx, db, m.ID, mpdPath); err != nil {
+		t.Fatal(err)
+	}
 
 	cache := &dash.Cache{}
-	h := handler.NewStreamHandler(db, segDir, cache)
+	h := handler.NewStreamHandler(db, cache, testSecret)
 	r := newStreamRouter(t, h)
 
 	u := createUser(t, db, "user5", "u5@x.com", "pass", false)
 	tok := bearerToken(t, u.ID, false)
 
 	rec := do(t, r, http.MethodGet,
-		"/api/v1/stream/"+mediaID+"/segments/seg-1.m4s",
+		"/api/v1/stream/"+m.ID.String()+"/segments/seg-1.m4s",
 		nil, map[string]string{"Authorization": "Bearer " + tok})
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
@@ -232,7 +272,7 @@ func TestUpsertHistory_RoundTrip(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	lib := &models.Library{Name: "L", Path: "/l", MediaType: models.MediaTypeMovie}
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
 	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +321,7 @@ func TestUpsertHistory_CompletedExcludedFromList(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	lib := &models.Library{Name: "L", Path: "/l", MediaType: models.MediaTypeMovie}
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
 	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +361,7 @@ func TestUpsertHistory_CompletedExcludedFromList(t *testing.T) {
 func TestServeSegment_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	cache := &dash.Cache{}
-	h := handler.NewStreamHandler(db, t.TempDir(), cache)
+	h := handler.NewStreamHandler(db, cache, testSecret)
 	r := newStreamRouter(t, h)
 
 	u := createUser(t, db, "user6", "u6@x.com", "pass", false)

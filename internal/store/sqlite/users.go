@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
+	"github.com/ringmaster217/prism/internal/models"
 )
 
 // CountUsers returns the total number of users in the database.

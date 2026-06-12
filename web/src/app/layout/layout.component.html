@@ -1,0 +1,149 @@
+<!-- Sidebar Navigation -->
+<aside class="sidebar frosted-glass">
+  <div class="brand-header">
+    <h1 class="brand-title">Prism</h1>
+    <p class="brand-subtitle label-mono">Media Server</p>
+  </div>
+  
+  <nav class="nav-menu">
+    <!-- Home (Active by default) -->
+    <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
+      <span class="material-symbols-outlined">home</span>
+      <span>Home</span>
+    </a>
+    <!-- Movies -->
+    <a class="nav-link" routerLink="/movies" routerLinkActive="active">
+      <span class="material-symbols-outlined">movie</span>
+      <span>Movies</span>
+    </a>
+    <!-- TV Shows -->
+    <a class="nav-link" routerLink="/tv-shows" routerLinkActive="active">
+      <span class="material-symbols-outlined">tv</span>
+      <span>TV Shows</span>
+    </a>
+    
+    <div class="menu-divider-container">
+      <div class="menu-divider"></div>
+      <p class="menu-label label-mono">System</p>
+    </div>
+    
+    <!-- Library -->
+    <a class="nav-link" routerLink="/admin/library" routerLinkActive="active">
+      <span class="material-symbols-outlined">library_books</span>
+      <span>Library</span>
+    </a>
+    <!-- Storage -->
+    <a class="nav-link" routerLink="/admin/storage" routerLinkActive="active">
+      <span class="material-symbols-outlined">database</span>
+      <span>Storage</span>
+    </a>
+    <!-- Transcoding -->
+    <a class="nav-link" routerLink="/admin/transcoding" routerLinkActive="active">
+      <span class="material-symbols-outlined">settings_input_component</span>
+      <span>Transcoding</span>
+    </a>
+    <!-- Settings -->
+    <a class="nav-link" routerLink="/admin/settings" routerLinkActive="active">
+      <span class="material-symbols-outlined">settings</span>
+      <span>Settings</span>
+    </a>
+  </nav>
+</aside>
+
+<!-- Top AppBar -->
+<header class="top-header frosted-glass">
+  <div class="search-container">
+    <div class="search-bar">
+      <span class="material-symbols-outlined search-icon">search</span>
+      <input 
+        type="text" 
+        class="search-input" 
+        placeholder="Search movies, shows, actors..." 
+        [(ngModel)]="searchQuery"
+        (input)="onSearchInput()"
+        (focus)="onSearchFocus()"
+        (keydown.escape)="clearSearch()"
+      />
+      <!-- Search dropdown results overlay -->
+      <div class="search-dropdown frosted-glass" *ngIf="showResultsDropdown && (searchResults.length > 0 || loadingSearch || searchQuery.trim())">
+        <div *ngIf="loadingSearch" class="search-status">
+          <div class="search-spinner"></div>
+          <span>Searching...</span>
+        </div>
+        
+        <div *ngIf="!loadingSearch && searchResults.length === 0" class="search-status">
+          <span>No results found for "{{ searchQuery }}"</span>
+        </div>
+
+        <ng-container *ngIf="!loadingSearch && searchResults.length > 0">
+          <a 
+            *ngFor="let result of searchResults" 
+            [routerLink]="getRoute(result)" 
+            class="search-result-item"
+            (click)="selectResult()"
+          >
+            <img [src]="getPosterUrl(result)" class="result-poster" alt="Poster" />
+            <div class="result-info">
+              <div class="result-title-row">
+                <span class="result-title">{{ result.title }}</span>
+                <span class="result-year" *ngIf="result.year">({{ result.year }})</span>
+              </div>
+              <div class="result-meta">
+                <span class="result-badge label-mono" [class.badge-movie]="result.media_type === 'movie'" [class.badge-tv]="result.media_type === 'tvshow'">
+                  {{ result.media_type === 'movie' ? 'MOVIE' : 'TV SHOW' }}
+                </span>
+                <span class="result-director" *ngIf="result.director">Director: {{ result.director }}</span>
+              </div>
+              <p class="result-overview" *ngIf="result.overview">{{ result.overview }}</p>
+            </div>
+          </a>
+        </ng-container>
+      </div>
+    </div>
+  </div>
+  
+  <div class="header-actions">
+    <!-- Controls -->
+    <div class="action-buttons">
+      <button class="action-btn" title="Notifications">
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
+      <button class="action-btn" title="Now Playing">
+        <span class="material-symbols-outlined">play_circle</span>
+      </button>
+    </div>
+    
+    <!-- User Avatar & Dropdown -->
+    <div class="user-profile">
+      <button class="avatar-btn" (click)="toggleUserDropdown()" [class.active]="userDropdownOpen">
+        <img alt="User Avatar" class="avatar-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOOxD5faFU71i8CEUrIfw8khWQjvQ_VRb_S22Lz0TuUbK_wxqtSxSQXaLMdn5aUm6OV0QQKw9MxgaKLI5765joKe066G-78Aq2N1_tdi2PmKOSDpADCQCGQH8fAkEA-3oXsHZ5upxIqTMXpDP00HXHoEVNYLqe3O4e2iOHu3dKjUyXKxcjX06VWAkBmwCEXRQf0Kh-jL1UARBblqHD0H0ODH8eDhqQHfL6C4lHgAIxAlpYIR62riTdC_3BigWIZyIxoOMIETzzpffb" />
+      </button>
+      
+      <!-- Dropdown Card -->
+      <div *ngIf="userDropdownOpen" class="user-dropdown frosted-glass">
+        <div class="dropdown-header">
+          <p class="dropdown-username">{{ authService.currentUser?.username }}</p>
+          <span class="admin-badge label-mono" *ngIf="authService.isAdmin">ADMIN</span>
+        </div>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item" (click)="logout()">
+          <span class="material-symbols-outlined">logout</span>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Main Content Canvas -->
+<main class="main-content">
+  <!-- Atmospheric background glowing blobs -->
+  <div class="ambient-glow-1 canvas-glow-1"></div>
+  <div class="ambient-glow-2 canvas-glow-2"></div>
+  <div class="ambient-glow-1 canvas-glow-3" style="background: #122124; opacity: 0.03; filter: blur(100px); width: 30%; height: 30%;"></div>
+  
+  <!-- Active Route Outlet -->
+  <div class="content-container">
+    <router-outlet></router-outlet>
+  </div>
+</main>

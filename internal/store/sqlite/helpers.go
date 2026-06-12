@@ -1,7 +1,10 @@
 package sqlite
 
 import (
+	"database/sql"
 	"errors"
+
+	"github.com/google/uuid"
 )
 
 // ErrNotFound is returned when a requested record does not exist.
@@ -12,4 +15,11 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+func nullUUID(id *uuid.UUID) sql.NullString {
+	if id == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: id.String(), Valid: true}
 }

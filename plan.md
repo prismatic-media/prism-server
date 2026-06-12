@@ -1,4 +1,4 @@
-# Galactic Media Server — Project Plan
+# Prism Media Server — Project Plan
 
 ## Architecture Overview
 
@@ -110,10 +110,10 @@ The Angular player uses `dash.js` to fetch the MPD and automatically select the 
 ### Phase 3 — Metadata Enrichment  ✅ Complete
 **Files:** `internal/metadata/`
 
-- [x] TMDB client (`GET /search/movie`, `/search/tv`) keyed by `GALACTIC_TMDB_API_KEY`
+- [x] TMDB client (`GET /search/movie`, `/search/tv`) keyed by `PRISM_TMDB_API_KEY`
 - [x] Match scanned file titles (parse year + title from filename via regex)
 - [x] Fetch and store: overview, poster URL, year, TMDB ID
-- [x] Download and cache poster images to `GALACTIC_THUMBS_DIR`
+- [x] Download and cache poster images to `PRISM_THUMBS_DIR`
 - [x] Serve thumbnails via `GET /api/v1/media/{id}/poster`
 - [x] Run enrichment as a post-scan step (non-blocking, best-effort)
 - [x] Unit + integration test suite (74 tests passing total)
@@ -123,7 +123,7 @@ The Angular player uses `dash.js` to fetch the MPD and automatically select the 
 ### Phase 4 — Transcode Engine  ✅ Complete
 **Files:** `internal/transcoder/`, `internal/jobs/`, `pkg/ffmpeg/`, `pkg/dash/`
 
-- [x] Job worker pool: configurable concurrency via `GALACTIC_TRANSCODE_WORKERS`
+- [x] Job worker pool: configurable concurrency via `PRISM_TRANSCODE_WORKERS`
 - [x] Pick up `pending` jobs from DB on startup; process one per worker goroutine
 - [x] `POST /api/v1/media/{id}/transcode` — manually re-enqueue a transcode job
 - [x] `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}`
@@ -219,7 +219,7 @@ The Angular player uses `dash.js` to fetch the MPD and automatically select the 
 ## Directory Structure
 
 ```
-galactic-media-server/
+prism/
 ├── cmd/server/              # main.go — entry point
 ├── internal/
 │   ├── api/
@@ -255,12 +255,12 @@ galactic-media-server/
 
 ```bash
 # Run the server — no external services needed
-GALACTIC_JWT_SECRET=dev go run ./cmd/server
-# SQLite DB is created automatically at galactic.db
+PRISM_JWT_SECRET=dev go run ./cmd/server
+# SQLite DB is created automatically at prism.db
 # Migrations run automatically on startup
 
 # Run with live reload (install air: go install github.com/air-verse/air@latest)
-GALACTIC_JWT_SECRET=dev air ./cmd/server
+PRISM_JWT_SECRET=dev air ./cmd/server
 
 # Run Angular dev server (proxies /api to :8080)
 cd web && ng serve --proxy-config proxy.conf.json
@@ -270,7 +270,7 @@ go test ./...
 
 # Build a fully self-contained production binary
 # (embeds all migrations; only runtime dep is ffmpeg)
-go build -o galactic ./cmd/server
+go build -o prism ./cmd/server
 
 # Docker (single container, no compose deps)
 docker compose up --build

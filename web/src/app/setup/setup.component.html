@@ -1,0 +1,230 @@
+<div class="setup-wrapper">
+  <!-- Ambient background glow layers -->
+  <div class="ambient-glow-1 setup-glow-1"></div>
+  <div class="ambient-glow-2 setup-glow-2"></div>
+
+  <!-- Main Setup Card -->
+  <main class="setup-card glass-card">
+    <!-- Progress Bar -->
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" [style.width.%]="(currentStep / totalSteps) * 100"></div>
+    </div>
+
+    <!-- Header / Logo -->
+    <div class="setup-header">
+      <div class="setup-title-group">
+        <h1 class="prism-title">Prism</h1>
+        <div class="setup-divider"></div>
+        <p class="setup-subtitle">Initialize your media ecosystem</p>
+      </div>
+    </div>
+
+    <!-- Steps Container -->
+    <div class="step-container">
+      <!-- Step 1: Admin Account -->
+      <section *ngIf="currentStep === 1">
+        <header class="step-header">
+          <div class="step-title-row">
+            <span class="material-symbols-outlined step-icon" style="font-variation-settings: 'FILL' 1;">person_add</span>
+            <h2 class="step-title">Admin Bootstrap</h2>
+          </div>
+          <p class="step-desc">Create the master administrator account to secure your server instance.</p>
+        </header>
+
+        <!-- Error feedback banner -->
+        <div *ngIf="step1Error" class="error-container">
+          <span class="material-symbols-outlined error-icon">error</span>
+          <span class="error-text">{{ step1Error }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="label-mono">USERNAME</label>
+          <input #firstInput
+                 [(ngModel)]="username" 
+                 class="input-glass" 
+                 placeholder="e.g. admin" 
+                 type="text"
+                 required
+                 autocomplete="username">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="label-mono">PASSWORD</label>
+            <input [(ngModel)]="password" 
+                   class="input-glass" 
+                   placeholder="••••••••" 
+                   type="password"
+                   required
+                   autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label class="label-mono">CONFIRM PASSWORD</label>
+            <input [(ngModel)]="confirmPassword" 
+                   class="input-glass" 
+                   placeholder="••••••••" 
+                   type="password"
+                   required
+                   autocomplete="new-password">
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 2: Directory Verification -->
+      <section *ngIf="currentStep === 2">
+        <header class="step-header">
+          <div class="step-title-row">
+            <span class="material-symbols-outlined step-icon" style="font-variation-settings: 'FILL' 1;">folder_managed</span>
+            <h2 class="step-title">Storage Provisioning</h2>
+          </div>
+          <p class="step-desc">Define the paths for caching thumbnails and media segments.</p>
+        </header>
+
+        <!-- Error feedback banner -->
+        <div *ngIf="step2Error" class="error-container">
+          <span class="material-symbols-outlined error-icon">error</span>
+          <span class="error-text">{{ step2Error }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="label-mono">THUMBNAILS DIRECTORY</label>
+          <div class="input-wrapper">
+            <input #firstInput
+                   [(ngModel)]="thumbsDir" 
+                   (input)="onPathInput('thumbs', thumbsDir)"
+                   (blur)="closeSuggestions()"
+                   class="input-glass font-mono" 
+                   id="dir-thumbs" 
+                   placeholder="e.g. /mnt/prism/cache/thumbs"
+                   type="text"
+                   required>
+            <span class="material-symbols-outlined input-icon">search</span>
+          </div>
+          <!-- Suggestions Dropdown -->
+          <ul *ngIf="activeInput === 'thumbs' && thumbsSuggestions.length > 0" class="suggestions-panel">
+            <li *ngFor="let suggestion of thumbsSuggestions" 
+                (mousedown)="selectSuggestion('thumbs', suggestion)"
+                class="suggestion-item">
+              {{ suggestion }}
+            </li>
+          </ul>
+        </div>
+
+        <div class="form-group">
+          <label class="label-mono">MEDIA SEGMENTS DIRECTORY</label>
+          <div class="input-wrapper">
+            <input [(ngModel)]="segmentsDir" 
+                   (input)="onPathInput('segments', segmentsDir)"
+                   (blur)="closeSuggestions()"
+                   class="input-glass font-mono" 
+                   id="dir-segments" 
+                   placeholder="e.g. /mnt/prism/cache/segments"
+                   type="text"
+                   required>
+            <span class="material-symbols-outlined input-icon">search</span>
+          </div>
+          <!-- Suggestions Dropdown -->
+          <ul *ngIf="activeInput === 'segments' && segmentsSuggestions.length > 0" class="suggestions-panel">
+            <li *ngFor="let suggestion of segmentsSuggestions" 
+                (mousedown)="selectSuggestion('segments', suggestion)"
+                class="suggestion-item">
+              {{ suggestion }}
+            </li>
+          </ul>
+        </div>
+
+        <div class="info-box">
+          <span class="material-symbols-outlined info-icon">check_circle</span>
+          <p class="info-text">Prism has write permissions for the specified paths on the host system.</p>
+        </div>
+      </section>
+
+      <!-- Step 3: Metadata & Cast -->
+      <section *ngIf="currentStep === 3">
+        <header class="step-header">
+          <div class="step-title-row">
+            <span class="material-symbols-outlined step-icon" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+            <h2 class="step-title">Onboarding Services</h2>
+          </div>
+          <p class="step-desc">Optional external services to enhance your media library and casting experience.</p>
+        </header>
+
+        <!-- Error feedback banner -->
+        <div *ngIf="step3Error" class="error-container">
+          <span class="material-symbols-outlined error-icon">error</span>
+          <span class="error-text">{{ step3Error }}</span>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <label class="label-mono">TMDB API KEY</label>
+            <a class="text-[10px] text-surface-tint hover:underline uppercase tracking-[0.2em] font-bold" 
+               href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" style="color: var(--surface-tint); font-size: 10px; font-family: 'Inter', sans-serif; text-decoration: none;">Get Key</a>
+          </div>
+          <input #firstInput
+                 [(ngModel)]="tmdbApiKey" 
+                 class="input-glass" 
+                 placeholder="Enter your v4 Auth Token" 
+                 type="text">
+        </div>
+
+        <div class="form-group">
+          <label class="label-mono">CHROMECAST APPLICATION ID</label>
+          <input [(ngModel)]="castReceiverAppId" 
+                 class="input-glass" 
+                 placeholder="e.g. CC1AD845" 
+                 type="text">
+        </div>
+
+        <div class="checkbox-group">
+          <input [(ngModel)]="telemetry" 
+                 class="checkbox-input" 
+                 id="anon-stats" 
+                 type="checkbox">
+          <label class="checkbox-label" for="anon-stats">
+            Enable anonymous telemetry to help improve Prism's performance and stability.
+          </label>
+        </div>
+      </section>
+
+      <!-- Step 4: Finalizing -->
+      <section *ngIf="currentStep === 4" class="finalizing-container">
+        <div class="spinner-outer">
+          <div class="spinner-spin"></div>
+          <span class="material-symbols-outlined rocket-icon" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+        </div>
+        <h2 class="finalizing-title">Igniting the Engine</h2>
+        <p class="finalizing-desc">We're finalizing your configuration and preparing the media indexers.</p>
+        <div class="determinate-bar-track">
+          <div class="determinate-bar-fill"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Footer Controls -->
+    <footer *ngIf="currentStep < 4" class="setup-footer">
+      <button (click)="back()" 
+              [disabled]="currentStep === 1"
+              [class.opacity-50]="currentStep === 1"
+              class="btn-glass">
+        <span class="material-symbols-outlined" style="margin-right: 4px;">arrow_back</span>
+        Back
+      </button>
+
+      <div class="indicators-list">
+        <div *ngFor="let step of [1, 2, 3]" 
+             [class.active]="currentStep >= step"
+             [class.inactive]="currentStep < step"
+             class="indicator-dot"></div>
+      </div>
+
+      <button (click)="next()" 
+              class="btn-primary">
+        <span class="uppercase tracking-widest text-xs" style="margin-right: 4px;">
+          {{ currentStep === 3 ? 'Finish' : 'Next' }}
+        </span>
+        <span class="material-symbols-outlined">arrow_forward</span>
+      </button>
+    </footer>
+  </main>
+</div>

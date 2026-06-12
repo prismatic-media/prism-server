@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ringmaster217/galactic-media-server/internal/auth"
+	"github.com/go-chi/chi/v5"
+
+	"github.com/ringmaster217/prism/internal/auth"
 )
 
 type contextKey string
@@ -83,4 +85,36 @@ func bearerToken(r *http.Request) string {
 		return t
 	}
 	return ""
+}
+
+// AuthenticateStream is like Authenticate but also accepts a ?cast_token=
+// query parameter containing a media-item-scoped token. This allows Chromecast
+// devices (which cannot set arbitrary request headers) to fetch DASH manifests
+// and segments directly using a URL-embedded token.
+func AuthenticateStream(jwtSecret string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Prefer a normal Bearer / ?token= access token.
+			if tokenStr := bearerToken(r); tokenStr != "" {
+				if claims, err := auth.ValidateAccessToken(jwtSecret, tokenStr); err == nil {
+					ctx := context.WithValue(r.Context(), claimsContextKey, claims)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+			}
+
+			// Fall back to a cast-scoped token tied to this specific media item.
+			if castTok := r.URL.Query().Get("cast_token"); castTok != "" {
+				mediaID := chi.URLParam(r, "id")
+				if err := auth.ValidateCastToken(jwtSecret, castTok, mediaID); err == nil {
+					// Inject minimal non-admin claims so downstream handlers work.
+					ctx := context.WithValue(r.Context(), claimsContextKey, &auth.Claims{})
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+			}
+
+			http.Error(w, `{"error":"missing or invalid authorization"}`, http.StatusUnauthorized)
+		})
+	}
 }

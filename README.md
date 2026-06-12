@@ -1,4 +1,4 @@
-# Galactic Media Server
+# Prism Media Server
 
 A self-hosted media server with MPEG-DASH adaptive bitrate streaming, built with Go and Angular.
 
@@ -42,7 +42,7 @@ The Angular player uses [dash.js](https://github.com/Dash-Industry-Forum/dash.js
 ## Project Structure
 
 ```
-galactic-media-server/
+prism/
 ├── cmd/server/          # Application entry point
 ├── internal/
 │   ├── api/             # HTTP router + handlers
@@ -79,13 +79,13 @@ galactic-media-server/
 ```bash
 # 1. Copy and configure environment
 cp .env.example .env
-# Edit .env — set GALACTIC_JWT_SECRET and MEDIA_DIR
+# Edit .env — set PRISM_JWT_SECRET and MEDIA_DIR
 
 # 2. Start backing services (postgres + redis)
 docker compose up postgres redis -d
 
 # 3. Run the server (auto-migrates on startup)
-GALACTIC_JWT_SECRET=dev_secret go run ./cmd/server
+PRISM_JWT_SECRET=dev_secret go run ./cmd/server
 
 # 4. Bootstrap and run the Angular frontend
 ./scripts/init-angular.sh   # first time only
@@ -108,21 +108,21 @@ go test ./...
 
 ## Configuration
 
-All config values can be set via environment variables (`GALACTIC_` prefix) or a `config.yaml` file in the working directory.
+All config values can be set via environment variables (`PRISM_` prefix) or a `config.yaml` file in the working directory.
 
 | Variable | Default | Description |
 |---|---|---|
-| `GALACTIC_PORT` | `8080` | HTTP listen port |
-| `GALACTIC_DATABASE_URL` | `postgres://...` | PostgreSQL DSN |
-| `GALACTIC_REDIS_URL` | `redis://localhost:6379` | Redis URL |
-| `GALACTIC_JWT_SECRET` | *(required)* | JWT signing secret |
-| `GALACTIC_MEDIA_DIR` | `/media` | Root media directory |
-| `GALACTIC_SEGMENTS_DIR` | `/data/segments` | DASH segment output |
-| `GALACTIC_THUMBS_DIR` | `/data/thumbs` | Thumbnail cache |
-| `GALACTIC_FFMPEG_PATH` | `ffmpeg` | FFmpeg binary path |
-| `GALACTIC_FFPROBE_PATH` | `ffprobe` | FFprobe binary path |
-| `GALACTIC_TRANSCODE_WORKERS` | `2` | Concurrent transcode jobs |
-| `GALACTIC_TMDB_API_KEY` | *(optional)* | TMDB metadata enrichment |
+| `PRISM_PORT` | `8080` | HTTP listen port |
+| `PRISM_DATABASE_URL` | `postgres://...` | PostgreSQL DSN |
+| `PRISM_REDIS_URL` | `redis://localhost:6379` | Redis URL |
+| `PRISM_JWT_SECRET` | *(required)* | JWT signing secret |
+| `PRISM_MEDIA_DIR` | `/media` | Root media directory |
+| `PRISM_SEGMENTS_DIR` | `/data/segments` | DASH segment output |
+| `PRISM_THUMBS_DIR` | `/data/thumbs` | Thumbnail cache |
+| `PRISM_FFMPEG_PATH` | `ffmpeg` | FFmpeg binary path |
+| `PRISM_FFPROBE_PATH` | `ffprobe` | FFprobe binary path |
+| `PRISM_TRANSCODE_WORKERS` | `2` | Concurrent transcode jobs |
+| `PRISM_TMDB_API_KEY` | *(optional)* | TMDB metadata enrichment |
 
 ## Roadmap
 

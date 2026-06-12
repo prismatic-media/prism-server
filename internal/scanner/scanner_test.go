@@ -10,10 +10,11 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/scanner"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
-	"github.com/ringmaster217/galactic-media-server/migrations"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/scanner"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/ringmaster217/prism/migrations"
+	"github.com/ringmaster217/prism/pkg/events"
 
 	gosql "database/sql"
 )
@@ -46,7 +47,7 @@ func tmpLibDir(t *testing.T, files ...string) string {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(path, []byte("fake video"), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte("fake video: "+f), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -56,7 +57,6 @@ func tmpLibDir(t *testing.T, files ...string) string {
 func newLibrary(t *testing.T, db *gosql.DB, dir string) *models.Library {
 	t.Helper()
 	lib := &models.Library{
-		Name:      "Test",
 		Path:      dir,
 		MediaType: models.MediaTypeMovie,
 	}
@@ -71,7 +71,7 @@ func TestScanner_ScanAll_DiscoverFiles(t *testing.T) {
 	dir := tmpLibDir(t, "movie1.mkv", "movie2.mp4", "readme.txt")
 	lib := newLibrary(t, db, dir)
 
-	s := scanner.New(db, lib, "", nil) // empty ffprobePath = skip ffprobe
+	s := scanner.New(db, lib, nil, nil) // empty ffprobePath = skip ffprobe
 	if err := s.ScanAll(context.Background()); err != nil {
 		t.Fatalf("ScanAll: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestScanner_ScanAll_IgnoresNonVideo(t *testing.T) {
 	dir := tmpLibDir(t, "notes.txt", "image.jpg", "subtitle.srt")
 	lib := newLibrary(t, db, dir)
 
-	s := scanner.New(db, lib, "", nil)
+	s := scanner.New(db, lib, nil, nil)
 	if err := s.ScanAll(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestScanner_ScanAll_PrunesDeletedFiles(t *testing.T) {
 	dir := tmpLibDir(t, "keep.mkv", "gone.mkv")
 	lib := newLibrary(t, db, dir)
 
-	s := scanner.New(db, lib, "", nil)
+	s := scanner.New(db, lib, nil, nil)
 	if err := s.ScanAll(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestScanner_ScanAll_Idempotent(t *testing.T) {
 	dir := tmpLibDir(t, "movie.mkv")
 	lib := newLibrary(t, db, dir)
 
-	s := scanner.New(db, lib, "", nil)
+	s := scanner.New(db, lib, nil, nil)
 	for i := 0; i < 3; i++ {
 		if err := s.ScanAll(context.Background()); err != nil {
 			t.Fatalf("scan %d: %v", i, err)
@@ -148,12 +148,134 @@ func TestScanner_ScanAll_Idempotent(t *testing.T) {
 	}
 }
 
+func TestScanner_ScanAll_Optimize_EventEmission(t *testing.T) {
+	db := openTestDB(t)
+	dir := tmpLibDir(t, "movie.mkv")
+	lib := newLibrary(t, db, dir)
+	bus := events.NewBus()
+
+	s := scanner.New(db, lib, nil, bus)
+
+	subID, ch := bus.Subscribe()
+	defer bus.Unsubscribe(subID)
+
+	// First scan: should discover the file and emit EventMediaCreated
+	if err := s.ScanAll(context.Background()); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+
+	// Read events with a short timeout
+	var createdEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+readLoop1:
+	for {
+		select {
+		case evt := <-ch:
+			if evt.Type == events.EventMediaCreated {
+				createdEvents = append(createdEvents, evt)
+			}
+		case <-timeout:
+			break readLoop1
+		}
+	}
+
+	if len(createdEvents) != 1 {
+		t.Errorf("expected 1 EventMediaCreated on first scan, got %d", len(createdEvents))
+	}
+
+	// Second scan: should skip emission since the file is unchanged
+	if err := s.ScanAll(context.Background()); err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+
+	// Read events with a short timeout
+	var secondCreatedEvents []events.Event
+	timeout2 := time.After(100 * time.Millisecond)
+readLoop2:
+	for {
+		select {
+		case evt := <-ch:
+			if evt.Type == events.EventMediaCreated {
+				secondCreatedEvents = append(secondCreatedEvents, evt)
+			}
+		case <-timeout2:
+			break readLoop2
+		}
+	}
+
+	if len(secondCreatedEvents) != 0 {
+		t.Errorf("expected 0 EventMediaCreated on second scan, got %d", len(secondCreatedEvents))
+	}
+}
+
+func TestScanner_ScanAll_RestoreMissingStatus(t *testing.T) {
+	db := openTestDB(t)
+	dir := tmpLibDir(t, "movie.mkv")
+	lib := newLibrary(t, db, dir)
+	bus := events.NewBus()
+
+	s := scanner.New(db, lib, nil, bus)
+
+	// First scan to create the media item.
+	if err := s.ScanAll(context.Background()); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+
+	items, err := sqlite.ListMediaItems(context.Background(), db, lib.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	item := items[0]
+	if item.SourceStatus != models.SourceStatusAvailable {
+		t.Errorf("expected source status available, got %s", item.SourceStatus)
+	}
+
+	// Manually mark the item as missing.
+	if err := sqlite.SetMediaSourceStatus(context.Background(), db, item.ID, models.SourceStatusMissing); err != nil {
+		t.Fatalf("SetMediaSourceStatus: %v", err)
+	}
+
+	// Subscribe to events to verify we hit the fast path and don't re-emit EventMediaCreated
+	subID, ch := bus.Subscribe()
+	defer bus.Unsubscribe(subID)
+
+	// Second scan: should restore status to available and skip heavy processing/re-emission.
+	if err := s.ScanAll(context.Background()); err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+
+	// Check if status is restored.
+	updated, err := sqlite.GetMediaItemByID(context.Background(), db, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.SourceStatus != models.SourceStatusAvailable {
+		t.Errorf("expected status restored to available, got %s", updated.SourceStatus)
+	}
+
+	// Verify no EventMediaCreated event was emitted on second scan.
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			if evt.Type == events.EventMediaCreated {
+				t.Errorf("unexpected EventMediaCreated emitted on second scan")
+			}
+		case <-timeout:
+			return
+		}
+	}
+}
+
 func TestScanner_ScanAll_SubdirectoryRecurse(t *testing.T) {
 	db := openTestDB(t)
 	dir := tmpLibDir(t, "a/movie.mkv", "b/c/deep.mp4")
 	lib := newLibrary(t, db, dir)
 
-	s := scanner.New(db, lib, "", nil)
+	s := scanner.New(db, lib, nil, nil)
 	if err := s.ScanAll(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +294,7 @@ func TestScanner_Watch_PicksUpNewFile(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	s := scanner.New(db, lib, "", nil)
+	s := scanner.New(db, lib, nil, nil)
 	if err := s.ScanAll(ctx); err != nil {
 		t.Fatal(err)
 	}

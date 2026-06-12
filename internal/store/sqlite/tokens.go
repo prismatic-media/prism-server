@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
+	"github.com/ringmaster217/prism/internal/models"
 )
 
 const refreshTokenTTL = 30 * 24 * time.Hour

@@ -19,6 +19,9 @@ const (
 	EventMediaUpdated EventType = "media.updated"
 	// EventMediaCreated is published when a new media item is discovered by the scanner.
 	EventMediaCreated EventType = "media.created"
+	// EventMediaEnriched is published when TMDB metadata (including a poster) is
+	// fetched for a media item after it was first scanned.
+	EventMediaEnriched EventType = "media.enriched"
 )
 
 // Event is the wire-format envelope sent to WebSocket clients.
@@ -48,6 +51,14 @@ type MediaCreatedPayload struct {
 	MediaItemID uuid.UUID `json:"media_item_id"`
 	LibraryID   uuid.UUID `json:"library_id"`
 	Title       string    `json:"title"`
+}
+
+// MediaEnrichedPayload is published when TMDB metadata has been fetched and
+// a poster image is available for a media item.
+type MediaEnrichedPayload struct {
+	MediaItemID uuid.UUID `json:"media_item_id"`
+	LibraryID   uuid.UUID `json:"library_id"`
+	PosterPath  string    `json:"poster_path"`
 }
 
 // Bus is a goroutine-safe broadcast bus. All registered subscribers receive

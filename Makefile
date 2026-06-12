@@ -1,11 +1,18 @@
-BINARY     := galactic-media-server
+BINARY     := prism
 CMD        := ./cmd/server
 WEB_DIR    := web
 DIST_DIR   := $(WEB_DIR)/dist/browser
 
-.PHONY: all build run test lint clean reset web web-dev help
+.PHONY: all build run watch-server test lint clean reset web web-dev help
 
 all: build ## Build everything (backend + frontend)
+
+deploy: 
+	git pull
+	cd $(WEB_DIR) && npm run build && cd ..
+	go build -o $(BINARY) $(CMD)
+	systemctl restart prism
+	journalctl -f -u prism
 
 # ── Backend ──────────────────────────────────────────────────────────────────
 
@@ -15,14 +22,23 @@ build: web ## Build backend binary + frontend
 build-server: ## Build backend binary only (no frontend)
 	go build -o $(BINARY) $(CMD)
 
+worker: ## Build remote transcode worker binary
+	go build -o prism-worker ./cmd/worker
+
 run: build ## Build and run the server
 	./$(BINARY)
+
+watch-server: ## Start Go server with a file watcher for automatic restarting
+	bash scripts/watch-go.sh
 
 test: ## Run all Go tests
 	go test ./...
 
 lint: ## Run go vet
 	go vet ./...
+
+dev: web-build-dev
+	go run $(CMD)
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
 
@@ -35,10 +51,15 @@ web-dev: ## Start Angular dev server with proxy to localhost:8080
 web-install: ## Install npm dependencies
 	cd $(WEB_DIR) && npm install
 
+web-build-dev:
+	cd $(WEB_DIR) && ng build --configuration development
+
 # ── Housekeeping ──────────────────────────────────────────────────────────────
 
 clean: ## Remove build artefacts
 	rm -f $(BINARY)
+	rm -f server
+	rm -f prism-worker
 	rm -rf $(WEB_DIR)/dist
 	rm -f /tmp/smoke2.db
 	rm -rf /data/*

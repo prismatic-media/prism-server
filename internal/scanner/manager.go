@@ -8,18 +8,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/metadata"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
-	"github.com/ringmaster217/galactic-media-server/pkg/events"
+	"github.com/ringmaster217/prism/internal/metadata"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/ringmaster217/prism/pkg/events"
 )
 
 // Manager owns one Scanner per library and keeps them running.
 type Manager struct {
-	db          *sql.DB
-	ffprobePath string
-	enricher    *metadata.Enricher
-	eventBus    *events.Bus
+	db       *sql.DB
+	enricher *metadata.Enricher
+	eventBus *events.Bus
 
 	// ctx is the Manager's own long-lived context, independent of any HTTP
 	// request or startup context. Scanners derive their contexts from here so
@@ -34,17 +33,16 @@ type Manager struct {
 
 // NewManager creates a Manager. enricher may be nil to skip metadata
 // enrichment. Call StartAll to start watching all libraries in the DB.
-func NewManager(db *sql.DB, ffprobePath string, enricher *metadata.Enricher, bus *events.Bus) *Manager {
+func NewManager(db *sql.DB, enricher *metadata.Enricher, bus *events.Bus) *Manager {
 	ctx, stop := context.WithCancel(context.Background())
 	return &Manager{
-		db:          db,
-		ffprobePath: ffprobePath,
-		enricher:    enricher,
-		eventBus:    bus,
-		ctx:         ctx,
-		stop:        stop,
-		scanners:    make(map[uuid.UUID]*Scanner),
-		cancels:     make(map[uuid.UUID]context.CancelFunc),
+		db:       db,
+		enricher: enricher,
+		eventBus: bus,
+		ctx:      ctx,
+		stop:     stop,
+		scanners: make(map[uuid.UUID]*Scanner),
+		cancels:  make(map[uuid.UUID]context.CancelFunc),
 	}
 }
 
@@ -105,7 +103,7 @@ func (m *Manager) add(lib *models.Library) {
 		m.mu.Unlock()
 		return
 	}
-	s := New(m.db, lib, m.ffprobePath, m.enricher, m.eventBus)
+	s := New(m.db, lib, m.enricher, m.eventBus)
 	watchCtx, cancel := context.WithCancel(m.ctx)
 	m.scanners[lib.ID] = s
 	m.cancels[lib.ID] = cancel
@@ -114,14 +112,14 @@ func (m *Manager) add(lib *models.Library) {
 	// Initial scan (non-blocking).
 	go func() {
 		if err := s.ScanAll(watchCtx); err != nil {
-			slog.Warn("initial scan failed", "library", lib.Name, "error", err)
+			slog.Warn("initial scan failed", "path", lib.Path, "error", err)
 		}
 	}()
 
 	// File-system watcher (non-blocking).
 	go func() {
 		if err := s.Start(watchCtx); err != nil && watchCtx.Err() == nil {
-			slog.Warn("watcher exited", "library", lib.Name, "error", err)
+			slog.Warn("watcher exited", "path", lib.Path, "error", err)
 		}
 	}()
 }

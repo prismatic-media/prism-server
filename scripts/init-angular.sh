@@ -11,7 +11,7 @@ if ! command -v ng &>/dev/null; then
 fi
 
 echo "Creating Angular app in web/..."
-ng new galactic-web \
+ng new prism-web \
   --directory web \
   --routing \
   --style scss \

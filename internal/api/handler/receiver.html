@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Prism Media Receiver</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+    cast-media-player { width: 100%; height: 100%; }
+    #diag {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: rgba(180,0,0,0.9);
+      color: #fff; font: 18px/1.5 monospace;
+      padding: 20px; white-space: pre-wrap;
+      z-index: 9999; display: none;
+    }
+  </style>
+</head>
+<body>
+  <cast-media-player></cast-media-player>
+  <div id="diag"></div>
+
+  <script>
+    // Show any error visibly on the TV screen.
+    function showError(msg) {
+      var d = document.getElementById('diag');
+      d.style.display = 'block';
+      d.textContent = msg;
+      console.error('[Prism] ' + msg);
+    }
+
+    window.onerror = function(msg, src, line, col, err) {
+      showError('JS ERROR\n' + msg + '\n' + src + ':' + line + '\n' + (err && err.stack || ''));
+    };
+  </script>
+
+  <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"
+          onerror="showError('FAILED TO LOAD cast_receiver_framework.js\nCheck that the Chromecast can reach www.gstatic.com')"></script>
+
+  <script>
+    try {
+      if (typeof cast === 'undefined') {
+        showError('cast SDK not loaded — cast_receiver_framework.js failed silently');
+      } else {
+        var receiverContext = cast.framework.CastReceiverContext.getInstance();
+        var receiverPlayerManager = receiverContext.getPlayerManager();
+
+        receiverPlayerManager.setMediaPlaybackInfoHandler(function(loadRequest, playbackConfig) {
+          var contentId = loadRequest.media && loadRequest.media.contentId;
+          console.log('[Prism] load contentId=' + contentId);
+          if (contentId) {
+            try {
+              var castToken = new URL(contentId).searchParams.get('cast_token');
+              if (castToken) {
+                playbackConfig.segmentRequestHandler = function(request) {
+                  try {
+                    var u = new URL(request.url);
+                    u.searchParams.set('cast_token', castToken);
+                    request.url = u.toString();
+                  } catch (e2) { /* non-absolute URL, leave as-is */ }
+                  return request;
+                };
+              }
+            } catch (e) {
+              console.warn('[Prism] could not parse contentId:', e);
+            }
+          }
+          return playbackConfig;
+        });
+
+        receiverPlayerManager.addEventListener(cast.framework.events.EventType.ERROR, function(e) {
+          showError('PLAYER ERROR\n' + JSON.stringify(e, null, 2));
+        });
+
+        receiverContext.start();
+        console.log('[Prism] context.start() called');
+      }
+    } catch (e) {
+      showError('STARTUP ERROR\n' + e.message + '\n' + (e.stack || ''));
+    }
+  </script>
+</body>
+</html>

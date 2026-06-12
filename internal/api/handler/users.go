@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	apimw "github.com/ringmaster217/galactic-media-server/internal/api/middleware"
-	"github.com/ringmaster217/galactic-media-server/internal/auth"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	apimw "github.com/ringmaster217/prism/internal/api/middleware"
+	"github.com/ringmaster217/prism/internal/auth"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 // UsersHandler handles user creation and profile endpoints.
@@ -37,7 +37,7 @@ type createUserRequest struct {
 func (h *UsersHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	count, err := sqlite.CountUsers(r.Context(), h.db)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not check users")
+		respondError(w, http.StatusInternalServerError, "could not check users", err)
 		return
 	}
 
@@ -64,7 +64,7 @@ func (h *UsersHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := auth.HashPassword(req.Password)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not hash password")
+		respondError(w, http.StatusInternalServerError, "could not hash password", err)
 		return
 	}
 
@@ -149,7 +149,7 @@ func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	if req.Password != "" {
 		hash, err := auth.HashPassword(req.Password)
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, "could not hash password")
+			respondError(w, http.StatusInternalServerError, "could not hash password", err)
 			return
 		}
 		user.PasswordHash = hash

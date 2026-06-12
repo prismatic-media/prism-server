@@ -35,13 +35,13 @@ type SubtitleStream struct {
 // images rather than text. FFmpeg cannot convert these to WebVTT, so they
 // are excluded from extraction.
 var bitmapSubtitleCodecs = map[string]struct{}{
-	"dvd_subtitle":  {},
-	"dvdsub":        {},
-	"pgssub":        {},
+	"dvd_subtitle":      {},
+	"dvdsub":            {},
+	"pgssub":            {},
 	"hdmv_pgs_subtitle": {},
-	"xsub":          {},
-	"dvb_subtitle":  {},
-	"dvb_teletext":  {},
+	"xsub":              {},
+	"dvb_subtitle":      {},
+	"dvb_teletext":      {},
 }
 
 // Probe runs ffprobe on the given file and returns media metadata.
@@ -111,6 +111,7 @@ func Probe(ctx context.Context, ffprobePath, filePath string) (*ProbeResult, err
 type RenditionProfile struct {
 	Name          string
 	Height        int
+	Width         int // standard reference width (e.g. 1920 for 1080p); used for wide-format sources
 	VideoBitrateK int // kbps
 	AudioBitrateK int // kbps
 }
@@ -118,10 +119,10 @@ type RenditionProfile struct {
 // DefaultProfiles returns the standard set of DASH renditions.
 func DefaultProfiles() []RenditionProfile {
 	return []RenditionProfile{
-		{Name: "360p", Height: 360, VideoBitrateK: 400, AudioBitrateK: 64},
-		{Name: "480p", Height: 480, VideoBitrateK: 800, AudioBitrateK: 96},
-		{Name: "720p", Height: 720, VideoBitrateK: 2500, AudioBitrateK: 128},
-		{Name: "1080p", Height: 1080, VideoBitrateK: 8000, AudioBitrateK: 192},
+		{Name: "360p",  Height: 360,  Width: 640,  VideoBitrateK: 400,  AudioBitrateK: 64},
+		{Name: "480p",  Height: 480,  Width: 854,  VideoBitrateK: 800,  AudioBitrateK: 96},
+		{Name: "720p",  Height: 720,  Width: 1280, VideoBitrateK: 2500, AudioBitrateK: 128},
+		{Name: "1080p", Height: 1080, Width: 1920, VideoBitrateK: 8000, AudioBitrateK: 192},
 	}
 }
 
@@ -132,8 +133,11 @@ type TranscodeOptions struct {
 	Profiles        []RenditionProfile
 	SegmentDuration int           // seconds, default 4
 	Duration        float64       // total input duration in seconds; used for progress
+	SourceWidth     int           // source video width in pixels; used to pick scale filter
+	SourceHeight    int           // source video height in pixels; used to pick scale filter
 	ProgressFn      func(float64) // called with 0–100 overall percent; may be nil
 	SubtitleStreams []SubtitleStream
+	HWAccelType     string
 }
 
 // reProgress matches FFmpeg progress lines: "out_time_ms=12345678"
@@ -173,28 +177,23 @@ func TranscodeDASH(ctx context.Context, ffmpegPath string, opts TranscodeOptions
 		// writes segments directly to their final filenames with no rename, and
 		// its output (init.mp4 + seg_NNNNN.m4s) is CMAF-compatible and valid
 		// for use with a DASH MPD. The resulting .m3u8 playlist is ignored.
-		args := []string{
-			"-y", "-i", opts.InputPath, // absolute path required
-			"-progress", "pipe:2",
-			"-map", "0:v:0",
-			"-map", "0:a:0",
-			"-c:v", "libx264",
-			"-b:v", fmt.Sprintf("%dk", p.VideoBitrateK),
-			"-vf", fmt.Sprintf("scale=-2:%d", p.Height),
-			// Closed GOPs: force a keyframe at every segment boundary so each
-			// segment is independently decodable by DASH clients.
-			"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", opts.SegmentDuration),
-			"-c:a", "aac",
-			"-b:a", fmt.Sprintf("%dk", p.AudioBitrateK),
-			"-f", "hls",
-			"-hls_time", strconv.Itoa(opts.SegmentDuration),
-			"-hls_segment_type", "fmp4",
-			"-hls_flags", "independent_segments",
-			"-hls_fmp4_init_filename", "init.mp4",
-			"-hls_segment_filename", "seg_%05d.m4s",
-			"-start_number", "1",
-			"stream.m3u8", // relative to renditionDir; ignored after encode
-		}
+			// Scale filter: for wide-format sources (e.g. 1920×800) where the
+			// profile width is the limiting dimension, scale by width to avoid
+			// upscaling vertically. Otherwise scale by height (standard 16:9).
+			var scaleFilter string
+			if p.Width > 0 && opts.SourceWidth > 0 && opts.SourceHeight > 0 {
+				// Height the source would reach if we scaled to profile width.
+				scaledH := p.Width * opts.SourceHeight / opts.SourceWidth
+				if scaledH < p.Height {
+					// Source is wider than the profile's aspect ratio; clamp by width.
+					scaleFilter = fmt.Sprintf("scale=%d:-2", p.Width)
+				}
+			}
+			if scaleFilter == "" {
+				scaleFilter = fmt.Sprintf("scale=-2:%d", p.Height)
+			}
+
+			_, args := buildTranscodeArgs(opts, p, scaleFilter)
 
 		profileIdx := idx // capture for closure
 		var progressFn func(float64)
@@ -390,4 +389,47 @@ func runCmd(ctx context.Context, bin string, args []string) ([]byte, error) {
 	}
 
 	return stdout.Bytes(), nil
+}
+
+func buildTranscodeArgs(opts TranscodeOptions, p RenditionProfile, scaleFilter string) (string, []string) {
+	var codec string
+	switch opts.HWAccelType {
+	case "nvenc":
+		codec = "h264_nvenc"
+	case "qsv":
+		codec = "h264_qsv"
+	case "videotoolbox":
+		codec = "h264_videotoolbox"
+	case "vaapi":
+		codec = "h264_vaapi"
+		scaleFilter += ",format=nv12,hwupload"
+	default:
+		codec = "libx264"
+	}
+
+	var args []string
+	if opts.HWAccelType == "vaapi" {
+		args = append(args, "-init_hw_device", "vaapi=vaapi", "-filter_hw_device", "vaapi")
+	}
+	args = append(args,
+		"-y", "-i", opts.InputPath,
+		"-progress", "pipe:2",
+		"-map", "0:v:0",
+		"-map", "0:a:0",
+		"-c:v", codec,
+		"-b:v", fmt.Sprintf("%dk", p.VideoBitrateK),
+		"-vf", scaleFilter,
+		"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", opts.SegmentDuration),
+		"-c:a", "aac",
+		"-b:a", fmt.Sprintf("%dk", p.AudioBitrateK),
+		"-f", "hls",
+		"-hls_time", strconv.Itoa(opts.SegmentDuration),
+		"-hls_segment_type", "fmp4",
+		"-hls_flags", "independent_segments",
+		"-hls_fmp4_init_filename", "init.mp4",
+		"-hls_segment_filename", "seg_%05d.m4s",
+		"-start_number", "1",
+		"stream.m3u8",
+	)
+	return codec, args
 }

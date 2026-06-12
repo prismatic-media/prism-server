@@ -1,78 +1,86 @@
 package config
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/spf13/viper"
+	"flag"
+	"os"
+	"strconv"
 )
 
+// Config holds startup-only configuration — values known before the database
+// is opened. All runtime settings live in the database settings table.
 type Config struct {
-	Port      int    `mapstructure:"port"`
-	DBPath    string `mapstructure:"db_path"`
-	JWTSecret string `mapstructure:"jwt_secret"`
-
-	// Media storage
-	MediaDir    string `mapstructure:"media_dir"`
-	SegmentsDir string `mapstructure:"segments_dir"`
-	ThumbsDir   string `mapstructure:"thumbs_dir"`
-
-	// Transcoder
-	FFmpegPath       string `mapstructure:"ffmpeg_path"`
-	FFprobePath      string `mapstructure:"ffprobe_path"`
-	TranscodeWorkers int    `mapstructure:"transcode_workers"`
-
-	// External APIs
-	TMDBApiKey string `mapstructure:"tmdb_api_key"`
+	DBPath string
+	Port   int
 }
 
-func Load() (*Config, error) {
-	v := viper.New()
+// RuntimeSettings holds settings loaded from the database at startup. These
+// are read once and wired into subsystems; changes take effect after a restart.
+type RuntimeSettings struct {
+	JWTSecret         string
+	ThumbsDir         string
+	FFmpegHWAccel     string
+	TranscodeWorkers  int
+	TMDBApiKey        string
+	CastReceiverAppID string
+}
 
-	v.SetDefault("port", 8080)
-	v.SetDefault("db_path", "galactic.db")
-	v.SetDefault("media_dir", "/media")
-	v.SetDefault("segments_dir", "/data/segments")
-	v.SetDefault("thumbs_dir", "/data/thumbs")
-	v.SetDefault("ffmpeg_path", "ffmpeg")
-	v.SetDefault("ffprobe_path", "ffprobe")
-	v.SetDefault("transcode_workers", 2)
-
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
-	v.AddConfigPath("$HOME/.galactic")
-	v.AddConfigPath("/etc/galactic")
-
-	v.SetEnvPrefix("GALACTIC")
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
-
-	// Viper's AutomaticEnv does not populate keys during Unmarshal without
-	// explicit BindEnv calls. Bind every key we want to be overridable via env.
-	for _, key := range []string{
-		"port", "db_path", "jwt_secret",
-		"media_dir", "segments_dir", "thumbs_dir",
-		"ffmpeg_path", "ffprobe_path", "transcode_workers",
-		"tmdb_api_key",
-	} {
-		_ = v.BindEnv(key)
+// Load parses startup configuration from flags and environment variables.
+// Flag values take precedence over environment variables.
+//
+//	--db   / PRISM_DB    path to the SQLite database file (default: prism.db)
+//	--port / PRISM_PORT  HTTP listen port (default: 8080)
+func Load() *Config {
+	cfg := &Config{
+		DBPath: envOrDefault("PRISM_DB", "prism.db"),
+		Port:   envIntOrDefault("PRISM_PORT", 8080),
 	}
 
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("reading config: %w", err)
+	flag.StringVar(&cfg.DBPath, "db", cfg.DBPath, "path to SQLite database file (env: PRISM_DB)")
+	flag.IntVar(&cfg.Port, "port", cfg.Port, "HTTP listen port (env: PRISM_PORT)")
+	flag.Parse()
+
+	return cfg
+}
+
+// RuntimeSettingsFromMap converts the raw string map from the settings store
+// into a typed RuntimeSettings struct.
+func RuntimeSettingsFromMap(m map[string]string) RuntimeSettings {
+	return RuntimeSettings{
+		JWTSecret:         m["jwt_secret"],
+		ThumbsDir:         m["thumbs_dir"],
+		FFmpegHWAccel:     stringOrDefault(m["ffmpeg_hwaccel"], "none"),
+		TranscodeWorkers:  intOrDefault(m["transcode_workers"], 2),
+		TMDBApiKey:        m["tmdb_api_key"],
+		CastReceiverAppID: m["cast_receiver_app_id"],
+	}
+}
+
+func envOrDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func envIntOrDefault(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
 		}
 	}
+	return def
+}
 
-	cfg := &Config{}
-	if err := v.Unmarshal(cfg); err != nil {
-		return nil, fmt.Errorf("unmarshaling config: %w", err)
+func stringOrDefault(s, def string) string {
+	if s != "" {
+		return s
 	}
+	return def
+}
 
-	if cfg.JWTSecret == "" {
-		return nil, fmt.Errorf("jwt_secret is required (set GALACTIC_JWT_SECRET)")
+func intOrDefault(s string, def int) int {
+	if n, err := strconv.Atoi(s); err == nil && n > 0 {
+		return n
 	}
-
-	return cfg, nil
+	return def
 }

@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 // _ suppresses unused import warning for uuid when only struct fields use it.
@@ -24,7 +24,7 @@ func TestUpsertWatchHistory_InsertAndUpdate(t *testing.T) {
 	}
 
 	// Seed prerequisite library + item.
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestListWatchHistory_ExcludesCompleted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lib := newLib("L", "/l", models.MediaTypeMovie)
+	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,144 @@
+<div class="dashboard-container">
+  <!-- Greeting header -->
+  <header class="dashboard-header">
+    <h1 class="welcome-text">Welcome back, {{ authService.currentUser?.username }}</h1>
+    <p class="welcome-sub">Prism is running and indexing your media streams.</p>
+  </header>
+
+  <!-- Stats Grid -->
+  <section class="stats-grid">
+    <!-- Stat 1: Movies -->
+    <div class="stat-card glass-card">
+      <div class="stat-info">
+        <span class="stat-label label-mono">MOVIES</span>
+        <span class="stat-value">{{ stats.moviesCount }}</span>
+      </div>
+      <span class="material-symbols-outlined stat-icon icon-cyan">movie</span>
+    </div>
+
+    <!-- Stat 2: TV Shows -->
+    <div class="stat-card glass-card">
+      <div class="stat-info">
+        <span class="stat-label label-mono">TV SHOWS</span>
+        <span class="stat-value">{{ stats.showsCount }}</span>
+      </div>
+      <span class="material-symbols-outlined stat-icon icon-violet">tv</span>
+    </div>
+
+    <!-- Stat 3: Transcoding Jobs -->
+    <div class="stat-card glass-card">
+      <div class="stat-info">
+        <span class="stat-label label-mono">ACTIVE TRANSCODES</span>
+        <span class="stat-value">{{ stats.transcodingJobs }}</span>
+      </div>
+      <span class="material-symbols-outlined stat-icon icon-indigo" [class.pulse]="stats.transcodingJobs > 0">settings_input_component</span>
+    </div>
+
+    <!-- Stat 4: Storage Health -->
+    <div class="stat-card glass-card">
+      <div class="stat-info">
+        <span class="stat-label label-mono">STORAGE STATUS</span>
+        <span class="stat-value status-healthy" *ngIf="stats.storageHealthy">Healthy</span>
+        <span class="stat-value status-warning" *ngIf="!stats.storageHealthy">Alert</span>
+      </div>
+      <span class="material-symbols-outlined stat-icon icon-teal">database</span>
+    </div>
+  </section>
+
+  <!-- Continue Watching Section -->
+  <section class="media-section" *ngIf="continueWatching.length > 0">
+    <h2 class="section-title">Continue Watching</h2>
+    
+    <div class="horizontal-scroll-container">
+      <div 
+        class="movie-card group" 
+        *ngFor="let item of continueWatching; trackBy: trackByHistoryId" 
+        (click)="item.media && onMediaClick(item.media)">
+        
+        <div class="poster-container">
+          <img [src]="getContinueWatchingPosterUrl(item)" [alt]="getMediaLabel(item)" class="poster-img" loading="lazy" />
+          
+          <!-- Playback progress bar -->
+          <div class="continue-progress-container">
+            <div class="continue-progress-bar" [style.width.%]="calculateProgressPercent(item)"></div>
+          </div>
+          
+          <!-- Hover Resume Overlay -->
+          <div class="poster-overlay">
+            <button class="overlay-play-btn" (click)="resumeWatch(item, $event)" title="Resume Playback">
+              <span class="material-symbols-outlined">play_arrow</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="movie-metadata">
+          <h3 class="movie-title" [title]="getMediaLabel(item)">{{ getMediaLabel(item) }}</h3>
+          <p class="movie-info-row">{{ formatRemainingTime(item) }} remaining</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recently Added Movies Section -->
+  <section class="media-section" *ngIf="recentMovies.length > 0">
+    <h2 class="section-title">Recently Added Movies</h2>
+    
+    <div class="horizontal-scroll-container">
+      <div 
+        class="movie-card group" 
+        *ngFor="let movie of recentMovies; trackBy: trackByMovieId" 
+        (click)="onMediaClick(movie)">
+        
+        <div class="poster-container">
+          <img [src]="getPosterUrl(movie)" [alt]="movie.title" class="poster-img" loading="lazy" />
+          
+          <!-- Hover Gradient Overlay & Badges -->
+          <div class="poster-overlay">
+            <div class="overlay-badges">
+              <span class="badge badge-4k" *ngIf="movie.width >= 3840">4K</span>
+              <span class="badge badge-hd" *ngIf="movie.width >= 1920 && movie.width < 3840">HD</span>
+              <span class="badge badge-hdr" *ngIf="movie.video_codec && (movie.video_codec.toLowerCase().includes('hevc') || movie.video_codec.toLowerCase().includes('h265'))">HDR</span>
+              <span class="badge badge-transcoded" *ngIf="movie.transcode_status === 'done'">TR</span>
+            </div>
+            
+            <button class="overlay-play-btn" (click)="playMovie(movie, $event)" title="Play Movie">
+              <span class="material-symbols-outlined">play_arrow</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="movie-metadata">
+          <h3 class="movie-title">{{ movie.title }}</h3>
+          <p class="movie-info-row">{{ movie.year || 'N/A' }} • {{ formatDuration(movie.duration) }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recently Added TV Shows Section -->
+  <section class="media-section" *ngIf="recentShows.length > 0">
+    <h2 class="section-title">Recently Added TV Shows</h2>
+    
+    <div class="horizontal-scroll-container">
+      <div 
+        class="movie-card group" 
+        *ngFor="let show of recentShows; trackBy: trackByShowId" 
+        (click)="onShowClick(show)">
+        
+        <div class="poster-container">
+          <img [src]="getShowPosterUrl(show)" [alt]="show.name" class="poster-img" loading="lazy" />
+          
+          <!-- Hover Gradient Overlay -->
+          <div class="poster-overlay">
+            <!-- No direct play button for show cards since we navigate to show details -->
+          </div>
+        </div>
+        
+        <div class="movie-metadata">
+          <h3 class="movie-title">{{ show.name }}</h3>
+          <p class="movie-info-row">{{ show.first_air_year || 'N/A' }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

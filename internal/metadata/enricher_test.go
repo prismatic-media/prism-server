@@ -12,9 +12,9 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
-	"github.com/ringmaster217/galactic-media-server/migrations"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/ringmaster217/prism/migrations"
 )
 
 func openEnricherTestDB(t *testing.T) *sql.DB {
@@ -34,11 +34,18 @@ func openEnricherTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// setTMDBKey seeds the tmdb_api_key setting in the test DB.
+func setTMDBKey(t *testing.T, db *sql.DB, key string) {
+	t.Helper()
+	if err := sqlite.SetSetting(context.Background(), db, "tmdb_api_key", key); err != nil {
+		t.Fatalf("setTMDBKey: %v", err)
+	}
+}
+
 // seedItem inserts a library + media item and returns the item.
 func seedItem(t *testing.T, db *sql.DB, mediaType models.MediaType, filePath string) *models.MediaItem {
 	t.Helper()
 	lib := &models.Library{
-		Name:      "Test",
 		Path:      "/test",
 		MediaType: mediaType,
 	}
@@ -66,7 +73,8 @@ func seedItem(t *testing.T, db *sql.DB, mediaType models.MediaType, filePath str
 
 func TestEnricher_NoAPIKey_IsNoop(t *testing.T) {
 	db := openEnricherTestDB(t)
-	e := NewEnricher(db, "", "")
+	// No tmdb_api_key set in DB — enricher should be a no-op.
+	e := NewEnricher(db)
 	item := &models.MediaItem{
 		ID:        uuid.New(),
 		MediaType: models.MediaTypeMovie,
@@ -85,8 +93,9 @@ func TestEnricher_AlreadyEnriched_IsNoop(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	e := NewEnricher(db, "test-key", "")
-	e.client.baseURL = srv.URL
+	setTMDBKey(t, db, "test-key")
+	e := NewEnricher(db)
+	e.baseURLOverride = srv.URL
 
 	tmdbID := 27205
 	item := &models.MediaItem{
@@ -111,16 +120,39 @@ func TestEnricher_Movie_WritesMetadata(t *testing.T) {
 		}},
 	})
 
+	movieDetailResp, _ := json.Marshal(map[string]any{
+		"id":           float64(27205),
+		"title":        "Inception",
+		"release_date": "2010-07-16",
+		"overview":     "A thief who steals corporate secrets.",
+		"poster_path":  "",
+		"credits": map[string]any{
+			"cast": []any{
+				map[string]any{"name": "Leonardo DiCaprio", "character": "Cobb"},
+			},
+			"crew": []any{
+				map[string]any{"name": "Christopher Nolan", "job": "Director"},
+			},
+		},
+	})
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(movieResp)
+		if r.URL.Path == "/search/movie" {
+			w.Write(movieResp)
+		} else if r.URL.Path == "/movie/27205" {
+			w.Write(movieDetailResp)
+		} else {
+			http.Error(w, "not found", http.StatusNotFound)
+		}
 	}))
 	defer srv.Close()
 
 	item := seedItem(t, db, models.MediaTypeMovie, "/movies/Inception (2010).mkv")
 
-	e := NewEnricher(db, "test-key", "")
-	e.client.baseURL = srv.URL
+	setTMDBKey(t, db, "test-key")
+	e := NewEnricher(db)
+	e.baseURLOverride = srv.URL
 
 	e.EnrichItem(context.Background(), item)
 
@@ -155,16 +187,39 @@ func TestEnricher_TVShow_WritesMetadata(t *testing.T) {
 		}},
 	})
 
+	tvDetailResp, _ := json.Marshal(map[string]any{
+		"id":             float64(1396),
+		"name":           "Breaking Bad",
+		"first_air_date": "2008-01-20",
+		"overview":       "A teacher turns cook.",
+		"poster_path":    "",
+		"created_by": []any{
+			map[string]any{"name": "Vince Gilligan"},
+		},
+		"credits": map[string]any{
+			"cast": []any{
+				map[string]any{"name": "Bryan Cranston", "character": "Walter White"},
+			},
+		},
+	})
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(tvResp)
+		if r.URL.Path == "/search/tv" {
+			w.Write(tvResp)
+		} else if r.URL.Path == "/tv/1396" {
+			w.Write(tvDetailResp)
+		} else {
+			http.Error(w, "not found", http.StatusNotFound)
+		}
 	}))
 	defer srv.Close()
 
 	item := seedItem(t, db, models.MediaTypeTVShow, "/tv/Breaking.Bad.2008.mkv")
 
-	e := NewEnricher(db, "test-key", "")
-	e.client.baseURL = srv.URL
+	setTMDBKey(t, db, "test-key")
+	e := NewEnricher(db)
+	e.baseURLOverride = srv.URL
 
 	e.EnrichItem(context.Background(), item)
 
@@ -189,8 +244,9 @@ func TestEnricher_NoResults_NoUpdate(t *testing.T) {
 
 	item := seedItem(t, db, models.MediaTypeMovie, "/movies/UnknownFilm.mkv")
 
-	e := NewEnricher(db, "test-key", "")
-	e.client.baseURL = emptySrv.URL
+	setTMDBKey(t, db, "test-key")
+	e := NewEnricher(db)
+	e.baseURLOverride = emptySrv.URL
 
 	e.EnrichItem(context.Background(), item)
 
@@ -217,8 +273,9 @@ func TestEnricher_MusicType_IsNoop(t *testing.T) {
 	// what we pass in. We just need the enricher to see MediaTypeMusic.
 	item.MediaType = models.MediaTypeMusic
 
-	e := NewEnricher(db, "test-key", "")
-	e.client.baseURL = srv.URL
+	setTMDBKey(t, db, "test-key")
+	e := NewEnricher(db)
+	e.baseURLOverride = srv.URL
 
 	e.EnrichItem(context.Background(), item)
 }

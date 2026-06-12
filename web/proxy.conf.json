@@ -2,6 +2,14 @@
   "/api": {
     "target": "http://localhost:8080",
     "secure": false,
-    "changeOrigin": true
+    "ws": true
+  },
+  "/cast-receiver": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/healthz": {
+    "target": "http://localhost:8080",
+    "secure": false
   }
 }

@@ -5,11 +5,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      GALACTIC_JWT_SECRET: 4aa7e7e1-d8ca-4755-8c52-6d673a0fcd53
-      GALACTIC_DB_PATH: /data/galactic.db
-      GALACTIC_MEDIA_DIR: /media
-      GALACTIC_SEGMENTS_DIR: /data/segments
-      GALACTIC_THUMBS_DIR: /data/thumbs
+      PRISM_JWT_SECRET: 4aa7e7e1-d8ca-4755-8c52-6d673a0fcd53
+      PRISM_DB_PATH: /data/prism.db
+      PRISM_MEDIA_DIR: /media
+      PRISM_SEGMENTS_DIR: /data/segments
+      PRISM_THUMBS_DIR: /data/thumbs
     ports:
       - "8080:8080"
     volumes:

@@ -9,10 +9,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	apimw "github.com/ringmaster217/galactic-media-server/internal/api/middleware"
-	"github.com/ringmaster217/galactic-media-server/internal/models"
-	"github.com/ringmaster217/galactic-media-server/internal/scanner"
-	"github.com/ringmaster217/galactic-media-server/internal/store/sqlite"
+	apimw "github.com/ringmaster217/prism/internal/api/middleware"
+	"github.com/ringmaster217/prism/internal/models"
+	"github.com/ringmaster217/prism/internal/scanner"
+	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
 // LibraryHandler handles CRUD operations on libraries and triggers scans.
@@ -26,7 +26,6 @@ func NewLibraryHandler(db *sql.DB, manager *scanner.Manager) *LibraryHandler {
 }
 
 type createLibraryRequest struct {
-	Name      string `json:"name"`
 	Path      string `json:"path"`
 	MediaType string `json:"media_type"`
 }
@@ -39,8 +38,8 @@ func (h *LibraryHandler) CreateLibrary(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Name == "" || req.Path == "" || req.MediaType == "" {
-		respondError(w, http.StatusBadRequest, "name, path, and media_type are required")
+	if req.Path == "" || req.MediaType == "" {
+		respondError(w, http.StatusBadRequest, "path and media_type are required")
 		return
 	}
 
@@ -53,7 +52,6 @@ func (h *LibraryHandler) CreateLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lib := &models.Library{
-		Name:      req.Name,
 		Path:      req.Path,
 		MediaType: mt,
 	}
@@ -72,7 +70,7 @@ func (h *LibraryHandler) CreateLibrary(w http.ResponseWriter, r *http.Request) {
 func (h *LibraryHandler) ListLibraries(w http.ResponseWriter, r *http.Request) {
 	libs, err := sqlite.ListLibraries(r.Context(), h.db)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not list libraries")
+		respondError(w, http.StatusInternalServerError, "could not list libraries", err)
 		return
 	}
 	if libs == nil {
@@ -95,7 +93,7 @@ func (h *LibraryHandler) GetLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch library")
+		respondError(w, http.StatusInternalServerError, "could not fetch library", err)
 		return
 	}
 
@@ -114,7 +112,7 @@ func (h *LibraryHandler) DeleteLibrary(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "library not found")
 		return
 	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not delete library")
+		respondError(w, http.StatusInternalServerError, "could not delete library", err)
 		return
 	}
 
@@ -135,7 +133,7 @@ func (h *LibraryHandler) ScanLibrary(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "library not found")
 		return
 	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch library")
+		respondError(w, http.StatusInternalServerError, "could not fetch library", err)
 		return
 	}
 
