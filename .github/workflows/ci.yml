@@ -71,7 +71,7 @@ jobs:
         working-directory: web
 
       - name: Run Tests
-        run: npx vitest run
+        run: npx ng test --watch=false
         working-directory: web
 
       - name: Build Frontend
