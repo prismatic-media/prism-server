@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { Subject, Subscription, Observable, bufferTime, filter } from 'rxjs';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class EventService implements OnDestroy {
   private authService = inject(AuthService);
@@ -15,11 +15,11 @@ export class EventService implements OnDestroy {
   private eventSubject = new Subject<any>();
   public events$: Observable<any[]> = this.eventSubject.asObservable().pipe(
     bufferTime(1000),
-    filter(batch => batch.length > 0)
+    filter((batch) => batch.length > 0),
   );
 
   constructor() {
-    this.authSub = this.authService.currentUser$.subscribe(user => {
+    this.authSub = this.authService.currentUser$.subscribe((user) => {
       if (user) {
         this.connect();
       } else {

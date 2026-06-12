@@ -9,7 +9,7 @@ import { Router } from '@angular/router';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './setup.component.html',
-  styleUrls: ['./setup.component.css']
+  styleUrls: ['./setup.component.css'],
 })
 export class SetupComponent {
   private http = inject(HttpClient);
@@ -63,7 +63,8 @@ export class SetupComponent {
       return;
     }
 
-    this.http.get<{ dirs: string[] }>(`/api/v1/fs/browse?path=${encodeURIComponent(value)}`)
+    this.http
+      .get<{ dirs: string[] }>(`/api/v1/fs/browse?path=${encodeURIComponent(value)}`)
       .subscribe({
         next: (res) => {
           if (field === 'thumbs') {
@@ -75,7 +76,7 @@ export class SetupComponent {
         error: () => {
           if (field === 'thumbs') this.thumbsSuggestions = [];
           else this.segmentsSuggestions = [];
-        }
+        },
       });
   }
 
@@ -145,7 +146,7 @@ export class SetupComponent {
       thumbs_dir: this.thumbsDir,
       segments_dir: this.segmentsDir,
       tmdb_api_key: this.tmdbApiKey,
-      cast_receiver_app_id: this.castReceiverAppId
+      cast_receiver_app_id: this.castReceiverAppId,
     };
 
     this.http.post('/api/v1/setup', payload).subscribe({
@@ -159,7 +160,7 @@ export class SetupComponent {
         // Allow going back to correct input
         this.currentStep = 3;
         this.step3Error = this.finalizingError;
-      }
+      },
     });
   }
 }

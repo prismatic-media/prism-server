@@ -1,12 +1,14 @@
-<div class="player-container" 
-     [class.controls-not-visible]="!controlsVisible" 
-     [class.sub-size-small]="subtitleSize === 'small'"
-     [class.sub-size-medium]="subtitleSize === 'medium'"
-     [class.sub-size-large]="subtitleSize === 'large'"
-     [class.sub-size-xlarge]="subtitleSize === 'xlarge'"
-     (mousemove)="onMouseMove(); onMouseMoveDrag($event)" 
-     (window:mouseup)="onMouseUp()" 
-     (click)="closeMenus()">
+<div
+  class="player-container"
+  [class.controls-not-visible]="!controlsVisible"
+  [class.sub-size-small]="subtitleSize === 'small'"
+  [class.sub-size-medium]="subtitleSize === 'medium'"
+  [class.sub-size-large]="subtitleSize === 'large'"
+  [class.sub-size-xlarge]="subtitleSize === 'xlarge'"
+  (mousemove)="onMouseMove(); onMouseMoveDrag($event)"
+  (window:mouseup)="onMouseUp()"
+  (click)="closeMenus()"
+>
   <!-- Cinematic Background (for loading and background ambiance) -->
   <div class="fixed-background" *ngIf="loading || error || aspectRatioMode !== 'fill'">
     <img [src]="getBackdropUrl()" alt="" class="bg-backdrop-img" />
@@ -29,94 +31,233 @@
   </div>
 
   <!-- Video Canvas -->
-  <div class="video-wrapper" *ngIf="!loading && !error" [class.mode-fit]="aspectRatioMode === 'fit'" [class.mode-fill]="aspectRatioMode === 'fill'" [class.mode-stretch]="aspectRatioMode === 'stretch'">
+  <div
+    class="video-wrapper"
+    *ngIf="!loading && !error"
+    [class.mode-fit]="aspectRatioMode === 'fit'"
+    [class.mode-fill]="aspectRatioMode === 'fill'"
+    [class.mode-stretch]="aspectRatioMode === 'stretch'"
+  >
     <video #videoPlayer playsinline class="video-element"></video>
   </div>
 
   <!-- Big Play Overlay Trigger (Visible when controls are shown and playback is paused) -->
-  <div class="overlay-play-trigger pointer-events-none z-20" *ngIf="!loading && !error && controlsVisible && !isPlaying">
-    <button class="w-24 h-24 rounded-full glass-panel border-primary/30 flex items-center justify-center group pointer-events-auto transition-transform active:scale-95" (click)="togglePlay()">
-      <span class="material-symbols-outlined text-primary-container text-5xl fill-icon ml-2 group-hover:scale-110 transition-transform">play_arrow</span>
+  <div
+    class="overlay-play-trigger pointer-events-none z-20"
+    *ngIf="!loading && !error && controlsVisible && !isPlaying"
+  >
+    <button
+      class="w-24 h-24 rounded-full glass-panel border-primary/30 flex items-center justify-center group pointer-events-auto transition-transform active:scale-95"
+      (click)="togglePlay()"
+    >
+      <span
+        class="material-symbols-outlined text-primary-container text-5xl fill-icon ml-2 group-hover:scale-110 transition-transform"
+        >play_arrow</span
+      >
     </button>
   </div>
 
   <!-- Controls Overlay -->
-  <div class="controls-overlay z-30" *ngIf="!loading && !error" [class.controls-hidden]="!controlsVisible">
+  <div
+    class="controls-overlay z-30"
+    *ngIf="!loading && !error"
+    [class.controls-hidden]="!controlsVisible"
+  >
     <!-- Top Utility Bar -->
     <header class="h-20 glass-panel border-t-0 border-x-0 hover:bg-surface/20">
       <div class="flex items-center justify-between w-full h-full px-8 controls-content">
         <div class="flex items-center gap-6">
-          <button class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors" (click)="goBack()" title="Back">
+          <button
+            class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
+            (click)="goBack()"
+            title="Back"
+          >
             <span class="material-symbols-outlined text-on-surface">arrow_back</span>
           </button>
           <div class="flex flex-col">
             <h1 class="font-headline-lg text-headline-lg text-primary tracking-tight">
               {{ mediaItem?.title }}
-              <span class="episode-details text-on-surface-variant font-medium text-base ml-2" *ngIf="mediaItem?.media_type === 'episode'">
-                S{{ mediaItem?.season_number | number:'2.0-0' }}E{{ mediaItem?.episode_number | number:'2.0-0' }}
+              <span
+                class="episode-details text-on-surface-variant font-medium text-base ml-2"
+                *ngIf="mediaItem?.media_type === 'episode'"
+              >
+                S{{ mediaItem?.season_number | number: '2.0-0' }}E{{
+                  mediaItem?.episode_number | number: '2.0-0'
+                }}
               </span>
             </h1>
             <div class="flex items-center gap-3 mt-1">
-              <span class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest" *ngIf="mediaItem && mediaItem.width >= 3840">4K</span>
-              <span class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest" *ngIf="mediaItem && mediaItem.width >= 1920 && mediaItem.width < 3840">1080p</span>
-              <span class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest">{{ mediaItem?.video_codec }}</span>
-              <span class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest">{{ mediaItem?.audio_codec }}</span>
+              <span
+                class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest"
+                *ngIf="mediaItem && mediaItem.width >= 3840"
+                >4K</span
+              >
+              <span
+                class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest"
+                *ngIf="mediaItem && mediaItem.width >= 1920 && mediaItem.width < 3840"
+                >1080p</span
+              >
+              <span
+                class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest"
+                >{{ mediaItem?.video_codec }}</span
+              >
+              <span
+                class="px-2 py-0.5 rounded-sm bg-surface-container-highest border border-outline-variant font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest"
+                >{{ mediaItem?.audio_codec }}</span
+              >
             </div>
           </div>
         </div>
         <div class="flex items-center gap-4">
           <!-- Subtitle Toggle -->
-          <button class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group relative" [class.active-track]="activeSubtitleTrack" (click)="toggleSubtitleMenu($event)" title="Subtitles">
-            <span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">subtitles</span>
+          <button
+            class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group relative"
+            [class.active-track]="activeSubtitleTrack"
+            (click)="toggleSubtitleMenu($event)"
+            title="Subtitles"
+          >
+            <span
+              class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors"
+              >subtitles</span
+            >
           </button>
           <!-- Audio Toggle -->
-          <button class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group" [class.active-track]="activeAudioTrack" (click)="toggleAudioMenu($event)" title="Audio Tracks">
-            <span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">audiotrack</span>
+          <button
+            class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group"
+            [class.active-track]="activeAudioTrack"
+            (click)="toggleAudioMenu($event)"
+            title="Audio Tracks"
+          >
+            <span
+              class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors"
+              >audiotrack</span
+            >
           </button>
           <!-- Telemetry Toggle -->
-          <button class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group" [class.active-telemetry]="showTelemetry" (click)="toggleTelemetry()" title="Technical Stats">
-            <span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">settings</span>
+          <button
+            class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group"
+            [class.active-telemetry]="showTelemetry"
+            (click)="toggleTelemetry()"
+            title="Technical Stats"
+          >
+            <span
+              class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors"
+              >settings</span
+            >
           </button>
           <div class="w-px h-6 bg-outline-variant mx-2"></div>
           <!-- Close Button -->
-          <button class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-error/20 transition-colors group" (click)="goBack()" title="Close Player">
-            <span class="material-symbols-outlined text-on-surface-variant group-hover:text-error transition-colors">close</span>
+          <button
+            class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-error/20 transition-colors group"
+            (click)="goBack()"
+            title="Close Player"
+          >
+            <span
+              class="material-symbols-outlined text-on-surface-variant group-hover:text-error transition-colors"
+              >close</span
+            >
           </button>
         </div>
       </div>
     </header>
 
     <!-- Subtitles Overlay Panel (Stitch Design) -->
-    <div class="subtitle-overlay-container" *ngIf="showSubtitlePanel" (click)="$event.stopPropagation()">
+    <div
+      class="subtitle-overlay-container"
+      *ngIf="showSubtitlePanel"
+      (click)="$event.stopPropagation()"
+    >
       <div class="subtitle-panel-stitch glass-panel rounded-xl p-6 pointer-events-auto">
         <div class="subtitle-panel-header">
           <h2 class="subtitle-panel-title">Subtitles</h2>
-          <span class="material-symbols-outlined subtitle-close-btn" (click)="toggleSubtitleMenu($event)">close</span>
+          <span
+            class="material-symbols-outlined subtitle-close-btn"
+            (click)="toggleSubtitleMenu($event)"
+            >close</span
+          >
         </div>
         <div class="subtitle-options-list space-y-1">
           <!-- Off Track Option -->
-          <button class="subtitle-option-btn group" [class.selected]="activeSubtitleTrack === null" (click)="selectSubtitle(null)">
-            <span class="font-body-md" [class.text-primary]="activeSubtitleTrack === null">Off</span>
-            <span class="material-symbols-outlined check-icon text-on-surface-variant group-hover:opacity-100" [class.fill-icon]="activeSubtitleTrack === null" [class.text-primary]="activeSubtitleTrack === null" [style.opacity]="activeSubtitleTrack === null ? '1' : ''">check_circle</span>
+          <button
+            class="subtitle-option-btn group"
+            [class.selected]="activeSubtitleTrack === null"
+            (click)="selectSubtitle(null)"
+          >
+            <span class="font-body-md" [class.text-primary]="activeSubtitleTrack === null"
+              >Off</span
+            >
+            <span
+              class="material-symbols-outlined check-icon text-on-surface-variant group-hover:opacity-100"
+              [class.fill-icon]="activeSubtitleTrack === null"
+              [class.text-primary]="activeSubtitleTrack === null"
+              [style.opacity]="activeSubtitleTrack === null ? '1' : ''"
+              >check_circle</span
+            >
           </button>
           <!-- Dynamic Tracks -->
-          <button *ngFor="let track of subtitleTracks" class="subtitle-option-btn group" [class.selected]="activeSubtitleTrack?.index === track.index" (click)="selectSubtitle(track)">
-            <span class="font-body-md" [class.text-primary]="activeSubtitleTrack?.index === track.index">{{ track.label }}</span>
-            <span class="material-symbols-outlined check-icon text-on-surface-variant group-hover:opacity-100" [class.fill-icon]="activeSubtitleTrack?.index === track.index" [class.text-primary]="activeSubtitleTrack?.index === track.index" [style.opacity]="activeSubtitleTrack?.index === track.index ? '1' : ''">check_circle</span>
+          <button
+            *ngFor="let track of subtitleTracks"
+            class="subtitle-option-btn group"
+            [class.selected]="activeSubtitleTrack?.index === track.index"
+            (click)="selectSubtitle(track)"
+          >
+            <span
+              class="font-body-md"
+              [class.text-primary]="activeSubtitleTrack?.index === track.index"
+              >{{ track.label }}</span
+            >
+            <span
+              class="material-symbols-outlined check-icon text-on-surface-variant group-hover:opacity-100"
+              [class.fill-icon]="activeSubtitleTrack?.index === track.index"
+              [class.text-primary]="activeSubtitleTrack?.index === track.index"
+              [style.opacity]="activeSubtitleTrack?.index === track.index ? '1' : ''"
+              >check_circle</span
+            >
           </button>
         </div>
         <!-- Subtitle Size Selection -->
         <div class="mt-6 pt-4 border-t border-white/10">
-          <h4 class="font-label-md text-on-surface-variant uppercase mb-3 tracking-widest text-[10px]">Subtitle Size</h4>
+          <h4
+            class="font-label-md text-on-surface-variant uppercase mb-3 tracking-widest text-[10px]"
+          >
+            Subtitle Size
+          </h4>
           <div class="flex gap-2">
-            <button class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors" [class.selected-size]="subtitleSize === 'small'" (click)="setSubtitleSize('small')">Small</button>
-            <button class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors" [class.selected-size]="subtitleSize === 'medium'" (click)="setSubtitleSize('medium')">Medium</button>
-            <button class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors" [class.selected-size]="subtitleSize === 'large'" (click)="setSubtitleSize('large')">Large</button>
-            <button class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors" [class.selected-size]="subtitleSize === 'xlarge'" (click)="setSubtitleSize('xlarge')">Extra</button>
+            <button
+              class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors"
+              [class.selected-size]="subtitleSize === 'small'"
+              (click)="setSubtitleSize('small')"
+            >
+              Small
+            </button>
+            <button
+              class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors"
+              [class.selected-size]="subtitleSize === 'medium'"
+              (click)="setSubtitleSize('medium')"
+            >
+              Medium
+            </button>
+            <button
+              class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors"
+              [class.selected-size]="subtitleSize === 'large'"
+              (click)="setSubtitleSize('large')"
+            >
+              Large
+            </button>
+            <button
+              class="subtitle-size-btn flex-grow rounded-lg bg-white/5 border border-white/5 text-on-surface font-label-md hover:bg-white/10 transition-colors"
+              [class.selected-size]="subtitleSize === 'xlarge'"
+              (click)="setSubtitleSize('xlarge')"
+            >
+              Extra
+            </button>
           </div>
         </div>
         <div class="mt-4 pt-4 border-t border-white/10">
-          <button class="w-full py-3 rounded-full bg-surface-container-highest font-label-md text-primary hover:bg-surface-bright transition-colors" (click)="onSubtitleSettingsClick()">
+          <button
+            class="w-full py-3 rounded-full bg-surface-container-highest font-label-md text-primary hover:bg-surface-bright transition-colors"
+            (click)="onSubtitleSettingsClick()"
+          >
             Subtitle Settings
           </button>
         </div>
@@ -124,19 +265,38 @@
     </div>
 
     <!-- Audio Panel -->
-    <div class="absolute top-24 right-20 w-64 glass-panel rounded-xl p-4 z-50 border-white/20" *ngIf="showAudioPanel" (click)="$event.stopPropagation()">
-      <h3 class="font-label-md text-on-surface-variant uppercase mb-4 tracking-widest text-[12px]">Audio Tracks</h3>
+    <div
+      class="absolute top-24 right-20 w-64 glass-panel rounded-xl p-4 z-50 border-white/20"
+      *ngIf="showAudioPanel"
+      (click)="$event.stopPropagation()"
+    >
+      <h3 class="font-label-md text-on-surface-variant uppercase mb-4 tracking-widest text-[12px]">
+        Audio Tracks
+      </h3>
       <div class="space-y-1 max-h-60 overflow-y-auto">
-        <button *ngFor="let track of audioTracks" class="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-on-surface-variant" [class.track-selected]="activeAudioTrack?.index === track.index" (click)="selectAudio(track)">
+        <button
+          *ngFor="let track of audioTracks"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-on-surface-variant"
+          [class.track-selected]="activeAudioTrack?.index === track.index"
+          (click)="selectAudio(track)"
+        >
           <span class="font-label-md">{{ track.label }}</span>
-          <span class="material-symbols-outlined text-[18px]" *ngIf="activeAudioTrack?.index === track.index">check</span>
+          <span
+            class="material-symbols-outlined text-[18px]"
+            *ngIf="activeAudioTrack?.index === track.index"
+            >check</span
+          >
         </button>
       </div>
     </div>
 
     <!-- Technical Telemetry Overlay -->
     <div class="telemetry-overlay" *ngIf="showTelemetry">
-      <p class="text-on-surface-variant uppercase tracking-tighter border-b border-white/10 pb-1 mb-2">Technical Telemetry</p>
+      <p
+        class="text-on-surface-variant uppercase tracking-tighter border-b border-white/10 pb-1 mb-2"
+      >
+        Technical Telemetry
+      </p>
       <div class="flex justify-between">
         <span class="text-on-surface-variant">Bitrate:</span>
         <span class="text-primary-container font-mono">{{ telemetryBitrate }}</span>
@@ -161,14 +321,24 @@
         <div class="flex flex-col justify-between w-full h-full px-6 pt-4 pb-6 controls-content">
           <!-- Progress Bar Container -->
           <div class="w-full">
-            <div class="timeline-slider h-1.5 w-full bg-surface-container-highest rounded-full overflow-visible cursor-pointer relative group" (mousedown)="onMouseDown($event)">
+            <div
+              class="timeline-slider h-1.5 w-full bg-surface-container-highest rounded-full overflow-visible cursor-pointer relative group"
+              (mousedown)="onMouseDown($event)"
+            >
               <!-- Played Segment -->
-              <div class="h-full bg-primary-container rounded-full relative transition-all group-hover:h-2" [style.width.%]="progressPercent">
-                <div class="progress-handle absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-primary rounded-full progress-glow opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              <div
+                class="h-full bg-primary-container rounded-full relative transition-all group-hover:h-2"
+                [style.width.%]="progressPercent"
+              >
+                <div
+                  class="progress-handle absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-primary rounded-full progress-glow opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                ></div>
               </div>
             </div>
             <!-- Time Display -->
-            <div class="flex justify-between mt-2 font-label-md text-[12px] text-on-surface-variant tracking-wider">
+            <div
+              class="flex justify-between mt-2 font-label-md text-[12px] text-on-surface-variant tracking-wider"
+            >
               <span>{{ currentTimeStr }}</span>
               <span>{{ totalTimeStr }}</span>
             </div>
@@ -179,30 +349,66 @@
             <!-- Left side: Volume controls -->
             <div class="flex items-center gap-6">
               <div class="flex items-center gap-3 group">
-                <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 text-on-surface-variant transition-colors" (click)="toggleMute()">
-                  <span class="material-symbols-outlined">{{ isMuted || volume === 0 ? 'volume_off' : volume < 50 ? 'volume_down' : 'volume_up' }}</span>
+                <button
+                  class="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 text-on-surface-variant transition-colors"
+                  (click)="toggleMute()"
+                >
+                  <span class="material-symbols-outlined">{{
+                    isMuted || volume === 0
+                      ? 'volume_off'
+                      : volume < 50
+                        ? 'volume_down'
+                        : 'volume_up'
+                  }}</span>
                 </button>
-                <input type="range" min="0" max="100" [value]="isMuted ? 0 : volume" (input)="onVolumeChange($event)" class="volume-slider w-24 accent-primary" />
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  [value]="isMuted ? 0 : volume"
+                  (input)="onVolumeChange($event)"
+                  class="volume-slider w-24 accent-primary"
+                />
               </div>
             </div>
 
             <!-- Center: Playback Navigation -->
             <div class="flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
-              <button class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center w-10 h-10" (click)="replay10s()" title="Back 10s">
+              <button
+                class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center w-10 h-10"
+                (click)="replay10s()"
+                title="Back 10s"
+              >
                 <span class="material-symbols-outlined text-3xl">replay_10</span>
               </button>
-              <button class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,219,233,0.3)]" (click)="togglePlay()" [title]="isPlaying ? 'Pause' : 'Play'">
-                <span class="material-symbols-outlined text-4xl fill-icon">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
+              <button
+                class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,219,233,0.3)]"
+                (click)="togglePlay()"
+                [title]="isPlaying ? 'Pause' : 'Play'"
+              >
+                <span class="material-symbols-outlined text-4xl fill-icon">{{
+                  isPlaying ? 'pause' : 'play_arrow'
+                }}</span>
               </button>
-              <button class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center w-10 h-10" (click)="forward30s()" title="Forward 30s">
+              <button
+                class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center w-10 h-10"
+                (click)="forward30s()"
+                title="Forward 30s"
+              >
                 <span class="material-symbols-outlined text-3xl">forward_30</span>
               </button>
             </div>
 
             <!-- Right side: Viewport Options -->
             <div class="flex items-center gap-6">
-              <button class="text-on-surface-variant hover:text-primary transition-colors" (click)="toggleFullscreen()" title="Fullscreen">
-                <span class="material-symbols-outlined">{{ isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
+              <button
+                class="text-on-surface-variant hover:text-primary transition-colors"
+                (click)="toggleFullscreen()"
+                title="Fullscreen"
+              >
+                <span class="material-symbols-outlined">{{
+                  isFullscreen ? 'fullscreen_exit' : 'fullscreen'
+                }}</span>
               </button>
             </div>
           </div>

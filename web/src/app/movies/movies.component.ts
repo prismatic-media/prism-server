@@ -37,7 +37,7 @@ export interface Movie {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './movies.component.html',
-  styleUrl: './movies.component.css'
+  styleUrl: './movies.component.css',
 })
 export class MoviesComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
@@ -56,9 +56,12 @@ export class MoviesComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.fetchMovies();
-    this.eventSub = this.eventService.events$.subscribe(events => {
-      const shouldRefresh = events.some(evt =>
-        evt.type === 'media.created' || evt.type === 'media.updated' || evt.type === 'media.enriched'
+    this.eventSub = this.eventService.events$.subscribe((events) => {
+      const shouldRefresh = events.some(
+        (evt) =>
+          evt.type === 'media.created' ||
+          evt.type === 'media.updated' ||
+          evt.type === 'media.enriched',
       );
       if (shouldRefresh) {
         this.fetchMovies(true);
@@ -79,7 +82,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
     this.http.get<Movie[]>('/api/v1/media').subscribe({
       next: (data) => {
         // Filter only items of type movie
-        this.allMovies = data ? data.filter(item => item.media_type === 'movie') : [];
+        this.allMovies = data ? data.filter((item) => item.media_type === 'movie') : [];
         this.filterMovies();
         this.loading = false;
         this.cdr.detectChanges();
@@ -88,7 +91,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
         this.error = 'Could not load movies from library.';
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -98,19 +101,19 @@ export class MoviesComponent implements OnInit, OnDestroy {
     // Search query filter
     if (this.searchQuery.trim()) {
       const q = this.searchQuery.toLowerCase();
-      list = list.filter(m => 
-        m.title.toLowerCase().includes(q) || 
-        (m.overview && m.overview.toLowerCase().includes(q))
+      list = list.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) || (m.overview && m.overview.toLowerCase().includes(q)),
       );
     }
 
     // Tab filter
     if (this.selectedFilter === '4k') {
-      list = list.filter(m => m.width >= 3840);
+      list = list.filter((m) => m.width >= 3840);
     } else if (this.selectedFilter === '1080p') {
-      list = list.filter(m => m.width >= 1920 && m.width < 3840);
+      list = list.filter((m) => m.width >= 1920 && m.width < 3840);
     } else if (this.selectedFilter === 'transcoded') {
-      list = list.filter(m => m.transcode_status === 'done');
+      list = list.filter((m) => m.transcode_status === 'done');
     }
 
     this.movies = list;
@@ -181,7 +184,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
-      }
+      },
     });
   }
 

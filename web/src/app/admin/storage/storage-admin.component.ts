@@ -28,7 +28,7 @@ export interface StorageResponse {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './storage-admin.component.html',
-  styleUrl: './storage-admin.component.css'
+  styleUrl: './storage-admin.component.css',
 })
 export class StorageAdminComponent implements OnInit {
   private http = inject(HttpClient);
@@ -39,7 +39,7 @@ export class StorageAdminComponent implements OnInit {
   areas: StorageArea[] = [];
   minFreeBytes = 0; // Current configuration in bytes
   minFreeGB = 0; // Slider value in GB
-  
+
   totalCapacityBytes = 0;
   totalUsedBytes = 0;
   totalFreeBytes = 0;
@@ -87,7 +87,7 @@ export class StorageAdminComponent implements OnInit {
         this.error = 'Failed to load storage data.';
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -97,7 +97,7 @@ export class StorageAdminComponent implements OnInit {
     let free = 0;
 
     // Sum details from enabled and active areas
-    this.areas.forEach(area => {
+    this.areas.forEach((area) => {
       if (area.enabled) {
         total += area.total_bytes;
         used += area.used_bytes;
@@ -115,21 +115,23 @@ export class StorageAdminComponent implements OnInit {
   saveConfig(): void {
     this.isSavingConfig = true;
     const bytesValue = this.minFreeGB * 1024 * 1024 * 1024;
-    
-    this.http.put('/api/v1/admin/storage/config', {
-      storage_min_free_bytes: String(bytesValue)
-    }).subscribe({
-      next: () => {
-        this.isSavingConfig = false;
-        this.minFreeBytes = bytesValue;
-        this.fetchData();
-      },
-      error: (err) => {
-        this.isSavingConfig = false;
-        alert(`Failed to save configuration: ${err.error?.error || err.message}`);
-        this.cdr.detectChanges();
-      }
-    });
+
+    this.http
+      .put('/api/v1/admin/storage/config', {
+        storage_min_free_bytes: String(bytesValue),
+      })
+      .subscribe({
+        next: () => {
+          this.isSavingConfig = false;
+          this.minFreeBytes = bytesValue;
+          this.fetchData();
+        },
+        error: (err) => {
+          this.isSavingConfig = false;
+          alert(`Failed to save configuration: ${err.error?.error || err.message}`);
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   // Action: Toggle storage area state
@@ -137,16 +139,18 @@ export class StorageAdminComponent implements OnInit {
     if (event) event.stopPropagation();
     this.activeDropdownAreaId = null;
 
-    this.http.put(`/api/v1/admin/storage/areas/${area.id}`, {
-      enabled: !area.enabled
-    }).subscribe({
-      next: () => {
-        this.fetchData();
-      },
-      error: (err) => {
-        alert(`Failed to update storage area: ${err.error?.error || err.message}`);
-      }
-    });
+    this.http
+      .put(`/api/v1/admin/storage/areas/${area.id}`, {
+        enabled: !area.enabled,
+      })
+      .subscribe({
+        next: () => {
+          this.fetchData();
+        },
+        error: (err) => {
+          alert(`Failed to update storage area: ${err.error?.error || err.message}`);
+        },
+      });
   }
 
   // Action: Delete storage area
@@ -154,14 +158,18 @@ export class StorageAdminComponent implements OnInit {
     if (event) event.stopPropagation();
     this.activeDropdownAreaId = null;
 
-    if (confirm('Are you sure you want to remove this storage path? Existing transcode files will remain on disk but Prism will no longer read/write from this path.')) {
+    if (
+      confirm(
+        'Are you sure you want to remove this storage path? Existing transcode files will remain on disk but Prism will no longer read/write from this path.',
+      )
+    ) {
       this.http.delete(`/api/v1/admin/storage/areas/${areaId}`).subscribe({
         next: () => {
           this.fetchData();
         },
         error: (err) => {
           alert(`Failed to delete storage area: ${err.error?.error || err.message}`);
-        }
+        },
       });
     }
   }
@@ -181,17 +189,19 @@ export class StorageAdminComponent implements OnInit {
   saveEditedPath(areaId: string): void {
     if (!this.editingPathValue.trim()) return;
 
-    this.http.put(`/api/v1/admin/storage/areas/${areaId}`, {
-      path: this.editingPathValue.trim()
-    }).subscribe({
-      next: () => {
-        this.editingAreaId = null;
-        this.fetchData();
-      },
-      error: (err) => {
-        alert(`Failed to update path: ${err.error?.error || err.message}`);
-      }
-    });
+    this.http
+      .put(`/api/v1/admin/storage/areas/${areaId}`, {
+        path: this.editingPathValue.trim(),
+      })
+      .subscribe({
+        next: () => {
+          this.editingAreaId = null;
+          this.fetchData();
+        },
+        error: (err) => {
+          alert(`Failed to update path: ${err.error?.error || err.message}`);
+        },
+      });
   }
 
   // Modal actions
@@ -220,7 +230,7 @@ export class StorageAdminComponent implements OnInit {
     const body = {
       kind: 'segments',
       path: this.newPath.trim(),
-      enabled: this.newEnabled
+      enabled: this.newEnabled,
     };
 
     this.http.post('/api/v1/admin/storage/areas', body).subscribe({
@@ -233,7 +243,7 @@ export class StorageAdminComponent implements OnInit {
         this.isSaving = false;
         this.modalError = err.error?.error || 'Failed to add storage path.';
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -254,7 +264,7 @@ export class StorageAdminComponent implements OnInit {
       error: () => {
         this.isBrowsing = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 

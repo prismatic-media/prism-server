@@ -11,7 +11,7 @@ import { debounce, switchMap, tap } from 'rxjs/operators';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './settings-admin.component.html',
-  styleUrls: ['./settings-admin.component.css']
+  styleUrls: ['./settings-admin.component.css'],
 })
 export class SettingsAdminComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
@@ -55,48 +55,50 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
   }
 
   private initAutoSave(): void {
-    this.saveSubscription = this.saveSubject.pipe(
-      debounce((event) => (event.immediate ? of(null) : timer(600))),
-      switchMap(() => {
-        this.saveStatus = 'saving';
-        this.error = '';
-        this.cdr.detectChanges();
+    this.saveSubscription = this.saveSubject
+      .pipe(
+        debounce((event) => (event.immediate ? of(null) : timer(600))),
+        switchMap(() => {
+          this.saveStatus = 'saving';
+          this.error = '';
+          this.cdr.detectChanges();
 
-        const payload: Record<string, string> = {
-          thumbs_dir: this.thumbsDir.trim(),
-          tmdb_api_key: this.tmdbApiKey.trim(),
-          cast_receiver_app_id: this.castReceiverAppId.trim(),
-        };
+          const payload: Record<string, string> = {
+            thumbs_dir: this.thumbsDir.trim(),
+            tmdb_api_key: this.tmdbApiKey.trim(),
+            cast_receiver_app_id: this.castReceiverAppId.trim(),
+          };
 
-        return this.http.put('/api/v1/admin/settings', payload).pipe(
-          tap({
-            next: () => {
-              this.originalSettings = {
-                ...this.originalSettings,
-                ...payload
-              };
-              this.saveStatus = 'saved';
-              this.error = '';
-              this.cdr.detectChanges();
-
-              // Clear saved status after 3 seconds, returning to idle
-              if (this.clearStatusTimeout) {
-                clearTimeout(this.clearStatusTimeout);
-              }
-              this.clearStatusTimeout = setTimeout(() => {
-                this.saveStatus = 'idle';
+          return this.http.put('/api/v1/admin/settings', payload).pipe(
+            tap({
+              next: () => {
+                this.originalSettings = {
+                  ...this.originalSettings,
+                  ...payload,
+                };
+                this.saveStatus = 'saved';
+                this.error = '';
                 this.cdr.detectChanges();
-              }, 3000);
-            },
-            error: (err) => {
-              this.saveStatus = 'error';
-              this.error = err.error?.error || 'Failed to save settings.';
-              this.cdr.detectChanges();
-            }
-          })
-        );
-      })
-    ).subscribe();
+
+                // Clear saved status after 3 seconds, returning to idle
+                if (this.clearStatusTimeout) {
+                  clearTimeout(this.clearStatusTimeout);
+                }
+                this.clearStatusTimeout = setTimeout(() => {
+                  this.saveStatus = 'idle';
+                  this.cdr.detectChanges();
+                }, 3000);
+              },
+              error: (err) => {
+                this.saveStatus = 'error';
+                this.error = err.error?.error || 'Failed to save settings.';
+                this.cdr.detectChanges();
+              },
+            }),
+          );
+        }),
+      )
+      .subscribe();
   }
 
   fetchSettings(): void {
@@ -115,7 +117,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
         this.error = 'Failed to load system settings.';
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -150,7 +152,8 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.http.get<{ dirs: string[] }>(`/api/v1/fs/browse?path=${encodeURIComponent(value)}`)
+    this.http
+      .get<{ dirs: string[] }>(`/api/v1/fs/browse?path=${encodeURIComponent(value)}`)
       .subscribe({
         next: (res) => {
           this.thumbsSuggestions = res.dirs || [];
@@ -159,7 +162,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
         error: () => {
           this.thumbsSuggestions = [];
           this.cdr.detectChanges();
-        }
+        },
       });
   }
 
@@ -178,4 +181,3 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
     }, 200);
   }
 }
-

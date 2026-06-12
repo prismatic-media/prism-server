@@ -8,8 +8,14 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* --- Header Section --- */
@@ -69,7 +75,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spin-icon {
@@ -261,7 +269,8 @@
 }
 
 @media (max-width: 1024px) {
-  .inventory-card, .health-card {
+  .inventory-card,
+  .health-card {
     grid-column: span 12;
   }
 }
@@ -441,8 +450,12 @@
 }
 
 @keyframes backdropFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Inherited glass-card-elevated from global styles.css */

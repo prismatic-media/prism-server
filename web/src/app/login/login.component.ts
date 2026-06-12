@@ -9,7 +9,7 @@ import { AuthService } from '../auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './login.component.html',
-  styleUrl: './login.component.css'
+  styleUrl: './login.component.css',
 })
 export class LoginComponent {
   @ViewChild('usernameInput') set usernameInput(element: ElementRef<HTMLInputElement> | undefined) {
@@ -49,7 +49,7 @@ export class LoginComponent {
         } else {
           this.error = err.error?.error || 'An unexpected error occurred. Please try again.';
         }
-      }
+      },
     });
   }
 }

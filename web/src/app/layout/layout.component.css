@@ -12,9 +12,10 @@
   border-left: none;
   border-top: none;
   border-bottom: none;
-  background: radial-gradient(circle at 20% 30%, rgba(0, 219, 233, 0.08), transparent 70%), 
-              radial-gradient(circle at 80% 70%, rgba(208, 188, 255, 0.05), transparent 70%), 
-              rgba(25, 33, 34, 0.25);
+  background:
+    radial-gradient(circle at 20% 30%, rgba(0, 219, 233, 0.08), transparent 70%),
+    radial-gradient(circle at 80% 70%, rgba(208, 188, 255, 0.05), transparent 70%),
+    rgba(25, 33, 34, 0.25);
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
 }
 
@@ -151,7 +152,9 @@
   padding: 8px;
   border-radius: var(--rounded-full);
   cursor: pointer;
-  transition: color 0.2s, background-color 0.2s;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
   display: inline-flex;
 }
 
@@ -182,7 +185,8 @@
   display: block;
 }
 
-.avatar-btn:hover, .avatar-btn.active {
+.avatar-btn:hover,
+.avatar-btn.active {
   border-color: var(--surface-tint);
   transform: scale(1.05);
 }
@@ -204,8 +208,9 @@
   width: 240px;
   padding: 16px;
   border-radius: var(--rounded-md);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4), 
-              inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -312,8 +317,9 @@
   max-height: 400px;
   overflow-y: auto;
   border-radius: var(--rounded-lg);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4),
-              inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   background: rgba(2, 3, 3, 0.95);
@@ -343,7 +349,9 @@
 }
 
 @keyframes searchSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .search-result-item {
@@ -353,7 +361,9 @@
   border-bottom: 1px solid rgba(220, 228, 229, 0.05);
   text-decoration: none;
   color: inherit;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .search-result-item:last-child {
@@ -446,4 +456,3 @@
   overflow: hidden;
   line-height: 1.4;
 }
-

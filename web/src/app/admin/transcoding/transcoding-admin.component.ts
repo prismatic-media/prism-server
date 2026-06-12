@@ -18,7 +18,7 @@ export interface TranscodeJob {
   started_at?: string;
   finished_at?: string;
   created_at: string;
-  
+
   // Custom mapped properties
   title?: string;
   file_path?: string;
@@ -59,7 +59,7 @@ export interface TranscodeWorker {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './transcoding-admin.component.html',
-  styleUrl: './transcoding-admin.component.css'
+  styleUrl: './transcoding-admin.component.css',
 })
 export class TranscodingAdminComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
@@ -70,7 +70,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
   loading = true;
   error = '';
-  
+
   // Tabs: 'active' | 'completed' | 'settings'
   activeTab: 'active' | 'completed' | 'settings' = 'active';
 
@@ -114,7 +114,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     this.fetchSettings();
     this.initAutoSave();
 
-    this.eventSub = this.eventService.events$.subscribe(events => {
+    this.eventSub = this.eventService.events$.subscribe((events) => {
       let changed = false;
       let shouldFetchData = false;
       let shouldFetchJobs = false;
@@ -128,7 +128,11 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
           if (res.shouldFetchJobs) {
             shouldFetchJobs = true;
           }
-        } else if (evt.type === 'media.updated' || evt.type === 'media.created' || evt.type === 'media.enriched') {
+        } else if (
+          evt.type === 'media.updated' ||
+          evt.type === 'media.created' ||
+          evt.type === 'media.enriched'
+        ) {
           shouldFetchData = true;
         }
       }
@@ -172,11 +176,11 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
       next: (mediaItems) => {
         this.mediaMap.clear();
         if (mediaItems) {
-          mediaItems.forEach(item => {
+          mediaItems.forEach((item) => {
             this.mediaMap.set(item.id, item);
           });
         }
-        
+
         // Fetch workers
         this.fetchWorkers();
         // Now fetch jobs
@@ -186,7 +190,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
         this.error = 'Failed to load media metadata.';
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -202,7 +206,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
         this.error = 'Failed to load transcode jobs.';
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -210,13 +214,15 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     const active: TranscodeJob[] = [];
     const completed: TranscodeJob[] = [];
 
-    this.allJobs.forEach(job => {
+    this.allJobs.forEach((job) => {
       const media = this.mediaMap.get(job.media_item_id);
       if (media) {
         if (media.media_type === 'episode') {
           const showName = this.getShowNameFromPath(media.file_path);
-          const season = media.season_number !== undefined ? `S${this.padZero(media.season_number)}` : '';
-          const episode = media.episode_number !== undefined ? `E${this.padZero(media.episode_number)}` : '';
+          const season =
+            media.season_number !== undefined ? `S${this.padZero(media.season_number)}` : '';
+          const episode =
+            media.episode_number !== undefined ? `E${this.padZero(media.episode_number)}` : '';
           const epCode = season && episode ? `${season}${episode}` : '';
           job.title = showName ? `${showName} - ${epCode} - ${media.title}` : media.title;
         } else {
@@ -252,8 +258,12 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
     // Sort completed jobs: latest finished or created first
     this.completedJobs = completed.sort((a, b) => {
-      const timeA = a.finished_at ? new Date(a.finished_at).getTime() : new Date(a.created_at).getTime();
-      const timeB = b.finished_at ? new Date(b.finished_at).getTime() : new Date(b.created_at).getTime();
+      const timeA = a.finished_at
+        ? new Date(a.finished_at).getTime()
+        : new Date(a.created_at).getTime();
+      const timeB = b.finished_at
+        ? new Date(b.finished_at).getTime()
+        : new Date(b.created_at).getTime();
       return timeB - timeA;
     });
   }
@@ -262,7 +272,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     if (!filePath) return 'Unknown Show';
     const parts = filePath.split('/');
     const fileName = parts[parts.length - 1];
-    const cleanName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
+    const cleanName = fileName.replace(/\.[^/.]+$/, ''); // strip extension
     const match = cleanName.match(/^(.+?)\s+-\s+s\d+e\d+\s+-\s+(.+)$/i);
     if (match && match[1]) {
       return match[1].trim();
@@ -296,14 +306,12 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     return `/api/v1/media/${job.media_item_id}/poster`;
   }
 
-
-
   handleJobProgressEvent(payload: any): { changed: boolean; shouldFetchJobs: boolean } {
     let jobChanged = false;
     let shouldFetchJobs = false;
-    
+
     // Find job in active jobs
-    const activeIndex = this.activeJobs.findIndex(j => j.id === payload.job_id);
+    const activeIndex = this.activeJobs.findIndex((j) => j.id === payload.job_id);
     if (activeIndex !== -1) {
       const job = this.activeJobs[activeIndex];
       job.progress = payload.progress;
@@ -323,7 +331,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
       jobChanged = true;
     } else {
       // It might be a brand new job that was just enqueued
-      const exists = this.allJobs.some(j => j.id === payload.job_id);
+      const exists = this.allJobs.some((j) => j.id === payload.job_id);
       if (!exists) {
         shouldFetchJobs = true;
       }
@@ -334,7 +342,12 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
   // Calculate ETA for a processing job
   calculateETA(job: TranscodeJob): void {
-    if (job.status !== 'processing' || !job.started_at || job.progress <= 0 || job.progress >= 100) {
+    if (
+      job.status !== 'processing' ||
+      !job.started_at ||
+      job.progress <= 0 ||
+      job.progress >= 100
+    ) {
       job.formattedETA = undefined;
       return;
     }
@@ -361,7 +374,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
   updateActiveJobsETAs(): void {
     let updated = false;
-    this.activeJobs.forEach(job => {
+    this.activeJobs.forEach((job) => {
       if (job.status === 'processing') {
         this.calculateETA(job);
         updated = true;
@@ -401,7 +414,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Failed to load settings', err);
-      }
+      },
     });
   }
 
@@ -464,40 +477,42 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   }
 
   private initAutoSave(): void {
-    this.saveSubscription = this.saveSubject.pipe(
-      debounce((event) => (event.immediate ? of(null) : timer(600))),
-      switchMap(() => {
-        this.saveStatus = 'saving';
-        this.cdr.detectChanges();
+    this.saveSubscription = this.saveSubject
+      .pipe(
+        debounce((event) => (event.immediate ? of(null) : timer(600))),
+        switchMap(() => {
+          this.saveStatus = 'saving';
+          this.cdr.detectChanges();
 
-        const payload: Record<string, string> = {
-          ffmpeg_hwaccel: this.ffmpegHwaccel,
-          transcode_workers: String(this.transcodeWorkers),
-          auto_transcode_on_discovery: String(this.autoTranscodeOnDiscovery),
-        };
+          const payload: Record<string, string> = {
+            ffmpeg_hwaccel: this.ffmpegHwaccel,
+            transcode_workers: String(this.transcodeWorkers),
+            auto_transcode_on_discovery: String(this.autoTranscodeOnDiscovery),
+          };
 
-        return this.http.put('/api/v1/admin/settings', payload).pipe(
-          tap({
-            next: () => {
-              this.saveStatus = 'saved';
-              this.cdr.detectChanges();
-
-              if (this.clearStatusTimeout) {
-                clearTimeout(this.clearStatusTimeout);
-              }
-              this.clearStatusTimeout = setTimeout(() => {
-                this.saveStatus = 'idle';
+          return this.http.put('/api/v1/admin/settings', payload).pipe(
+            tap({
+              next: () => {
+                this.saveStatus = 'saved';
                 this.cdr.detectChanges();
-              }, 3000);
-            },
-            error: (err) => {
-              this.saveStatus = 'error';
-              this.cdr.detectChanges();
-            }
-          })
-        );
-      })
-    ).subscribe();
+
+                if (this.clearStatusTimeout) {
+                  clearTimeout(this.clearStatusTimeout);
+                }
+                this.clearStatusTimeout = setTimeout(() => {
+                  this.saveStatus = 'idle';
+                  this.cdr.detectChanges();
+                }, 3000);
+              },
+              error: (err) => {
+                this.saveStatus = 'error';
+                this.cdr.detectChanges();
+              },
+            }),
+          );
+        }),
+      )
+      .subscribe();
   }
 
   onSettingChange(immediate: boolean): void {
@@ -532,7 +547,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
         this.zone.run(() => {
           alert('Failed to load transcode workers.');
         });
-      }
+      },
     });
   }
 
@@ -544,28 +559,30 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
       document.activeElement.blur();
     }
 
-    this.http.post<TranscodeWorker>('/api/v1/admin/workers', { name: this.newWorkerName.trim() }).subscribe({
-      next: (worker) => {
-        this.zone.run(() => {
-          this.generatedApiKey = worker.api_key || '';
-          this.newWorkerRegistered = true;
-          this.fetchWorkers();
-          
-          // Force a full change detection cycle in the next VM turn to ensure template renders step 2
-          setTimeout(() => {
-            this.cdr.detectChanges();
-          }, 0);
-        });
-      },
-      error: (err) => {
-        this.zone.run(() => {
-          alert(`Failed to add worker: ${err.error?.error || err.message}`);
-          setTimeout(() => {
-            this.cdr.detectChanges();
-          }, 0);
-        });
-      }
-    });
+    this.http
+      .post<TranscodeWorker>('/api/v1/admin/workers', { name: this.newWorkerName.trim() })
+      .subscribe({
+        next: (worker) => {
+          this.zone.run(() => {
+            this.generatedApiKey = worker.api_key || '';
+            this.newWorkerRegistered = true;
+            this.fetchWorkers();
+
+            // Force a full change detection cycle in the next VM turn to ensure template renders step 2
+            setTimeout(() => {
+              this.cdr.detectChanges();
+            }, 0);
+          });
+        },
+        error: (err) => {
+          this.zone.run(() => {
+            alert(`Failed to add worker: ${err.error?.error || err.message}`);
+            setTimeout(() => {
+              this.cdr.detectChanges();
+            }, 0);
+          });
+        },
+      });
   }
 
   getWorkerConfigYaml(): string {
@@ -575,28 +592,35 @@ scratch_dir: /tmp/prism-scratch`;
   }
 
   updateWorker(worker: TranscodeWorker): void {
-    this.http.put<TranscodeWorker>(`/api/v1/admin/workers/${worker.id}`, {
-      threads: worker.threads,
-      hwaccel: worker.hwaccel
-    }).subscribe({
-      next: () => {
-        this.fetchWorkers();
-      },
-      error: (err) => {
-        alert(`Failed to update worker settings: ${err.error?.error || err.message}`);
-      }
-    });
+    this.http
+      .put<TranscodeWorker>(`/api/v1/admin/workers/${worker.id}`, {
+        threads: worker.threads,
+        hwaccel: worker.hwaccel,
+      })
+      .subscribe({
+        next: () => {
+          this.fetchWorkers();
+        },
+        error: (err) => {
+          alert(`Failed to update worker settings: ${err.error?.error || err.message}`);
+        },
+      });
   }
 
   deleteWorker(id: string): void {
-    if (!confirm('Are you sure you want to delete this transcode worker? Any active jobs assigned to it will be orphaned.')) return;
+    if (
+      !confirm(
+        'Are you sure you want to delete this transcode worker? Any active jobs assigned to it will be orphaned.',
+      )
+    )
+      return;
     this.http.delete(`/api/v1/admin/workers/${id}`).subscribe({
       next: () => {
         this.fetchWorkers();
       },
       error: (err) => {
         alert(`Failed to delete worker: ${err.error?.error || err.message}`);
-      }
+      },
     });
   }
 
@@ -610,7 +634,7 @@ scratch_dir: /tmp/prism-scratch`;
       },
       error: (err) => {
         alert(`Failed to bulk enqueue jobs: ${err.error?.error || err.message}`);
-      }
+      },
     });
   }
 
@@ -622,7 +646,7 @@ scratch_dir: /tmp/prism-scratch`;
       },
       error: (err) => {
         alert(`Failed to prioritize job: ${err.error?.error || err.message}`);
-      }
+      },
     });
   }
 
@@ -634,7 +658,7 @@ scratch_dir: /tmp/prism-scratch`;
       },
       error: (err) => {
         alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
-      }
+      },
     });
   }
 

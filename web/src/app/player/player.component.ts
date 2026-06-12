@@ -1,4 +1,13 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ElementRef, ViewChild, inject, ChangeDetectorRef } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  AfterViewInit,
+  ElementRef,
+  ViewChild,
+  inject,
+  ChangeDetectorRef,
+} from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -34,7 +43,7 @@ interface WatchHistory {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './player.component.html',
-  styleUrl: './player.component.css'
+  styleUrl: './player.component.css',
 })
 export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   private route = inject(ActivatedRoute);
@@ -142,9 +151,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     this.http.get<MediaItem>(`/api/v1/media/${this.mediaId}`).subscribe({
       next: (item) => {
         this.mediaItem = item;
-        
+
         if (item.transcode_status !== 'done') {
-          this.error = 'This media item has not been optimized for streaming yet. Please initiate optimization from the details page.';
+          this.error =
+            'This media item has not been optimized for streaming yet. Please initiate optimization from the details page.';
           this.loading = false;
           this.cdr.detectChanges();
           return;
@@ -161,7 +171,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
         this.error = 'Could not retrieve media details.';
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -218,7 +228,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
           return;
         }
 
-        const entry = historyList.find(h => h.media_item_id === this.mediaId);
+        const entry = historyList.find((h) => h.media_item_id === this.mediaId);
         if (entry && !entry.completed && entry.position > 0) {
           // Resume position (if less than duration - 5 seconds)
           const resumeTime = entry.position;
@@ -240,7 +250,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
         // Fall back to playing from start
         this.cdr.detectChanges();
         this.startHistoryInterval();
-      }
+      },
     });
 
     // Load subtitle and audio tracks when stream is ready
@@ -260,24 +270,28 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // Subtitles
     const textTracks = this.player.getTracksFor('text') || [];
-    this.subtitleTracks = textTracks.map(t => ({
+    this.subtitleTracks = textTracks.map((t) => ({
       index: t.index,
       lang: t.lang || '',
-      label: this.getFriendlyLanguageName(t.lang || '')
+      label: this.getFriendlyLanguageName(t.lang || ''),
     }));
-    
+
     const activeTextTrack = (this.player as any).getCurrentTrackFor('text');
-    this.activeSubtitleTrack = activeTextTrack ? this.subtitleTracks.find(t => t.index === activeTextTrack.index) : null;
+    this.activeSubtitleTrack = activeTextTrack
+      ? this.subtitleTracks.find((t) => t.index === activeTextTrack.index)
+      : null;
 
     // Audio
     const audioTracks = this.player.getTracksFor('audio') || [];
-    this.audioTracks = audioTracks.map(t => ({
+    this.audioTracks = audioTracks.map((t) => ({
       index: t.index,
       lang: t.lang || '',
-      label: this.getFriendlyLanguageName(t.lang || '')
+      label: this.getFriendlyLanguageName(t.lang || ''),
     }));
     const activeAudioTrack = (this.player as any).getCurrentTrackFor('audio');
-    this.activeAudioTrack = activeAudioTrack ? this.audioTracks.find(t => t.index === activeAudioTrack.index) : null;
+    this.activeAudioTrack = activeAudioTrack
+      ? this.audioTracks.find((t) => t.index === activeAudioTrack.index)
+      : null;
 
     this.cdr.detectChanges();
   }
@@ -343,7 +357,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
   onMouseDown(event: MouseEvent): void {
     this.isDragging = true;
-    
+
     let target = event.target as HTMLElement;
     while (target && !target.classList.contains('timeline-slider')) {
       target = target.parentElement as HTMLElement;
@@ -351,7 +365,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     if (target) {
       this.timelineRect = target.getBoundingClientRect();
     }
-    
+
     this.seek(event);
   }
 
@@ -436,12 +450,15 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   toggleFullscreen(): void {
     const container = document.documentElement;
     if (!document.fullscreenElement) {
-      container.requestFullscreen().then(() => {
-        this.isFullscreen = true;
-        this.cdr.detectChanges();
-      }).catch(err => {
-        console.error('Error attempting to enable fullscreen:', err);
-      });
+      container
+        .requestFullscreen()
+        .then(() => {
+          this.isFullscreen = true;
+          this.cdr.detectChanges();
+        })
+        .catch((err) => {
+          console.error('Error attempting to enable fullscreen:', err);
+        });
     } else {
       document.exitFullscreen().then(() => {
         this.isFullscreen = false;
@@ -562,30 +579,32 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
     const current = this.player.time();
     const duration = this.player.duration() || this.mediaItem.duration || 0;
-    
+
     if (duration <= 0) return;
 
     // Determine if complete (within 5 seconds of the end)
-    const completed = (duration - current) <= 5;
+    const completed = duration - current <= 5;
 
     // Only update if position has moved significantly (at least 1 second) or force is true
     if (Math.abs(current - this.lastSavedPosition) >= 1 || force || completed) {
       this.lastSavedPosition = current;
-      
-      this.http.put(`/api/v1/history/${this.mediaId}`, {
-        position: current,
-        completed: completed
-      }).subscribe({
-        next: () => {
-          if (completed) {
-            // Stop history sync and close/navigate away or let user close
-            this.clearHistoryInterval();
-          }
-        },
-        error: (err) => {
-          console.error('Failed to save watch history:', err);
-        }
-      });
+
+      this.http
+        .put(`/api/v1/history/${this.mediaId}`, {
+          position: current,
+          completed: completed,
+        })
+        .subscribe({
+          next: () => {
+            if (completed) {
+              // Stop history sync and close/navigate away or let user close
+              this.clearHistoryInterval();
+            }
+          },
+          error: (err) => {
+            console.error('Failed to save watch history:', err);
+          },
+        });
     }
   }
 

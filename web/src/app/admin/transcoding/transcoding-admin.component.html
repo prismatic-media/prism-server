@@ -3,21 +3,27 @@
   <div class="mb-8">
     <h1 class="font-headline-xl text-headline-xl mb-6 shimmer-text">Transcoding Control</h1>
     <div class="tab-container">
-      <button class="tab-btn transition-all" 
-              [class.active]="activeTab === 'active'" 
-              (click)="activeTab = 'active'">
+      <button
+        class="tab-btn transition-all"
+        [class.active]="activeTab === 'active'"
+        (click)="activeTab = 'active'"
+      >
         Queue
         <span class="badge-count" *ngIf="activeJobs.length > 0">{{ activeJobs.length }}</span>
       </button>
-      <button class="tab-btn transition-all" 
-              [class.active]="activeTab === 'completed'" 
-              (click)="activeTab = 'completed'">
+      <button
+        class="tab-btn transition-all"
+        [class.active]="activeTab === 'completed'"
+        (click)="activeTab = 'completed'"
+      >
         History
         <span class="badge-count" *ngIf="completedJobs.length > 0">{{ completedJobs.length }}</span>
       </button>
-      <button class="tab-btn transition-all" 
-              [class.active]="activeTab === 'settings'" 
-              (click)="activeTab = 'settings'">
+      <button
+        class="tab-btn transition-all"
+        [class.active]="activeTab === 'settings'"
+        (click)="activeTab = 'settings'"
+      >
         Settings
         <span class="badge-count" *ngIf="workers.length > 0">{{ workers.length }}</span>
       </button>
@@ -39,17 +45,24 @@
 
   <!-- Main Bento Queue & Settings Layout -->
   <div *ngIf="!loading && !error" class="flex flex-col gap-8">
-    
     <!-- Tab 1: Queue (Active & Pending) -->
     <ng-container *ngIf="activeTab === 'active'">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xs font-bold uppercase opacity-55 tracking-wider font-mono">Active &amp; Pending Jobs</h3>
+        <h3 class="text-xs font-bold uppercase opacity-55 tracking-wider font-mono">
+          Active &amp; Pending Jobs
+        </h3>
         <div class="flex gap-3">
-          <button class="btn-glass px-4 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold" (click)="bulkEnqueue('untranscoded')">
+          <button
+            class="btn-glass px-4 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold"
+            (click)="bulkEnqueue('untranscoded')"
+          >
             <span class="material-symbols-outlined text-sm">queue</span>
             Queue Untranscoded
           </button>
-          <button class="btn-glass px-4 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold" (click)="bulkEnqueue('failed')">
+          <button
+            class="btn-glass px-4 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold"
+            (click)="bulkEnqueue('failed')"
+          >
             <span class="material-symbols-outlined text-sm">replay</span>
             Retry Failed
           </button>
@@ -59,7 +72,10 @@
       <div *ngIf="activeJobs.length === 0" class="empty-state">
         <span class="material-symbols-outlined empty-state-icon">hourglass_empty</span>
         <h3 class="empty-state-title">No active or pending transcode jobs</h3>
-        <p class="empty-state-desc">Use "Queue Untranscoded" to scan and enqueue all untranscoded library media, or retry failed transcodes.</p>
+        <p class="empty-state-desc">
+          Use "Queue Untranscoded" to scan and enqueue all untranscoded library media, or retry
+          failed transcodes.
+        </p>
       </div>
 
       <!-- Active Job Cards -->
@@ -68,7 +84,14 @@
           <div class="job-card-content">
             <!-- Thumbnail -->
             <div class="thumbnail-wrapper">
-              <img class="thumbnail-img" [src]="getPosterUrl(job)" onerror="this.src='https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200&auto=format&fit=crop'" />
+              <img
+                class="thumbnail-img"
+                [src]="getPosterUrl(job)"
+                onerror="
+                  this.src =
+                    'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200&auto=format&fit=crop'
+                "
+              />
               <span class="resolution-badge">{{ job.resolution }}</span>
             </div>
 
@@ -76,7 +99,11 @@
             <div class="job-info">
               <h4 class="job-title" [title]="job.title">{{ job.title }}</h4>
               <div class="job-meta">
-                <span class="status-pill" [class.status-processing]="job.status === 'processing'" [class.status-pending]="job.status === 'pending'">
+                <span
+                  class="status-pill"
+                  [class.status-processing]="job.status === 'processing'"
+                  [class.status-pending]="job.status === 'pending'"
+                >
                   {{ job.status === 'processing' ? 'PROCESSING' : 'PENDING' }}
                 </span>
                 <span class="codec-label">{{ job.codec }}</span>
@@ -87,7 +114,9 @@
             <div class="job-progress-section">
               <div class="progress-info">
                 <span class="progress-pct">{{ Math.round(job.progress) }}%</span>
-                <span class="progress-eta" *ngIf="job.status === 'processing' && job.formattedETA">ETA: {{ job.formattedETA }}</span>
+                <span class="progress-eta" *ngIf="job.status === 'processing' && job.formattedETA"
+                  >ETA: {{ job.formattedETA }}</span
+                >
                 <span class="progress-eta" *ngIf="job.status === 'pending'">In Queue</span>
               </div>
               <div class="progress-track shimmer">
@@ -97,14 +126,19 @@
 
             <!-- Actions -->
             <div class="job-actions">
-              <button 
+              <button
                 *ngIf="job.status === 'pending'"
-                class="btn-action text-primary" 
+                class="btn-action text-primary"
                 title="Prioritize (Move to front of queue)"
-                (click)="prioritizeJob(job.id, $event)">
+                (click)="prioritizeJob(job.id, $event)"
+              >
                 <span class="material-symbols-outlined">vertical_align_top</span>
               </button>
-              <button class="btn-action opacity-30 cursor-not-allowed text-outline" disabled title="Cancel not supported by backend">
+              <button
+                class="btn-action opacity-30 cursor-not-allowed text-outline"
+                disabled
+                title="Cancel not supported by backend"
+              >
                 <span class="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -116,7 +150,9 @@
     <!-- Tab 2: History (Completed & Failed) -->
     <ng-container *ngIf="activeTab === 'completed'">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xs font-bold uppercase opacity-55 tracking-wider font-mono">Transcode History</h3>
+        <h3 class="text-xs font-bold uppercase opacity-55 tracking-wider font-mono">
+          Transcode History
+        </h3>
       </div>
 
       <div *ngIf="completedJobs.length === 0" class="empty-state">
@@ -126,13 +162,23 @@
 
       <!-- Completed Job Cards -->
       <div class="jobs-list" *ngIf="completedJobs.length > 0">
-        <div *ngFor="let job of completedJobs" class="job-card crystalline-edge" 
-             [class.border-error-subtle]="job.status === 'failed'"
-             [class.border-success-subtle]="job.status === 'done'">
+        <div
+          *ngFor="let job of completedJobs"
+          class="job-card crystalline-edge"
+          [class.border-error-subtle]="job.status === 'failed'"
+          [class.border-success-subtle]="job.status === 'done'"
+        >
           <div class="job-card-content">
             <!-- Thumbnail -->
             <div class="thumbnail-wrapper">
-              <img class="thumbnail-img" [src]="getPosterUrl(job)" onerror="this.src='https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200&auto=format&fit=crop'" />
+              <img
+                class="thumbnail-img"
+                [src]="getPosterUrl(job)"
+                onerror="
+                  this.src =
+                    'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200&auto=format&fit=crop'
+                "
+              />
               <span class="resolution-badge">{{ job.resolution }}</span>
             </div>
 
@@ -140,7 +186,9 @@
             <div class="job-info">
               <h4 class="job-title" [title]="job.title">{{ job.title }}</h4>
               <div class="job-meta">
-                <span class="codec-label">{{ formatDateTime(job.finished_at || job.created_at) }} • {{ job.codec }}</span>
+                <span class="codec-label"
+                  >{{ formatDateTime(job.finished_at || job.created_at) }} • {{ job.codec }}</span
+                >
               </div>
             </div>
 
@@ -157,16 +205,19 @@
                   <span class="material-symbols-outlined text-base">error</span>
                   Transcode Failed
                 </span>
-                <p class="error-message" [title]="job.error_msg || ''">{{ job.error_msg || 'Unknown error' }}</p>
+                <p class="error-message" [title]="job.error_msg || ''">
+                  {{ job.error_msg || 'Unknown error' }}
+                </p>
               </div>
             </div>
 
             <!-- Actions -->
             <div class="job-actions">
-              <button 
-                class="btn-action text-primary" 
+              <button
+                class="btn-action text-primary"
                 title="Re-transcode Media"
-                (click)="retranscodeMedia(job.media_item_id, $event)">
+                (click)="retranscodeMedia(job.media_item_id, $event)"
+              >
                 <span class="material-symbols-outlined">sync</span>
               </button>
             </div>
@@ -177,7 +228,6 @@
 
     <!-- Tab 3: Settings -->
     <ng-container *ngIf="activeTab === 'settings'">
-      
       <!-- Local Node Configuration -->
       <section class="w-full">
         <div class="glass-card p-8 border-primary-container/10">
@@ -187,23 +237,46 @@
               <h2 class="font-headline-lg text-headline-lg tracking-tight">Local Node</h2>
             </div>
             <!-- Auto-save Status Indicator -->
-            <div class="save-status-indicator text-xs" [ngClass]="saveStatus" *ngIf="saveStatus !== 'idle'">
-              <span class="material-symbols-outlined status-icon spinner-icon text-sm" *ngIf="saveStatus === 'saving'">sync</span>
-              <span class="material-symbols-outlined status-icon check-icon text-sm" *ngIf="saveStatus === 'saved'">check_circle</span>
-              <span class="material-symbols-outlined status-icon error-icon text-sm" *ngIf="saveStatus === 'error'">error</span>
-              <span class="status-label font-mono text-[10px] ml-1">{{ getSaveStatusLabel() }}</span>
+            <div
+              class="save-status-indicator text-xs"
+              [ngClass]="saveStatus"
+              *ngIf="saveStatus !== 'idle'"
+            >
+              <span
+                class="material-symbols-outlined status-icon spinner-icon text-sm"
+                *ngIf="saveStatus === 'saving'"
+                >sync</span
+              >
+              <span
+                class="material-symbols-outlined status-icon check-icon text-sm"
+                *ngIf="saveStatus === 'saved'"
+                >check_circle</span
+              >
+              <span
+                class="material-symbols-outlined status-icon error-icon text-sm"
+                *ngIf="saveStatus === 'error'"
+                >error</span
+              >
+              <span class="status-label font-mono text-[10px] ml-1">{{
+                getSaveStatusLabel()
+              }}</span>
             </div>
           </div>
-          
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <!-- Hardware Acceleration -->
             <div class="space-y-3">
-              <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Hardware Acceleration</label>
+              <label
+                class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+                >Hardware Acceleration</label
+              >
               <div class="relative">
-                <select class="w-full glass-input p-4 rounded text-primary-fixed-dim font-medium appearance-none cursor-pointer"
-                        [(ngModel)]="ffmpegHwaccel"
-                        (ngModelChange)="onSettingChange(true)"
-                        [disabled]="!enableLocalTranscoder">
+                <select
+                  class="w-full glass-input p-4 rounded text-primary-fixed-dim font-medium appearance-none cursor-pointer"
+                  [(ngModel)]="ffmpegHwaccel"
+                  (ngModelChange)="onSettingChange(true)"
+                  [disabled]="!enableLocalTranscoder"
+                >
                   <option value="none">None (Software)</option>
                   <option value="nvenc">NVIDIA (NVENC)</option>
                   <option value="vaapi">Intel/AMD (VAAPI)</option>
@@ -211,18 +284,26 @@
                   <option value="videotoolbox">Apple (VideoToolbox)</option>
                   <option value="amf">AMD (AMF)</option>
                 </select>
-                <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">expand_more</span>
+                <span
+                  class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50"
+                  >expand_more</span
+                >
               </div>
             </div>
 
             <!-- Transcode Threads -->
             <div class="space-y-3">
-              <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Transcode Threads</label>
+              <label
+                class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+                >Transcode Threads</label
+              >
               <div class="relative">
-                <select class="w-full glass-input p-4 rounded text-primary-fixed-dim font-bold appearance-none cursor-pointer"
-                        [ngModel]="transcodeWorkers"
-                        (ngModelChange)="onThreadCountChange($event)"
-                        [disabled]="!enableLocalTranscoder">
+                <select
+                  class="w-full glass-input p-4 rounded text-primary-fixed-dim font-bold appearance-none cursor-pointer"
+                  [ngModel]="transcodeWorkers"
+                  (ngModelChange)="onThreadCountChange($event)"
+                  [disabled]="!enableLocalTranscoder"
+                >
                   <option [value]="1">1</option>
                   <option [value]="2">2</option>
                   <option [value]="4">4</option>
@@ -230,7 +311,10 @@
                   <option [value]="12">12</option>
                   <option [value]="16">16</option>
                 </select>
-                <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">expand_more</span>
+                <span
+                  class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50"
+                  >expand_more</span
+                >
               </div>
             </div>
           </div>
@@ -238,29 +322,39 @@
           <!-- Toggles -->
           <div class="flex flex-col gap-4 max-w-md">
             <!-- Auto Transcode Discovery -->
-            <div class="flex items-center justify-between p-4 bg-white/5 rounded border border-white/5 group hover:border-primary-container/20 transition-all">
+            <div
+              class="flex items-center justify-between p-4 bg-white/5 rounded border border-white/5 group hover:border-primary-container/20 transition-all"
+            >
               <div>
                 <h4 class="font-bold text-sm">Auto Transcode Discovery</h4>
                 <p class="text-[11px] text-on-surface-variant">Immediate background processing</p>
               </div>
               <label class="switch-container">
-                <input type="checkbox" 
-                       [(ngModel)]="autoTranscodeOnDiscovery"
-                       (ngModelChange)="onSettingChange(true)" />
+                <input
+                  type="checkbox"
+                  [(ngModel)]="autoTranscodeOnDiscovery"
+                  (ngModelChange)="onSettingChange(true)"
+                />
                 <span class="switch-slider"></span>
               </label>
             </div>
 
             <!-- Enable Local Transcoder Pool -->
-            <div class="flex items-center justify-between p-4 bg-white/5 rounded border border-white/5 group hover:border-primary-container/20 transition-all">
+            <div
+              class="flex items-center justify-between p-4 bg-white/5 rounded border border-white/5 group hover:border-primary-container/20 transition-all"
+            >
               <div>
                 <h4 class="font-bold text-sm">Enable Local Transcoder Pool</h4>
-                <p class="text-[11px] text-on-surface-variant">Allow this node to process transcode jobs locally</p>
+                <p class="text-[11px] text-on-surface-variant">
+                  Allow this node to process transcode jobs locally
+                </p>
               </div>
               <label class="switch-container">
-                <input type="checkbox" 
-                       [ngModel]="enableLocalTranscoder"
-                       (ngModelChange)="toggleLocalTranscoder()" />
+                <input
+                  type="checkbox"
+                  [ngModel]="enableLocalTranscoder"
+                  (ngModelChange)="toggleLocalTranscoder()"
+                />
                 <span class="switch-slider"></span>
               </label>
             </div>
@@ -277,25 +371,34 @@
                 <span class="material-symbols-outlined text-secondary">hub</span>
                 <h2 class="font-headline-lg text-headline-lg tracking-tight">Remote Workers</h2>
               </div>
-              <button class="btn-register-node" 
-                      (click)="openRegisterModal()">
+              <button class="btn-register-node" (click)="openRegisterModal()">
                 <span class="material-symbols-outlined text-sm">add_circle</span>
                 Register Node
               </button>
             </div>
-            <p class="text-xs text-on-surface-variant">External compute node orchestration and management for distributed transcoding workloads.</p>
+            <p class="text-xs text-on-surface-variant">
+              External compute node orchestration and management for distributed transcoding
+              workloads.
+            </p>
           </div>
 
           <!-- Workers Table -->
-          <div *ngIf="workers.length === 0" class="empty-state border-none rounded-none bg-transparent py-12">
+          <div
+            *ngIf="workers.length === 0"
+            class="empty-state border-none rounded-none bg-transparent py-12"
+          >
             <span class="material-symbols-outlined empty-state-icon">dns</span>
             <h3 class="empty-state-title">No remote transcoder workers registered</h3>
-            <p class="empty-state-desc">Register a worker node to offload transcoding from the main server host.</p>
+            <p class="empty-state-desc">
+              Register a worker node to offload transcoding from the main server host.
+            </p>
           </div>
 
           <div class="overflow-x-auto" *ngIf="workers.length > 0">
             <table class="w-full text-left border-collapse">
-              <thead class="bg-white/5 text-on-surface-variant font-label-md text-label-md uppercase tracking-widest text-[10px]">
+              <thead
+                class="bg-white/5 text-on-surface-variant font-label-md text-label-md uppercase tracking-widest text-[10px]"
+              >
                 <tr>
                   <th class="px-8 py-3">Node Name</th>
                   <th class="px-6 py-3">Status</th>
@@ -306,7 +409,11 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5">
-                <tr *ngFor="let w of workers" class="hover:bg-white/5 transition-colors group" [class.opacity-50]="w.status === 'offline'">
+                <tr
+                  *ngFor="let w of workers"
+                  class="hover:bg-white/5 transition-colors group"
+                  [class.opacity-50]="w.status === 'offline'"
+                >
                   <!-- Node Name -->
                   <td class="px-8 py-5">
                     <div class="flex items-center gap-3">
@@ -317,21 +424,36 @@
                   <!-- Status -->
                   <td class="px-6 py-5">
                     <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full" 
-                           [class.bg-primary]="w.status !== 'offline'" 
-                           [class.active-dot]="w.status !== 'offline'"
-                           [class.bg-outline]="w.status === 'offline'"></div>
-                      <span class="text-xs capitalize">{{ w.status === 'idle' ? 'Active' : w.status === 'transcoding' ? 'Transcoding' : 'Inactive' }}</span>
+                      <div
+                        class="w-2 h-2 rounded-full"
+                        [class.bg-primary]="w.status !== 'offline'"
+                        [class.active-dot]="w.status !== 'offline'"
+                        [class.bg-outline]="w.status === 'offline'"
+                      ></div>
+                      <span class="text-xs capitalize">{{
+                        w.status === 'idle'
+                          ? 'Active'
+                          : w.status === 'transcoding'
+                            ? 'Transcoding'
+                            : 'Inactive'
+                      }}</span>
                     </div>
                   </td>
                   <!-- Heartbeat -->
                   <td class="px-6 py-5">
-                    <span class="text-xs text-on-surface-variant">{{ w.last_heartbeat ? formatDateTime(w.last_heartbeat) : 'Never' }}</span>
+                    <span class="text-xs text-on-surface-variant">{{
+                      w.last_heartbeat ? formatDateTime(w.last_heartbeat) : 'Never'
+                    }}</span>
                   </td>
                   <!-- HW Acceleration select -->
                   <td class="px-6 py-5">
                     <div class="relative w-fit">
-                      <select class="inline-select" [(ngModel)]="w.hwaccel" (change)="updateWorker(w)" [disabled]="w.status === 'offline'">
+                      <select
+                        class="inline-select"
+                        [(ngModel)]="w.hwaccel"
+                        (change)="updateWorker(w)"
+                        [disabled]="w.status === 'offline'"
+                      >
                         <option value="none">None</option>
                         <option value="nvenc">NVENC</option>
                         <option value="vaapi">VAAPI</option>
@@ -344,7 +466,12 @@
                   <!-- Threads select -->
                   <td class="px-6 py-5">
                     <div class="relative w-fit">
-                      <select class="inline-select" [(ngModel)]="w.threads" (change)="updateWorker(w)" [disabled]="w.status === 'offline'">
+                      <select
+                        class="inline-select"
+                        [(ngModel)]="w.threads"
+                        (change)="updateWorker(w)"
+                        [disabled]="w.status === 'offline'"
+                      >
                         <option [value]="1">1</option>
                         <option [value]="2">2</option>
                         <option [value]="4">4</option>
@@ -357,8 +484,14 @@
                   <!-- Delete Action -->
                   <td class="px-8 py-5 text-right">
                     <div class="flex justify-end gap-2">
-                      <button class="btn-delete-worker p-1.5 hover:bg-error/10 rounded transition-colors group/del" (click)="deleteWorker(w.id)">
-                        <span class="material-symbols-outlined text-on-surface-variant group-hover/del:text-error text-sm">delete</span>
+                      <button
+                        class="btn-delete-worker p-1.5 hover:bg-error/10 rounded transition-colors group/del"
+                        (click)="deleteWorker(w.id)"
+                      >
+                        <span
+                          class="material-symbols-outlined text-on-surface-variant group-hover/del:text-error text-sm"
+                          >delete</span
+                        >
                       </button>
                     </div>
                   </td>
@@ -368,86 +501,117 @@
           </div>
         </div>
       </section>
-
     </ng-container>
-
   </div>
 
   <!-- Modal for New Worker -->
   <div *ngIf="showRegisterModal" class="modal-overlay" (click)="closeRegisterModal()">
-    <div class="glass-card w-full max-w-2xl p-8 relative animate-in fade-in zoom-in duration-300" (click)="$event.stopPropagation()">
+    <div
+      class="glass-card w-full max-w-2xl p-8 relative animate-in fade-in zoom-in duration-300"
+      (click)="$event.stopPropagation()"
+    >
       <button class="modal-close-btn" (click)="closeRegisterModal()" type="button">
         <span class="material-symbols-outlined">close</span>
       </button>
 
       <h2 class="font-headline-lg text-headline-lg mb-2">Register New Worker</h2>
-      <p class="text-on-surface-variant mb-8">Follow these steps to connect a remote compute instance to your Prism mesh.</p>
+      <p class="text-on-surface-variant mb-8">
+        Follow these steps to connect a remote compute instance to your Prism mesh.
+      </p>
 
       <div class="space-y-6">
         <!-- Step 1: Input Friendly Name (Only edit state) -->
         <div class="space-y-2" *ngIf="!newWorkerRegistered">
-          <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Friendly Name</label>
-          <input class="w-full glass-input p-4 text-on-surface" 
-                 placeholder="e.g. GPU-Server-01" 
-                 type="text" 
-                 [(ngModel)]="newWorkerName"
-                 (keyup.enter)="createWorker()" />
+          <label
+            class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+            >Friendly Name</label
+          >
+          <input
+            class="w-full glass-input p-4 text-on-surface"
+            placeholder="e.g. GPU-Server-01"
+            type="text"
+            [(ngModel)]="newWorkerName"
+            (keyup.enter)="createWorker()"
+          />
         </div>
 
         <!-- Step 2: Show Config & Start Command (Only after registration success) -->
         <div class="space-y-6 animate-in fade-in duration-300" *ngIf="newWorkerRegistered">
           <div class="space-y-2">
-            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">1. Configuration File (worker_config.yaml)</label>
+            <label
+              class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+              >1. Configuration File (worker_config.yaml)</label
+            >
             <div class="relative">
-              <pre class="block bg-black/40 p-6 rounded text-primary-fixed-dim font-mono text-sm overflow-x-auto border border-white/5 pr-14"><code class="select-all">{{ getWorkerConfigYaml() }}</code></pre>
-              <button class="absolute top-4 right-4 p-2 hover:bg-white/10 rounded text-on-surface-variant transition-colors"
-                      title="Copy Configuration YAML"
-                      (click)="copyConfigYaml()"
-                      type="button">
+              <pre
+                class="block bg-black/40 p-6 rounded text-primary-fixed-dim font-mono text-sm overflow-x-auto border border-white/5 pr-14"
+              ><code class="select-all">{{ getWorkerConfigYaml() }}</code></pre>
+              <button
+                class="absolute top-4 right-4 p-2 hover:bg-white/10 rounded text-on-surface-variant transition-colors"
+                title="Copy Configuration YAML"
+                (click)="copyConfigYaml()"
+                type="button"
+              >
                 <span class="material-symbols-outlined text-sm">content_copy</span>
               </button>
             </div>
           </div>
 
           <div class="space-y-2">
-            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">2. Start Command</label>
+            <label
+              class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+              >2. Start Command</label
+            >
             <div class="relative">
-              <code class="block bg-black/40 p-6 rounded text-primary-fixed-dim font-mono text-sm break-all border border-white/5 pr-14">./prism-worker -config worker_config.yaml</code>
-              <button class="absolute top-4 right-4 p-2 hover:bg-white/10 rounded text-on-surface-variant transition-colors"
-                      title="Copy Start Command"
-                      (click)="copyStartCommand()"
-                      type="button">
+              <code
+                class="block bg-black/40 p-6 rounded text-primary-fixed-dim font-mono text-sm break-all border border-white/5 pr-14"
+                >./prism-worker -config worker_config.yaml</code
+              >
+              <button
+                class="absolute top-4 right-4 p-2 hover:bg-white/10 rounded text-on-surface-variant transition-colors"
+                title="Copy Start Command"
+                (click)="copyStartCommand()"
+                type="button"
+              >
                 <span class="material-symbols-outlined text-sm">content_copy</span>
               </button>
             </div>
           </div>
-          
+
           <div class="text-[11px] opacity-60">
-            Friendly Name: <strong class="text-white">{{ newWorkerName }}</strong> • API Key: <code class="select-all font-mono text-primary">{{ generatedApiKey }}</code>
+            Friendly Name: <strong class="text-white">{{ newWorkerName }}</strong> • API Key:
+            <code class="select-all font-mono text-primary">{{ generatedApiKey }}</code>
           </div>
         </div>
 
         <!-- Action Buttons -->
         <div class="flex gap-4 pt-4">
-          <button class="btn-modal-action glass-card font-bold hover:bg-white/10 transition-colors" (click)="closeRegisterModal()" type="button">
+          <button
+            class="btn-modal-action glass-card font-bold hover:bg-white/10 transition-colors"
+            (click)="closeRegisterModal()"
+            type="button"
+          >
             {{ newWorkerRegistered ? 'Done' : 'Cancel' }}
           </button>
-          <button class="btn-modal-action primary-gradient rounded-lg font-bold text-on-primary-fixed hover:opacity-90 transition-opacity" 
-                  *ngIf="!newWorkerRegistered"
-                  (click)="createWorker()"
-                  [disabled]="!newWorkerName.trim()"
-                  type="button">
+          <button
+            class="btn-modal-action primary-gradient rounded-lg font-bold text-on-primary-fixed hover:opacity-90 transition-opacity"
+            *ngIf="!newWorkerRegistered"
+            (click)="createWorker()"
+            [disabled]="!newWorkerName.trim()"
+            type="button"
+          >
             Register Worker
           </button>
-          <button class="btn-modal-action primary-gradient rounded-lg font-bold text-on-primary-fixed hover:opacity-90 transition-opacity" 
-                  *ngIf="newWorkerRegistered"
-                  (click)="copyConfigYaml(); closeRegisterModal()"
-                  type="button">
+          <button
+            class="btn-modal-action primary-gradient rounded-lg font-bold text-on-primary-fixed hover:opacity-90 transition-opacity"
+            *ngIf="newWorkerRegistered"
+            (click)="copyConfigYaml(); closeRegisterModal()"
+            type="button"
+          >
             Copy Config &amp; Close
           </button>
         </div>
       </div>
     </div>
   </div>
-
 </div>

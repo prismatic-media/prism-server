@@ -14,8 +14,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   if (token && req.url.includes('/api/')) {
     authReq = req.clone({
       setHeaders: {
-        Authorization: `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
   }
 
@@ -25,7 +25,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         error instanceof HttpErrorResponse &&
         error.status === 503 &&
         error.error &&
-        (error.error.redirect === '/setup' || (typeof error.error === 'string' && error.error.includes('setup')))
+        (error.error.redirect === '/setup' ||
+          (typeof error.error === 'string' && error.error.includes('setup')))
       ) {
         const router = injector.get(Router);
         router.navigate(['/setup']);
@@ -45,8 +46,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
             // Re-clone original request with the new active token and retry the API call
             const retriedReq = req.clone({
               setHeaders: {
-                Authorization: `Bearer ${res.access_token}`
-              }
+                Authorization: `Bearer ${res.access_token}`,
+              },
             });
             return next(retriedReq);
           }),
@@ -54,10 +55,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
             // Force logout and redirect if refresh endpoint fails (session expired)
             authService.logout();
             return throwError(() => refreshError);
-          })
+          }),
         );
       }
       return throwError(() => error);
-    })
+    }),
   );
 };

@@ -19,7 +19,6 @@
 
   <!-- Main Details Page Content -->
   <div *ngIf="!loading && !error" class="details-content-wrapper">
-    
     <!-- Hero Header / Back navigation -->
     <div class="details-top-bar">
       <button class="btn-back btn-glass" (click)="goBack()">
@@ -40,7 +39,12 @@
         <div class="hero-poster-wrapper">
           <div class="poster-card crystalline-border shadow-2xl">
             <img [src]="getPosterUrl()" alt="Poster" class="poster-img" />
-            <div class="poster-badge" *ngIf="mediaType === 'movie' && movie?.width && movie!.width >= 3840">4K Ultra HD</div>
+            <div
+              class="poster-badge"
+              *ngIf="mediaType === 'movie' && movie?.width && movie!.width >= 3840"
+            >
+              4K Ultra HD
+            </div>
           </div>
         </div>
 
@@ -66,34 +70,54 @@
             <span class="meta-dot" *ngIf="mediaType === 'movie'">&bull;</span>
             <span *ngIf="mediaType === 'movie'">{{ formatDuration(movie?.duration) }}</span>
             <span class="meta-dot" *ngIf="mediaType === 'movie'">&bull;</span>
-            <span class="resolution-pill" *ngIf="mediaType === 'movie' && movie">{{ movie.width }}x{{ movie.height }}</span>
+            <span class="resolution-pill" *ngIf="mediaType === 'movie' && movie"
+              >{{ movie.width }}x{{ movie.height }}</span
+            >
           </div>
 
           <p class="media-overview">
-            {{ (mediaType === 'movie' ? movie?.overview : tvShow?.overview) || 'No overview description available for this item.' }}
+            {{
+              (mediaType === 'movie' ? movie?.overview : tvShow?.overview) ||
+                'No overview description available for this item.'
+            }}
           </p>
 
           <!-- Core Actions Block -->
           <div class="hero-actions-container" *ngIf="mediaType === 'movie' && movie">
-            <button class="btn-primary btn-large" [disabled]="movie.transcode_status !== 'done'" (click)="playMovie(movie)" [title]="movie.transcode_status !== 'done' ? 'Please optimize this stream first' : 'Watch Now'">
+            <button
+              class="btn-primary btn-large"
+              [disabled]="movie.transcode_status !== 'done'"
+              (click)="playMovie(movie)"
+              [title]="
+                movie.transcode_status !== 'done'
+                  ? 'Please optimize this stream first'
+                  : 'Watch Now'
+              "
+            >
               <span class="material-symbols-outlined">play_arrow</span>
               <span>{{ getMovieHistory() ? 'Resume Playback' : 'Watch Now' }}</span>
             </button>
 
             <!-- Play from beginning option -->
-            <button 
-              class="btn-glass btn-large" 
+            <button
+              class="btn-glass btn-large"
               *ngIf="getMovieHistory() && movie.transcode_status === 'done'"
               (click)="playMovieFromBeginning(movie)"
-              title="Play from Beginning">
+              title="Play from Beginning"
+            >
               <span class="material-symbols-outlined">replay</span>
               <span>Play from Beginning</span>
             </button>
 
-            <button 
-              class="btn-glass btn-large" 
-              *ngIf="movie.transcode_status !== 'done' && movie.transcode_status !== 'pending' && movie.transcode_status !== 'processing'"
-              (click)="triggerTranscode(movie)">
+            <button
+              class="btn-glass btn-large"
+              *ngIf="
+                movie.transcode_status !== 'done' &&
+                movie.transcode_status !== 'pending' &&
+                movie.transcode_status !== 'processing'
+              "
+              (click)="triggerTranscode(movie)"
+            >
               <span class="material-symbols-outlined">settings_input_component</span>
               <span>Optimize Stream</span>
             </button>
@@ -101,11 +125,18 @@
             <!-- Movie watch progress indicator -->
             <div class="movie-progress-box frosted-glass" *ngIf="getMovieHistory() as hist">
               <div class="progress-details">
-                <span class="label-mono font-bold">RESUME FROM {{ formatDurationCompact(hist.position) }}</span>
-                <span class="label-remaining">• {{ formatRemainingTime(hist, movie.duration) }} remaining</span>
+                <span class="label-mono font-bold"
+                  >RESUME FROM {{ formatDurationCompact(hist.position) }}</span
+                >
+                <span class="label-remaining"
+                  >• {{ formatRemainingTime(hist, movie.duration) }} remaining</span
+                >
               </div>
               <div class="progress-bar-container">
-                <div class="progress-bar" [style.width.%]="calculateProgressPercent(hist, movie.duration)"></div>
+                <div
+                  class="progress-bar"
+                  [style.width.%]="calculateProgressPercent(hist, movie.duration)"
+                ></div>
               </div>
             </div>
 
@@ -115,7 +146,10 @@
               <span>OPTIMIZATION ENQUEUED</span>
             </div>
 
-            <div class="transcode-status processing label-mono" *ngIf="movie.transcode_status === 'processing'">
+            <div
+              class="transcode-status processing label-mono"
+              *ngIf="movie.transcode_status === 'processing'"
+            >
               <span class="spinner-small"></span>
               <span>OPTIMIZING ({{ Math.round(movie.transcode_progress || 0) }}%)</span>
             </div>
@@ -125,7 +159,11 @@
               <span>OPTIMIZED / READY</span>
             </div>
 
-            <div class="transcode-status failed label-mono" *ngIf="movie.transcode_status === 'failed'" style="color: var(--error);">
+            <div
+              class="transcode-status failed label-mono"
+              *ngIf="movie.transcode_status === 'failed'"
+              style="color: var(--error)"
+            >
               <span class="material-symbols-outlined">error</span>
               <span>OPTIMIZATION FAILED</span>
             </div>
@@ -137,13 +175,15 @@
     <!-- Bento Grid Section (For Movies) -->
     <section class="bento-grid-section" *ngIf="mediaType === 'movie' && movie">
       <div class="bento-grid">
-        
         <!-- Cast Card -->
         <div class="bento-card frosted-glass cast-card">
           <div class="card-header">
             <h3 class="card-title">Director & Cast</h3>
           </div>
-          <div class="cast-vertical-list" *ngIf="movie.director || (movie.cast && movie.cast.length > 0)">
+          <div
+            class="cast-vertical-list"
+            *ngIf="movie.director || (movie.cast && movie.cast.length > 0)"
+          >
             <!-- Director Card -->
             <div class="cast-member-group" *ngIf="movie.director">
               <div class="avatar-placeholder">
@@ -155,8 +195,16 @@
               </div>
             </div>
             <!-- Cast List -->
-            <div class="cast-member-group" *ngFor="let member of movie.cast; trackBy: trackByCastName">
-              <img *ngIf="member.profile_path" [src]="member.profile_path" alt="" class="bento-cast-avatar" />
+            <div
+              class="cast-member-group"
+              *ngFor="let member of movie.cast; trackBy: trackByCastName"
+            >
+              <img
+                *ngIf="member.profile_path"
+                [src]="member.profile_path"
+                alt=""
+                class="bento-cast-avatar"
+              />
               <div *ngIf="!member.profile_path" class="avatar-placeholder">
                 <span class="material-symbols-outlined">person</span>
               </div>
@@ -207,13 +255,11 @@
             </div>
           </div>
         </div>
-
       </div>
     </section>
 
     <!-- TV Show Seasons & Episodes Selector Section -->
     <section class="tv-selector-section" *ngIf="mediaType === 'tvshow' && tvShow">
-      
       <!-- Seasons Card (Full Width) -->
       <div class="bento-card frosted-glass seasons-card">
         <h3 class="card-title">Seasons</h3>
@@ -221,21 +267,25 @@
           <span class="spinner-small"></span>
           <span>Loading seasons...</span>
         </div>
-        
+
         <div class="seasons-grid" *ngIf="!seasonsLoading">
-          <div 
-            *ngFor="let season of seasons; trackBy: trackBySeasonId" 
-            class="season-card" 
+          <div
+            *ngFor="let season of seasons; trackBy: trackBySeasonId"
+            class="season-card"
             [class.active]="selectedSeason?.id === season.id"
-            (click)="selectSeason(season)">
-            
+            (click)="selectSeason(season)"
+          >
             <div class="season-poster-container">
-              <img [src]="getSeasonPosterUrl(season)" alt="Season {{ season.season_number }}" class="season-poster-img" />
+              <img
+                [src]="getSeasonPosterUrl(season)"
+                alt="Season {{ season.season_number }}"
+                class="season-poster-img"
+              />
               <div class="season-active-overlay" *ngIf="selectedSeason?.id === season.id">
                 <span class="material-symbols-outlined active-check">check_circle</span>
               </div>
             </div>
-            
+
             <div class="season-details">
               <h4 class="season-title">Season {{ season.season_number }}</h4>
             </div>
@@ -258,68 +308,106 @@
 
         <div class="episodes-list-box" *ngIf="!episodesLoading && episodes.length > 0">
           <div *ngFor="let ep of episodes; trackBy: trackByEpisodeId" class="episode-row">
-              <div class="ep-number label-mono">E{{ ep.episode_number }}</div>
+            <div class="ep-number label-mono">E{{ ep.episode_number }}</div>
 
-              <!-- Episode Still / Artwork -->
-              <div class="ep-still-container">
-                <img *ngIf="ep.poster_path; else fallbackStill" [src]="getEpisodeStillUrl(ep)" alt="" class="ep-still-img" />
-                <ng-template #fallbackStill>
-                  <div class="ep-still-fallback">
-                    <span class="material-symbols-outlined">movie</span>
-                  </div>
-                </ng-template>
-                <!-- Mini progress bar -->
-                <div class="ep-progress-container" *ngIf="getEpisodeHistory(ep) as hist">
-                  <div class="ep-progress-bar" [style.width.%]="calculateProgressPercent(hist, ep.duration)"></div>
+            <!-- Episode Still / Artwork -->
+            <div class="ep-still-container">
+              <img
+                *ngIf="ep.poster_path; else fallbackStill"
+                [src]="getEpisodeStillUrl(ep)"
+                alt=""
+                class="ep-still-img"
+              />
+              <ng-template #fallbackStill>
+                <div class="ep-still-fallback">
+                  <span class="material-symbols-outlined">movie</span>
                 </div>
+              </ng-template>
+              <!-- Mini progress bar -->
+              <div class="ep-progress-container" *ngIf="getEpisodeHistory(ep) as hist">
+                <div
+                  class="ep-progress-bar"
+                  [style.width.%]="calculateProgressPercent(hist, ep.duration)"
+                ></div>
               </div>
+            </div>
 
-              <div class="ep-main-details">
-                <h4 class="ep-title">{{ ep.title }}</h4>
-                <div class="ep-sub-meta">
-                  <span>{{ formatDuration(ep.duration) }}</span>
-                  <span class="meta-dot">&bull;</span>
-                  <span class="codec-text label-mono">{{ ep.video_codec }}</span>
-                  <span class="meta-dot" *ngIf="ep.transcode_status === 'done'">&bull;</span>
-                  <span class="ep-badge label-mono" *ngIf="ep.transcode_status === 'done'">OPT</span>
-                  <span class="meta-dot" *ngIf="getEpisodeHistory(ep)">&bull;</span>
-                  <span class="ep-progress-text text-primary-dim" *ngIf="getEpisodeHistory(ep) as hist">{{ formatRemainingTime(hist, ep.duration) }} remaining</span>
-                </div>
+            <div class="ep-main-details">
+              <h4 class="ep-title">{{ ep.title }}</h4>
+              <div class="ep-sub-meta">
+                <span>{{ formatDuration(ep.duration) }}</span>
+                <span class="meta-dot">&bull;</span>
+                <span class="codec-text label-mono">{{ ep.video_codec }}</span>
+                <span class="meta-dot" *ngIf="ep.transcode_status === 'done'">&bull;</span>
+                <span class="ep-badge label-mono" *ngIf="ep.transcode_status === 'done'">OPT</span>
+                <span class="meta-dot" *ngIf="getEpisodeHistory(ep)">&bull;</span>
+                <span
+                  class="ep-progress-text text-primary-dim"
+                  *ngIf="getEpisodeHistory(ep) as hist"
+                  >{{ formatRemainingTime(hist, ep.duration) }} remaining</span
+                >
               </div>
-              <div class="ep-actions-box">
-                <button class="ep-action-btn play" [disabled]="ep.transcode_status !== 'done'" (click)="playEpisode(ep, $event)" [title]="getEpisodeHistory(ep) ? 'Resume Playback' : 'Play Episode'">
-                  <span class="material-symbols-outlined">play_arrow</span>
-                </button>
-                <button 
-                  class="ep-action-btn replay" 
-                  *ngIf="getEpisodeHistory(ep) && ep.transcode_status === 'done'"
-                  (click)="playEpisodeFromBeginning(ep, $event)"
-                  title="Play from Beginning">
-                  <span class="material-symbols-outlined">replay</span>
-                </button>
-                <button 
-                  class="ep-action-btn transcode" 
-                  *ngIf="ep.transcode_status !== 'done' && ep.transcode_status !== 'pending' && ep.transcode_status !== 'processing'"
-                  (click)="triggerTranscode(ep)"
-                  title="Optimize Episode">
-                  <span class="material-symbols-outlined">settings_input_component</span>
-                </button>
-                <div class="ep-spinner-box" *ngIf="ep.transcode_status === 'pending'" title="Optimization enqueued">
-                  <span class="spinner-small"></span>
-                </div>
-                <div class="ep-spinner-box" *ngIf="ep.transcode_status === 'processing'" title="Optimization in progress" style="display: flex; align-items: center; gap: 4px; font-family: monospace; font-size: 11px; color: var(--secondary);">
-                  <span class="spinner-small"></span>
-                  <span>{{ Math.round(ep.transcode_progress || 0) }}%</span>
-                </div>
+            </div>
+            <div class="ep-actions-box">
+              <button
+                class="ep-action-btn play"
+                [disabled]="ep.transcode_status !== 'done'"
+                (click)="playEpisode(ep, $event)"
+                [title]="getEpisodeHistory(ep) ? 'Resume Playback' : 'Play Episode'"
+              >
+                <span class="material-symbols-outlined">play_arrow</span>
+              </button>
+              <button
+                class="ep-action-btn replay"
+                *ngIf="getEpisodeHistory(ep) && ep.transcode_status === 'done'"
+                (click)="playEpisodeFromBeginning(ep, $event)"
+                title="Play from Beginning"
+              >
+                <span class="material-symbols-outlined">replay</span>
+              </button>
+              <button
+                class="ep-action-btn transcode"
+                *ngIf="
+                  ep.transcode_status !== 'done' &&
+                  ep.transcode_status !== 'pending' &&
+                  ep.transcode_status !== 'processing'
+                "
+                (click)="triggerTranscode(ep)"
+                title="Optimize Episode"
+              >
+                <span class="material-symbols-outlined">settings_input_component</span>
+              </button>
+              <div
+                class="ep-spinner-box"
+                *ngIf="ep.transcode_status === 'pending'"
+                title="Optimization enqueued"
+              >
+                <span class="spinner-small"></span>
+              </div>
+              <div
+                class="ep-spinner-box"
+                *ngIf="ep.transcode_status === 'processing'"
+                title="Optimization in progress"
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                  font-family: monospace;
+                  font-size: 11px;
+                  color: var(--secondary);
+                "
+              >
+                <span class="spinner-small"></span>
+                <span>{{ Math.round(ep.transcode_progress || 0) }}%</span>
               </div>
             </div>
           </div>
-
-          <div *ngIf="!episodesLoading && episodes.length === 0" class="no-episodes-view">
-            <p>No episodes discovered in this season directory.</p>
-          </div>
         </div>
 
+        <div *ngIf="!episodesLoading && episodes.length === 0" class="no-episodes-view">
+          <p>No episodes discovered in this season directory.</p>
+        </div>
+      </div>
     </section>
 
     <!-- TV Show Creator & Cast Section -->
@@ -328,7 +416,10 @@
         <div class="card-header">
           <h3 class="card-title">Creator & Cast</h3>
         </div>
-        <div class="cast-vertical-list" *ngIf="tvShow.director || (tvShow.cast && tvShow.cast.length > 0)">
+        <div
+          class="cast-vertical-list"
+          *ngIf="tvShow.director || (tvShow.cast && tvShow.cast.length > 0)"
+        >
           <!-- Creator Row -->
           <div class="cast-member-group" *ngIf="tvShow.director">
             <div class="avatar-placeholder">
@@ -340,8 +431,16 @@
             </div>
           </div>
           <!-- Cast List -->
-          <div class="cast-member-group" *ngFor="let member of tvShow.cast; trackBy: trackByCastName">
-            <img *ngIf="member.profile_path" [src]="member.profile_path" alt="" class="bento-cast-avatar" />
+          <div
+            class="cast-member-group"
+            *ngFor="let member of tvShow.cast; trackBy: trackByCastName"
+          >
+            <img
+              *ngIf="member.profile_path"
+              [src]="member.profile_path"
+              alt=""
+              class="bento-cast-avatar"
+            />
             <div *ngIf="!member.profile_path" class="avatar-placeholder">
               <span class="material-symbols-outlined">person</span>
             </div>
@@ -354,17 +453,17 @@
       </div>
     </section>
 
-
-
     <!-- Extra Posters Gallery (For both Movie and TV Show) -->
     <section class="details-gallery-section" *ngIf="getExtraPosterUrls().length > 0">
       <h3 class="section-title">Gallery & Artwork</h3>
       <div class="gallery-scroll-container">
-        <div class="gallery-item-card" *ngFor="let url of getExtraPosterUrls(); trackBy: trackByUrl">
+        <div
+          class="gallery-item-card"
+          *ngFor="let url of getExtraPosterUrls(); trackBy: trackByUrl"
+        >
           <img [src]="url" alt="Gallery Poster" class="gallery-img" />
         </div>
       </div>
     </section>
-
   </div>
 </div>

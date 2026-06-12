@@ -56,7 +56,10 @@
               <span class="progress-pct">{{ totalUtilizationPct }}%</span>
             </div>
             <div class="progress-track">
-              <div class="progress-fill fill-teal glow-teal" [style.width.%]="totalUtilizationPct"></div>
+              <div
+                class="progress-fill fill-teal glow-teal"
+                [style.width.%]="totalUtilizationPct"
+              ></div>
             </div>
           </div>
         </div>
@@ -68,7 +71,8 @@
         <div class="settings-content">
           <h4 class="settings-title">Minimum Free Space Reservation</h4>
           <p class="settings-desc">
-            Define a safety threshold. Prism will refuse to transcode or segment new files on any storage area if its free space falls below this limit.
+            Define a safety threshold. Prism will refuse to transcode or segment new files on any
+            storage area if its free space falls below this limit.
           </p>
           <div class="slider-group">
             <div class="slider-header">
@@ -80,7 +84,15 @@
             </div>
             <div class="slider-container">
               <span class="slider-boundary-text">0 GB</span>
-              <input type="range" class="slider-input" min="0" max="500" step="5" [(ngModel)]="minFreeGB" (change)="saveConfig()" />
+              <input
+                type="range"
+                class="slider-input"
+                min="0"
+                max="500"
+                step="5"
+                [(ngModel)]="minFreeGB"
+                (change)="saveConfig()"
+              />
               <span class="slider-boundary-text">500 GB</span>
             </div>
           </div>
@@ -105,15 +117,27 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let area of areas" class="table-row" [class.row-active]="activeDropdownAreaId === area.id">
+              <tr
+                *ngFor="let area of areas"
+                class="table-row"
+                [class.row-active]="activeDropdownAreaId === area.id"
+              >
                 <!-- Mount Point Path -->
                 <td class="path-cell">
                   <div *ngIf="editingAreaId !== area.id" class="path-view-container">
                     <span class="material-symbols-outlined text-outline folder-icon">folder</span>
                     <code class="path-code">{{ area.path }}</code>
                   </div>
-                  <div *ngIf="editingAreaId === area.id" class="path-edit-container" (click)="$event.stopPropagation()">
-                    <input type="text" class="input-glass input-edit-path" [(ngModel)]="editingPathValue" />
+                  <div
+                    *ngIf="editingAreaId === area.id"
+                    class="path-edit-container"
+                    (click)="$event.stopPropagation()"
+                  >
+                    <input
+                      type="text"
+                      class="input-glass input-edit-path"
+                      [(ngModel)]="editingPathValue"
+                    />
                     <button class="btn-icon btn-save-edit" (click)="saveEditedPath(area.id)">
                       <span class="material-symbols-outlined text-teal">check</span>
                     </button>
@@ -122,20 +146,25 @@
                     </button>
                   </div>
                 </td>
-                
+
                 <!-- Capacity Bar -->
                 <td>
                   <div class="capacity-bar-container" *ngIf="area.enabled">
                     <div class="capacity-stats">
-                      <span class="stats-text">{{ formatBytes(area.used_bytes) }} / {{ formatBytes(area.total_bytes) }} used</span>
+                      <span class="stats-text"
+                        >{{ formatBytes(area.used_bytes) }} /
+                        {{ formatBytes(area.total_bytes) }} used</span
+                      >
                       <span class="stats-pct">{{ Math.round(area.utilization_pct) }}%</span>
                     </div>
                     <div class="progress-track">
-                      <div class="progress-fill" 
-                           [class.fill-teal]="area.status === 'ok'" 
-                           [class.fill-warning]="area.status === 'below_reserve'"
-                           [class.fill-error]="area.status !== 'ok' && area.status !== 'below_reserve'" 
-                           [style.width.%]="area.utilization_pct"></div>
+                      <div
+                        class="progress-fill"
+                        [class.fill-teal]="area.status === 'ok'"
+                        [class.fill-warning]="area.status === 'below_reserve'"
+                        [class.fill-error]="area.status !== 'ok' && area.status !== 'below_reserve'"
+                        [style.width.%]="area.utilization_pct"
+                      ></div>
                     </div>
                   </div>
                   <span class="disabled-stats-text" *ngIf="!area.enabled">N/A (Disabled)</span>
@@ -151,21 +180,36 @@
 
                 <!-- Action Dropdown Menu -->
                 <td class="action-cell">
-                  <div class="dropdown-wrapper" [class.dropdown-active]="activeDropdownAreaId === area.id">
-                    <button class="btn-icon btn-dropdown-trigger" (click)="toggleDropdown(area.id, $event)">
+                  <div
+                    class="dropdown-wrapper"
+                    [class.dropdown-active]="activeDropdownAreaId === area.id"
+                  >
+                    <button
+                      class="btn-icon btn-dropdown-trigger"
+                      (click)="toggleDropdown(area.id, $event)"
+                    >
                       <span class="material-symbols-outlined">more_vert</span>
                     </button>
-                    <div class="dropdown-menu frosted-glass" *ngIf="activeDropdownAreaId === area.id" (click)="$event.stopPropagation()">
+                    <div
+                      class="dropdown-menu frosted-glass"
+                      *ngIf="activeDropdownAreaId === area.id"
+                      (click)="$event.stopPropagation()"
+                    >
                       <button class="dropdown-item" (click)="startEditPath(area, $event)">
                         <span class="material-symbols-outlined">edit</span>
                         <span>Edit Path</span>
                       </button>
                       <button class="dropdown-item" (click)="toggleAreaEnabled(area, $event)">
-                        <span class="material-symbols-outlined">{{ area.enabled ? 'block' : 'check_circle' }}</span>
+                        <span class="material-symbols-outlined">{{
+                          area.enabled ? 'block' : 'check_circle'
+                        }}</span>
                         <span>{{ area.enabled ? 'Disable Storage' : 'Enable Storage' }}</span>
                       </button>
                       <div class="dropdown-divider"></div>
-                      <button class="dropdown-item item-delete" (click)="deleteArea(area.id, $event)">
+                      <button
+                        class="dropdown-item item-delete"
+                        (click)="deleteArea(area.id, $event)"
+                      >
                         <span class="material-symbols-outlined">delete</span>
                         <span>Remove Path</span>
                       </button>
@@ -174,7 +218,9 @@
                 </td>
               </tr>
               <tr *ngIf="areas.length === 0">
-                <td colspan="4" class="empty-table-cell">No active storage paths registered. Click "Add Storage Path" to add one.</td>
+                <td colspan="4" class="empty-table-cell">
+                  No active storage paths registered. Click "Add Storage Path" to add one.
+                </td>
               </tr>
             </tbody>
           </table>
@@ -196,12 +242,17 @@
         Add Storage Path
       </h3>
     </div>
-    
+
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">Storage Path</label>
         <div class="path-input-group">
-          <input type="text" class="input-glass" [(ngModel)]="newPath" placeholder="e.g. /mnt/storage/transcodes" />
+          <input
+            type="text"
+            class="input-glass"
+            [(ngModel)]="newPath"
+            placeholder="e.g. /mnt/storage/transcodes"
+          />
         </div>
       </div>
 
@@ -209,20 +260,24 @@
       <div class="fs-browser">
         <div class="browser-header">
           <span class="browser-title-text">Server Filesystem</span>
-          <button class="btn-browse-parent" (click)="browseParentDir()" [disabled]="browsingPath === '/'">
+          <button
+            class="btn-browse-parent"
+            (click)="browseParentDir()"
+            [disabled]="browsingPath === '/'"
+          >
             <span class="material-symbols-outlined">arrow_upward</span>
             Up One Level
           </button>
         </div>
-        <p class="current-path">Location: <code class="current-path-code">{{ browsingPath }}</code></p>
+        <p class="current-path">
+          Location: <code class="current-path-code">{{ browsingPath }}</code>
+        </p>
         <div class="browser-list" *ngIf="!isBrowsing">
           <div *ngFor="let item of fsItems" class="browser-item" (click)="selectBrowsedPath(item)">
             <span class="material-symbols-outlined folder-icon">folder</span>
             <span class="item-text">{{ item }}</span>
           </div>
-          <div *ngIf="fsItems.length === 0" class="empty-browser-state">
-            No directories found.
-          </div>
+          <div *ngIf="fsItems.length === 0" class="empty-browser-state">No directories found.</div>
         </div>
         <div *ngIf="isBrowsing" class="browser-loading">
           <div class="spinner-small"></div>

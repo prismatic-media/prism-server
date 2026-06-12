@@ -1,7 +1,10 @@
 # Binaries
 prism
 /web/node_modules/
-/web/dist/
+/web/dist/*
+!/web/dist/browser/
+/web/dist/browser/*
+!/web/dist/browser/index.html
 prism
 
 # Environment

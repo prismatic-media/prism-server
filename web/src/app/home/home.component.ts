@@ -30,7 +30,7 @@ interface LibraryStats {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './home.component.html',
-  styleUrl: './home.component.css'
+  styleUrl: './home.component.css',
 })
 export class HomeComponent implements OnInit, OnDestroy {
   public authService = inject(AuthService);
@@ -44,7 +44,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     moviesCount: 0,
     showsCount: 0,
     transcodingJobs: 0,
-    storageHealthy: true
+    storageHealthy: true,
   };
 
   recentMovies: Movie[] = [];
@@ -54,9 +54,12 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.fetchDashboardData();
-    this.eventSub = this.eventService.events$.subscribe(events => {
-      const shouldRefresh = events.some(evt =>
-        evt.type === 'media.created' || evt.type === 'media.updated' || evt.type === 'media.enriched'
+    this.eventSub = this.eventService.events$.subscribe((events) => {
+      const shouldRefresh = events.some(
+        (evt) =>
+          evt.type === 'media.created' ||
+          evt.type === 'media.updated' ||
+          evt.type === 'media.enriched',
       );
       if (shouldRefresh) {
         this.fetchDashboardData(true);
@@ -80,7 +83,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       allShows: this.http.get<TVShow[]>('/api/v1/tv/shows'),
       recentMovies: this.http.get<Movie[]>('/api/v1/media?sort=recent&limit=20'),
       recentShows: this.http.get<TVShow[]>('/api/v1/tv/shows?sort=recent&limit=20'),
-      continueWatching: this.http.get<WatchHistory[]>('/api/v1/history')
+      continueWatching: this.http.get<WatchHistory[]>('/api/v1/history'),
     }).subscribe({
       next: (res) => {
         this.stats.moviesCount = res.allMovies?.length || 0;
@@ -97,19 +100,103 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.stats.showsCount = 8;
         this.stats.transcodingJobs = 1;
         this.stats.storageHealthy = true;
-        
+
         this.recentMovies = [
-          { id: '1', title: 'Prism Overdrive', media_type: 'movie', file_path: 'mock/prism_overdrive.mp4', file_size: 15600000000, duration: 7800, width: 3840, height: 2160, video_codec: 'hevc', audio_codec: 'aac', transcode_status: 'done', source_status: 'available', bundle_status: 'available', year: 2024 },
-          { id: '2', title: 'Nebula Chronicles', media_type: 'movie', file_path: 'mock/nebula_chronicles.mp4', file_size: 8400000000, duration: 6900, width: 1920, height: 1080, video_codec: 'h264', audio_codec: 'ac3', transcode_status: 'none', source_status: 'available', bundle_status: 'none', year: 2023 },
-          { id: '3', title: 'Quantum Shift', media_type: 'movie', file_path: 'mock/quantum_shift.mp4', file_size: 18200000000, duration: 9120, width: 3840, height: 2160, video_codec: 'hevc', audio_codec: 'aac', transcode_status: 'pending', source_status: 'available', bundle_status: 'none', year: 2025 },
-          { id: '4', title: 'Chrono Rift', media_type: 'movie', file_path: 'mock/chrono_rift.mp4', file_size: 6200000000, duration: 5400, width: 1920, height: 1080, video_codec: 'hevc', audio_codec: 'aac', transcode_status: 'done', source_status: 'available', bundle_status: 'available', year: 2024 }
+          {
+            id: '1',
+            title: 'Prism Overdrive',
+            media_type: 'movie',
+            file_path: 'mock/prism_overdrive.mp4',
+            file_size: 15600000000,
+            duration: 7800,
+            width: 3840,
+            height: 2160,
+            video_codec: 'hevc',
+            audio_codec: 'aac',
+            transcode_status: 'done',
+            source_status: 'available',
+            bundle_status: 'available',
+            year: 2024,
+          },
+          {
+            id: '2',
+            title: 'Nebula Chronicles',
+            media_type: 'movie',
+            file_path: 'mock/nebula_chronicles.mp4',
+            file_size: 8400000000,
+            duration: 6900,
+            width: 1920,
+            height: 1080,
+            video_codec: 'h264',
+            audio_codec: 'ac3',
+            transcode_status: 'none',
+            source_status: 'available',
+            bundle_status: 'none',
+            year: 2023,
+          },
+          {
+            id: '3',
+            title: 'Quantum Shift',
+            media_type: 'movie',
+            file_path: 'mock/quantum_shift.mp4',
+            file_size: 18200000000,
+            duration: 9120,
+            width: 3840,
+            height: 2160,
+            video_codec: 'hevc',
+            audio_codec: 'aac',
+            transcode_status: 'pending',
+            source_status: 'available',
+            bundle_status: 'none',
+            year: 2025,
+          },
+          {
+            id: '4',
+            title: 'Chrono Rift',
+            media_type: 'movie',
+            file_path: 'mock/chrono_rift.mp4',
+            file_size: 6200000000,
+            duration: 5400,
+            width: 1920,
+            height: 1080,
+            video_codec: 'hevc',
+            audio_codec: 'aac',
+            transcode_status: 'done',
+            source_status: 'available',
+            bundle_status: 'available',
+            year: 2024,
+          },
         ] as Movie[];
 
         this.recentShows = [
-          { id: '1', name: 'Stellar Voyager', library_id: 'l1', first_air_year: 2021, overview: 'Exploring the outer bounds of the galaxy.' },
-          { id: '2', name: 'Dark Void', library_id: 'l1', first_air_year: 2022, overview: 'A journey into a mysterious cosmic anomaly.' },
-          { id: '3', name: 'Cyber Horizon', library_id: 'l1', first_air_year: 2023, overview: 'Survival in a digital dystopia.' },
-          { id: '4', name: 'Retro Orbit', library_id: 'l1', first_air_year: 2024, overview: 'Classic space adventures in a modern light.' }
+          {
+            id: '1',
+            name: 'Stellar Voyager',
+            library_id: 'l1',
+            first_air_year: 2021,
+            overview: 'Exploring the outer bounds of the galaxy.',
+          },
+          {
+            id: '2',
+            name: 'Dark Void',
+            library_id: 'l1',
+            first_air_year: 2022,
+            overview: 'A journey into a mysterious cosmic anomaly.',
+          },
+          {
+            id: '3',
+            name: 'Cyber Horizon',
+            library_id: 'l1',
+            first_air_year: 2023,
+            overview: 'Survival in a digital dystopia.',
+          },
+          {
+            id: '4',
+            name: 'Retro Orbit',
+            library_id: 'l1',
+            first_air_year: 2024,
+            overview: 'Classic space adventures in a modern light.',
+          },
         ] as TVShow[];
 
         this.continueWatching = [
@@ -120,13 +207,28 @@ export class HomeComponent implements OnInit, OnDestroy {
             position: 3200,
             completed: false,
             updated_at: '2026-06-08T22:00:00Z',
-            media: { id: '1', title: 'Prism Overdrive', media_type: 'movie', file_path: 'mock/prism_overdrive.mp4', file_size: 15600000000, duration: 7800, width: 3840, height: 2160, video_codec: 'hevc', audio_codec: 'aac', transcode_status: 'done', source_status: 'available', bundle_status: 'available', year: 2024 } as Movie
-          }
+            media: {
+              id: '1',
+              title: 'Prism Overdrive',
+              media_type: 'movie',
+              file_path: 'mock/prism_overdrive.mp4',
+              file_size: 15600000000,
+              duration: 7800,
+              width: 3840,
+              height: 2160,
+              video_codec: 'hevc',
+              audio_codec: 'aac',
+              transcode_status: 'done',
+              source_status: 'available',
+              bundle_status: 'available',
+              year: 2024,
+            } as Movie,
+          },
         ];
 
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -195,7 +297,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
-      }
+      },
     });
   }
 
@@ -249,7 +351,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       const showName = item.media.tv_show_title || 'TV Show';
       const s = item.media.season_number ? `S${item.media.season_number}` : '';
       const e = item.media.episode_number ? `E${item.media.episode_number}` : '';
-      const parts = [s, e].filter(p => p !== '');
+      const parts = [s, e].filter((p) => p !== '');
       const epPrefix = parts.join(' • ');
       return `${showName} — ${epPrefix ? epPrefix + ' — ' : ''}${item.media.title}`;
     }

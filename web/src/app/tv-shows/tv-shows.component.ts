@@ -50,7 +50,7 @@ export interface Episode {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './tv-shows.component.html',
-  styleUrl: './tv-shows.component.css'
+  styleUrl: './tv-shows.component.css',
 })
 export class TVShowsComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
@@ -68,9 +68,12 @@ export class TVShowsComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.fetchTVShows();
-    this.eventSub = this.eventService.events$.subscribe(events => {
-      const shouldRefresh = events.some(evt =>
-        evt.type === 'media.created' || evt.type === 'media.updated' || evt.type === 'media.enriched'
+    this.eventSub = this.eventService.events$.subscribe((events) => {
+      const shouldRefresh = events.some(
+        (evt) =>
+          evt.type === 'media.created' ||
+          evt.type === 'media.updated' ||
+          evt.type === 'media.enriched',
       );
       if (shouldRefresh) {
         this.fetchTVShows(true);
@@ -91,33 +94,36 @@ export class TVShowsComponent implements OnInit, OnDestroy {
     this.error = '';
 
     // First fetch libraries, find tvshow libraries, and then fetch shows
-    this.http.get<any[]>('/api/v1/libraries').pipe(
-      map(libs => libs ? libs.filter(l => l.media_type === 'tvshow') : []),
-      switchMap(tvLibs => {
-        if (tvLibs.length === 0) {
-          return of([]);
-        }
-        // Query /api/v1/tv/shows?library_id=xxx for each tv library
-        const requests = tvLibs.map(lib => 
-          this.http.get<TVShow[]>(`/api/v1/tv/shows?library_id=${lib.id}`)
-        );
-        return forkJoin(requests).pipe(
-          map(results => results.reduce((acc, val) => acc.concat(val), []))
-        );
-      })
-    ).subscribe({
-      next: (data) => {
-        this.allShows = data || [];
-        this.filterShows();
-        this.loading = false;
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        this.error = 'Could not fetch TV shows library.';
-        this.loading = false;
-        this.cdr.detectChanges();
-      }
-    });
+    this.http
+      .get<any[]>('/api/v1/libraries')
+      .pipe(
+        map((libs) => (libs ? libs.filter((l) => l.media_type === 'tvshow') : [])),
+        switchMap((tvLibs) => {
+          if (tvLibs.length === 0) {
+            return of([]);
+          }
+          // Query /api/v1/tv/shows?library_id=xxx for each tv library
+          const requests = tvLibs.map((lib) =>
+            this.http.get<TVShow[]>(`/api/v1/tv/shows?library_id=${lib.id}`),
+          );
+          return forkJoin(requests).pipe(
+            map((results) => results.reduce((acc, val) => acc.concat(val), [])),
+          );
+        }),
+      )
+      .subscribe({
+        next: (data) => {
+          this.allShows = data || [];
+          this.filterShows();
+          this.loading = false;
+          this.cdr.detectChanges();
+        },
+        error: (err) => {
+          this.error = 'Could not fetch TV shows library.';
+          this.loading = false;
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   filterShows(): void {
@@ -127,9 +133,9 @@ export class TVShowsComponent implements OnInit, OnDestroy {
     }
 
     const q = this.searchQuery.toLowerCase();
-    this.shows = this.allShows.filter(s => 
-      s.name.toLowerCase().includes(q) || 
-      (s.overview && s.overview.toLowerCase().includes(q))
+    this.shows = this.allShows.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) || (s.overview && s.overview.toLowerCase().includes(q)),
     );
   }
 

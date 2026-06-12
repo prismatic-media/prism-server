@@ -13,36 +13,44 @@
       <span class="material-symbols-outlined filter-icon">filter_list</span>
       <span class="filter-label">Filter by:</span>
     </div>
-    
+
     <div class="filter-pills">
-      <button 
-        class="filter-pill" 
-        [class.active]="selectedFilter === 'all'" 
-        (click)="setFilter('all')">
+      <button
+        class="filter-pill"
+        [class.active]="selectedFilter === 'all'"
+        (click)="setFilter('all')"
+      >
         All Movies
       </button>
-      <button 
-        class="filter-pill" 
-        [class.active]="selectedFilter === '4k'" 
-        (click)="setFilter('4k')">
+      <button
+        class="filter-pill"
+        [class.active]="selectedFilter === '4k'"
+        (click)="setFilter('4k')"
+      >
         4K Ultra HD
       </button>
-      <button 
-        class="filter-pill" 
-        [class.active]="selectedFilter === '1080p'" 
-        (click)="setFilter('1080p')">
+      <button
+        class="filter-pill"
+        [class.active]="selectedFilter === '1080p'"
+        (click)="setFilter('1080p')"
+      >
         1080p Full HD
       </button>
-      <button 
-        class="filter-pill" 
-        [class.active]="selectedFilter === 'transcoded'" 
-        (click)="setFilter('transcoded')">
+      <button
+        class="filter-pill"
+        [class.active]="selectedFilter === 'transcoded'"
+        (click)="setFilter('transcoded')"
+      >
         Transcoded
       </button>
     </div>
 
     <div class="view-toggles">
-      <span class="material-symbols-outlined view-icon active" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+      <span
+        class="material-symbols-outlined view-icon active"
+        style="font-variation-settings: 'FILL' 1"
+        >grid_view</span
+      >
       <span class="material-symbols-outlined view-icon">view_list</span>
     </div>
   </div>
@@ -66,32 +74,42 @@
 
   <!-- Uniform Movies Grid -->
   <div *ngIf="!loading && !error && movies.length > 0" class="movies-grid">
-    <div 
-      class="movie-card group" 
-      *ngFor="let movie of movies; trackBy: trackByMovieId" 
-      [routerLink]="['/movies', movie.id]">
-      
+    <div
+      class="movie-card group"
+      *ngFor="let movie of movies; trackBy: trackByMovieId"
+      [routerLink]="['/movies', movie.id]"
+    >
       <div class="poster-container">
         <img [src]="getPosterUrl(movie)" [alt]="movie.title" class="poster-img" loading="lazy" />
-        
+
         <!-- Hover Gradient Overlay & Badges -->
         <div class="poster-overlay">
           <div class="overlay-badges">
             <span class="badge badge-4k" *ngIf="movie.width >= 3840">4K</span>
             <span class="badge badge-hd" *ngIf="movie.width >= 1920 && movie.width < 3840">HD</span>
-            <span class="badge badge-hdr" *ngIf="movie.video_codec && (movie.video_codec.toLowerCase().includes('hevc') || movie.video_codec.toLowerCase().includes('h265'))">HDR</span>
+            <span
+              class="badge badge-hdr"
+              *ngIf="
+                movie.video_codec &&
+                (movie.video_codec.toLowerCase().includes('hevc') ||
+                  movie.video_codec.toLowerCase().includes('h265'))
+              "
+              >HDR</span
+            >
             <span class="badge badge-transcoded" *ngIf="movie.transcode_status === 'done'">TR</span>
           </div>
-          
+
           <button class="overlay-play-btn" (click)="playMovie(movie, $event)" title="Play Movie">
             <span class="material-symbols-outlined">play_arrow</span>
           </button>
         </div>
       </div>
-      
+
       <div class="movie-metadata">
         <h3 class="movie-title">{{ movie.title }}</h3>
-        <p class="movie-info-row">{{ movie.year || 'N/A' }} • {{ formatDuration(movie.duration) }}</p>
+        <p class="movie-info-row">
+          {{ movie.year || 'N/A' }} • {{ formatDuration(movie.duration) }}
+        </p>
       </div>
     </div>
   </div>

@@ -6,8 +6,12 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* --- Library Header --- */
@@ -148,7 +152,8 @@
   transition: color 0.2s;
 }
 
-.view-icon:hover, .view-icon.active {
+.view-icon:hover,
+.view-icon.active {
   color: var(--primary-container);
 }
 
@@ -167,7 +172,8 @@
   font-size: 16px;
 }
 
-.error-icon, .empty-icon {
+.error-icon,
+.empty-icon {
   font-size: 48px;
   color: var(--on-surface-variant);
   opacity: 0.4;
@@ -299,8 +305,12 @@
 }
 
 @keyframes backdropFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-card {
@@ -394,7 +404,7 @@
   border-radius: var(--rounded-md);
   overflow: hidden;
   border: 1px solid var(--border-glass);
-  box-shadow: 0 16px 32px rgba(0,0,0,0.4);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
   aspect-ratio: 2/3;
 }
 
@@ -633,5 +643,7 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

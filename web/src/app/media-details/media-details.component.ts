@@ -32,7 +32,7 @@ export interface Movie {
   episode_number?: number;
   tv_show_title?: string;
   director?: string;
-  cast?: { name: string; character: string; profile_path: string; }[];
+  cast?: { name: string; character: string; profile_path: string }[];
   backdrop_path?: string;
   extra_posters?: string[];
 }
@@ -46,7 +46,7 @@ export interface TVShow {
   poster_path?: string;
   first_air_year?: number;
   director?: string;
-  cast?: { name: string; character: string; profile_path: string; }[];
+  cast?: { name: string; character: string; profile_path: string }[];
   backdrop_path?: string;
   extra_posters?: string[];
 }
@@ -96,7 +96,7 @@ export interface WatchHistory {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './media-details.component.html',
-  styleUrl: './media-details.component.css'
+  styleUrl: './media-details.component.css',
 })
 export class MediaDetailsComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
@@ -138,14 +138,14 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       this.mediaType = 'movie';
     }
 
-    this.route.paramMap.subscribe(params => {
+    this.route.paramMap.subscribe((params) => {
       this.id = params.get('id') || '';
       if (this.id) {
         this.loadDetails();
       }
     });
 
-    this.eventSub = this.eventService.events$.subscribe(events => {
+    this.eventSub = this.eventService.events$.subscribe((events) => {
       let changed = false;
       let shouldReloadDetails = false;
 
@@ -163,7 +163,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
           if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
             shouldReloadDetails = true;
           } else if (this.mediaType === 'tvshow') {
-            if (this.tvShow && (this.tvShow.id === payload.media_item_id || this.episodes.some(e => e.id === payload.media_item_id))) {
+            if (
+              this.tvShow &&
+              (this.tvShow.id === payload.media_item_id ||
+                this.episodes.some((e) => e.id === payload.media_item_id))
+            ) {
               shouldReloadDetails = true;
             }
           }
@@ -199,7 +203,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       next: (historyList) => {
         this.watchHistoryList = historyList || [];
         this.cdr.detectChanges();
-      }
+      },
     });
 
     if (this.mediaType === 'movie') {
@@ -216,7 +220,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
           }
           this.loading = false;
           this.cdr.detectChanges();
-        }
+        },
       });
     } else {
       this.http.get<TVShow>(`/api/v1/tv/shows/${this.id}`).subscribe({
@@ -231,7 +235,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
           }
           this.loading = false;
           this.cdr.detectChanges();
-        }
+        },
       });
     }
   }
@@ -242,15 +246,19 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     }
     this.http.get<TVSeason[]>(`/api/v1/tv/shows/${showId}/seasons`).subscribe({
       next: (seasonsList) => {
-        const prevSelectedSeasonNumber = this.selectedSeason ? this.selectedSeason.season_number : null;
-        this.seasons = seasonsList ? seasonsList.sort((a, b) => a.season_number - b.season_number) : [];
+        const prevSelectedSeasonNumber = this.selectedSeason
+          ? this.selectedSeason.season_number
+          : null;
+        this.seasons = seasonsList
+          ? seasonsList.sort((a, b) => a.season_number - b.season_number)
+          : [];
         this.seasonsLoading = false;
         this.loading = false;
 
         if (this.seasons.length > 0) {
           let toSelect = this.seasons[0];
           if (prevSelectedSeasonNumber !== null) {
-            const found = this.seasons.find(s => s.season_number === prevSelectedSeasonNumber);
+            const found = this.seasons.find((s) => s.season_number === prevSelectedSeasonNumber);
             if (found) {
               toSelect = found;
             }
@@ -263,7 +271,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         this.seasonsLoading = false;
         this.loading = false;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -281,17 +289,21 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     if (!silent) {
       this.episodesLoading = true;
     }
-    this.http.get<Episode[]>(`/api/v1/tv/shows/${showId}/seasons/${seasonNumber}/episodes`).subscribe({
-      next: (episodesList) => {
-        this.episodes = episodesList ? episodesList.sort((a, b) => a.episode_number - b.episode_number) : [];
-        this.episodesLoading = false;
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.episodesLoading = false;
-        this.cdr.detectChanges();
-      }
-    });
+    this.http
+      .get<Episode[]>(`/api/v1/tv/shows/${showId}/seasons/${seasonNumber}/episodes`)
+      .subscribe({
+        next: (episodesList) => {
+          this.episodes = episodesList
+            ? episodesList.sort((a, b) => a.episode_number - b.episode_number)
+            : [];
+          this.episodesLoading = false;
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.episodesLoading = false;
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   getPosterUrl(): string {
@@ -362,7 +374,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
-      }
+      },
     });
   }
 
@@ -411,8 +423,6 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     return urls;
   }
 
-
-
   handleJobProgressEvent(payload: any): boolean {
     let changed = false;
     if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
@@ -424,7 +434,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       }
       changed = true;
     } else if (this.mediaType === 'tvshow' && this.episodes) {
-      const ep = this.episodes.find(e => e.id === payload.media_item_id);
+      const ep = this.episodes.find((e) => e.id === payload.media_item_id);
       if (ep) {
         ep.transcode_progress = payload.progress;
         if (payload.done) {
@@ -444,7 +454,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       this.movie.transcode_status = payload.transcode_status;
       changed = true;
     } else if (this.mediaType === 'tvshow' && this.episodes) {
-      const ep = this.episodes.find(e => e.id === payload.media_item_id);
+      const ep = this.episodes.find((e) => e.id === payload.media_item_id);
       if (ep) {
         ep.transcode_status = payload.transcode_status;
         changed = true;
@@ -455,11 +465,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
 
   getMovieHistory(): WatchHistory | undefined {
     if (!this.movie) return undefined;
-    return this.watchHistoryList.find(h => h.media_item_id === this.movie!.id);
+    return this.watchHistoryList.find((h) => h.media_item_id === this.movie!.id);
   }
 
   getEpisodeHistory(ep: Episode): WatchHistory | undefined {
-    return this.watchHistoryList.find(h => h.media_item_id === ep.id);
+    return this.watchHistoryList.find((h) => h.media_item_id === ep.id);
   }
 
   calculateProgressPercent(hist: WatchHistory, duration: number): number {

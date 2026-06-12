@@ -1,4 +1,12 @@
-import { Component, inject, OnInit, OnDestroy, HostListener, ElementRef, ChangeDetectorRef } from '@angular/core';
+import {
+  Component,
+  inject,
+  OnInit,
+  OnDestroy,
+  HostListener,
+  ElementRef,
+  ChangeDetectorRef,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -12,7 +20,7 @@ import { AuthService } from '../auth.service';
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, FormsModule],
   templateUrl: './layout.component.html',
-  styleUrl: './layout.component.css'
+  styleUrl: './layout.component.css',
 })
 export class LayoutComponent implements OnInit, OnDestroy {
   public authService = inject(AuthService);
@@ -21,7 +29,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
 
   userDropdownOpen = false;
-  
+
   // Search state
   searchQuery = '';
   searchResults: any[] = [];
@@ -31,38 +39,40 @@ export class LayoutComponent implements OnInit, OnDestroy {
   private searchSub?: Subscription;
 
   ngOnInit(): void {
-    this.searchSub = this.searchSubject.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      switchMap(query => {
-        if (!query.trim()) {
-          this.loadingSearch = false;
-          this.cdr.detectChanges();
-          return of([]);
-        }
-        this.loadingSearch = true;
-        this.cdr.detectChanges();
-        return this.http.get<any[]>(`/api/v1/search?q=${encodeURIComponent(query)}`).pipe(
-          catchError(() => {
+    this.searchSub = this.searchSubject
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query.trim()) {
             this.loadingSearch = false;
             this.cdr.detectChanges();
             return of([]);
-          })
-        );
-      })
-    ).subscribe({
-      next: (results) => {
-        this.searchResults = results;
-        this.loadingSearch = false;
-        this.showResultsDropdown = true;
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.searchResults = [];
-        this.loadingSearch = false;
-        this.cdr.detectChanges();
-      }
-    });
+          }
+          this.loadingSearch = true;
+          this.cdr.detectChanges();
+          return this.http.get<any[]>(`/api/v1/search?q=${encodeURIComponent(query)}`).pipe(
+            catchError(() => {
+              this.loadingSearch = false;
+              this.cdr.detectChanges();
+              return of([]);
+            }),
+          );
+        }),
+      )
+      .subscribe({
+        next: (results) => {
+          this.searchResults = results;
+          this.loadingSearch = false;
+          this.showResultsDropdown = true;
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.searchResults = [];
+          this.loadingSearch = false;
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   ngOnDestroy(): void {
@@ -159,4 +169,3 @@ export class LayoutComponent implements OnInit, OnDestroy {
     this.authService.logout();
   }
 }
-

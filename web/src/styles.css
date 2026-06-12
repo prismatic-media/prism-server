@@ -3,19 +3,19 @@
   /* Colors */
   --bg-color: #020303;
   --on-background: #dce4e5;
-  
+
   --primary: #dbfcff;
   --primary-container: #00f0ff;
   --primary-fixed: #7df4ff;
   --primary-fixed-dim: #00dbe9;
   --on-primary: #00363a;
   --on-primary-container: #006970;
-  
+
   --secondary: #d0bcff;
   --secondary-container: #571bc1;
   --on-secondary: #3c0091;
   --on-secondary-container: #c4abff;
-  
+
   --tertiary: #fff3f2;
   --tertiary-container: #ffcdcf;
   --on-tertiary: #67001b;
@@ -27,36 +27,36 @@
   --surface-variant: #2e3637;
   --on-surface: #dce4e5;
   --on-surface-variant: #b9cacb;
-  
+
   --surface-container: #192122;
   --surface-container-low: #151d1e;
   --surface-container-high: #232b2c;
   --surface-container-highest: #2e3637;
   --surface-container-lowest: #010202;
   --surface-tint: #00dbe9;
-  
+
   --inverse-surface: #dce4e5;
   --inverse-on-surface: #2a3233;
   --inverse-primary: #006970;
-  
+
   --outline: #849495;
   --outline-variant: #3b494b;
-  
+
   --error: #ffb4ab;
   --error-container: #93000a;
   --on-error: #690005;
   --on-error-container: #ffdad6;
-  
+
   /* Glassmorphism Specs */
   --glass-bg-dark: rgba(25, 33, 34, 0.4);
   --glass-bg-light: rgba(220, 228, 229, 0.05);
   --border-glass: rgba(220, 228, 229, 0.08);
-  
+
   /* Brand Spectral Colors */
-  --spectral-violet: #8B5CF6;
-  --spectral-indigo: #6366F1;
-  --spectral-teal: #2DD4BF;
-  
+  --spectral-violet: #8b5cf6;
+  --spectral-indigo: #6366f1;
+  --spectral-teal: #2dd4bf;
+
   /* Shape Roundedness */
   --rounded-sm: 0.125rem;
   --rounded: 0.25rem;
@@ -64,7 +64,7 @@
   --rounded-lg: 0.75rem;
   --rounded-xl: 1rem;
   --rounded-full: 9999px;
-  
+
   /* Spacing */
   --spacing-unit: 8px;
   --spacing-gutter: 24px;
@@ -82,21 +82,39 @@
 body {
   background-color: var(--bg-color);
   color: var(--on-background);
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Open Sans',
+    'Helvetica Neue',
+    sans-serif;
   font-size: 16px;
   line-height: 1.6;
   overflow-x: hidden;
 }
 
 /* Heading Typography */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
   color: #ffffff;
 }
 
 /* Monospace & System Meta Labels */
-.font-mono, .label-mono {
+.font-mono,
+.label-mono {
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   font-weight: 500;
@@ -104,7 +122,11 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Material Symbols Outlined Adjustments */
 .material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
   vertical-align: middle;
   user-select: none;
 }
@@ -123,13 +145,18 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
 }
 .crystalline-border-r::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   width: 1px;
-  background: linear-gradient(to bottom, rgba(0, 219, 233, 0.2), transparent 70%, rgba(208, 188, 255, 0.1));
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 219, 233, 0.2),
+    transparent 70%,
+    rgba(208, 188, 255, 0.1)
+  );
   pointer-events: none;
 }
 
@@ -138,13 +165,18 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
 }
 .crystalline-border-b::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(to right, rgba(0, 219, 233, 0.15), transparent 70%, rgba(208, 188, 255, 0.15));
+  background: linear-gradient(
+    to right,
+    rgba(0, 219, 233, 0.15),
+    transparent 70%,
+    rgba(208, 188, 255, 0.15)
+  );
   pointer-events: none;
 }
 
@@ -166,11 +198,21 @@ h1, h2, h3, h4, h5, h6 {
 
 /* --- Interactive Elements --- */
 .primary-gradient {
-  background: linear-gradient(135deg, var(--spectral-violet) 0%, var(--spectral-indigo) 50%, var(--spectral-teal) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--spectral-violet) 0%,
+    var(--spectral-indigo) 50%,
+    var(--spectral-teal) 100%
+  );
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--spectral-violet) 0%, var(--spectral-indigo) 50%, var(--spectral-teal) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--spectral-violet) 0%,
+    var(--spectral-indigo) 50%,
+    var(--spectral-teal) 100%
+  );
   color: #ffffff;
   border: none;
   font-family: 'Inter', sans-serif;
@@ -273,7 +315,8 @@ h1, h2, h3, h4, h5, h6 {
 
 /* --- Ambient Atmospheric Animations --- */
 @keyframes pulseGlow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
     transform: scale(1);
   }
@@ -309,7 +352,9 @@ h1, h2, h3, h4, h5, h6 {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 8px 32px rgba(0, 0, 0, 0.2);
   position: relative;
   border-radius: 8px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -330,7 +375,9 @@ h1, h2, h3, h4, h5, h6 {
 .glass-card:hover {
   border-color: rgba(0, 219, 233, 0.25);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 12px 40px rgba(0, 219, 233, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 40px rgba(0, 219, 233, 0.08);
 }
 
 /* Elevated glass card (mainly used for modals and dropdown dialogs) */
@@ -340,6 +387,7 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-backdrop-filter: blur(40px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 32px 80px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 32px 80px rgba(0, 0, 0, 0.6);
 }
-

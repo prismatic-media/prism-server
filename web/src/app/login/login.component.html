@@ -17,13 +17,14 @@
         <label for="username" class="label-mono">USERNAME</label>
         <div class="input-wrapper">
           <span class="material-symbols-outlined input-icon">person</span>
-          <input #usernameInput
-            type="text" 
-            id="username" 
-            name="username" 
-            [(ngModel)]="username" 
-            class="input-glass" 
-            placeholder="Enter your username" 
+          <input
+            #usernameInput
+            type="text"
+            id="username"
+            name="username"
+            [(ngModel)]="username"
+            class="input-glass"
+            placeholder="Enter your username"
             [disabled]="loading"
             required
             autocomplete="username"
@@ -35,13 +36,13 @@
         <label for="password" class="label-mono">PASSWORD</label>
         <div class="input-wrapper">
           <span class="material-symbols-outlined input-icon">lock</span>
-          <input 
-            type="password" 
-            id="password" 
-            name="password" 
-            [(ngModel)]="password" 
-            class="input-glass" 
-            placeholder="Enter your password" 
+          <input
+            type="password"
+            id="password"
+            name="password"
+            [(ngModel)]="password"
+            class="input-glass"
+            placeholder="Enter your password"
             [disabled]="loading"
             required
             autocomplete="current-password"

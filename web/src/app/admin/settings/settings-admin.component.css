@@ -9,8 +9,14 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* --- Header Section --- */
@@ -32,7 +38,12 @@
 }
 
 .spectral-gradient-text {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 50%, var(--primary-container) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    var(--secondary) 50%,
+    var(--primary-container) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -69,7 +80,6 @@
 }
 
 /* --- Cards and Containers --- */
-
 
 /* --- Form Elements --- */
 .relative {
@@ -216,19 +226,19 @@
   bottom: 0;
   background-color: rgba(8, 15, 16, 0.4);
   border: 1px solid var(--outline-variant);
-  transition: .4s;
+  transition: 0.4s;
   border-radius: var(--rounded-full);
 }
 
 .switch-slider:before {
   position: absolute;
-  content: "";
+  content: '';
   height: 16px;
   width: 16px;
   left: 3px;
   bottom: 3px;
   background-color: var(--on-surface-variant);
-  transition: .4s;
+  transition: 0.4s;
   border-radius: 50%;
 }
 
@@ -280,9 +290,18 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes pulse {
-  0% { transform: scale(0.9); opacity: 0.6; }
-  50% { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0.6; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
 }
 
 /* --- Table Styles --- */
@@ -386,7 +405,9 @@ input:checked + .switch-slider:before {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .state-text {
@@ -477,7 +498,7 @@ input:checked + .switch-slider:before {
   .page-title {
     font-size: 30px;
   }
-  
+
   .unsaved-changes-bar {
     flex-direction: column;
     gap: 16px;
@@ -645,4 +666,3 @@ input:checked + .switch-slider:before {
 .group:hover .group-hover\:text-primary {
   color: var(--primary-fixed-dim);
 }
-

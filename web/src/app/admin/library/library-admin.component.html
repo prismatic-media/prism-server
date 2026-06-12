@@ -67,7 +67,10 @@
               <span class="metric-pct text-teal">{{ stats.posterCoverage }}%</span>
             </div>
             <div class="progress-track">
-              <div class="progress-fill fill-teal glow-teal" [style.width.%]="stats.posterCoverage"></div>
+              <div
+                class="progress-fill fill-teal glow-teal"
+                [style.width.%]="stats.posterCoverage"
+              ></div>
             </div>
             <p class="metric-desc">
               <span class="material-symbols-outlined text-green">check_circle</span>
@@ -82,7 +85,10 @@
               <span class="metric-pct text-violet">{{ stats.subtitleCoverage }}%</span>
             </div>
             <div class="progress-track">
-              <div class="progress-fill fill-violet glow-violet" [style.width.%]="stats.subtitleCoverage"></div>
+              <div
+                class="progress-fill fill-violet glow-violet"
+                [style.width.%]="stats.subtitleCoverage"
+              ></div>
             </div>
             <p class="metric-desc">
               <span class="material-symbols-outlined text-amber">info</span>
@@ -95,7 +101,6 @@
 
     <!-- Directories Sections -->
     <div class="directories-section-container">
-      
       <!-- Movie Directories -->
       <div class="glass-card panel-card">
         <div class="panel-header">
@@ -127,10 +132,18 @@
                 </td>
                 <td class="action-cell">
                   <div class="action-buttons">
-                    <button class="btn-icon" title="Scan directory" (click)="scanLibrary(lib.id, $event)">
+                    <button
+                      class="btn-icon"
+                      title="Scan directory"
+                      (click)="scanLibrary(lib.id, $event)"
+                    >
                       <span class="material-symbols-outlined">refresh</span>
                     </button>
-                    <button class="btn-icon btn-delete" title="Delete mapping" (click)="deleteLibrary(lib.id)">
+                    <button
+                      class="btn-icon btn-delete"
+                      title="Delete mapping"
+                      (click)="deleteLibrary(lib.id)"
+                    >
                       <span class="material-symbols-outlined">delete</span>
                     </button>
                   </div>
@@ -175,10 +188,18 @@
                 </td>
                 <td class="action-cell">
                   <div class="action-buttons">
-                    <button class="btn-icon" title="Scan directory" (click)="scanLibrary(lib.id, $event)">
+                    <button
+                      class="btn-icon"
+                      title="Scan directory"
+                      (click)="scanLibrary(lib.id, $event)"
+                    >
                       <span class="material-symbols-outlined">refresh</span>
                     </button>
-                    <button class="btn-icon btn-delete" title="Delete mapping" (click)="deleteLibrary(lib.id)">
+                    <button
+                      class="btn-icon btn-delete"
+                      title="Delete mapping"
+                      (click)="deleteLibrary(lib.id)"
+                    >
                       <span class="material-symbols-outlined">delete</span>
                     </button>
                   </div>
@@ -191,7 +212,6 @@
           </table>
         </div>
       </div>
-
     </div>
   </ng-container>
 </div>
@@ -205,7 +225,7 @@
     <div class="modal-header">
       <h3 class="modal-title">Add Directory Mapping</h3>
     </div>
-    
+
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">Media Type</label>
@@ -230,7 +250,12 @@
       <div class="form-group">
         <label class="form-label">Directory Path</label>
         <div class="path-input-group">
-          <input type="text" class="input-glass" [(ngModel)]="newLibPath" placeholder="e.g. /mnt/storage/movies" />
+          <input
+            type="text"
+            class="input-glass"
+            [(ngModel)]="newLibPath"
+            placeholder="e.g. /mnt/storage/movies"
+          />
         </div>
       </div>
 
@@ -238,12 +263,18 @@
       <div class="fs-browser">
         <div class="browser-header">
           <span class="browser-title-text">Browse Filesystem</span>
-          <button class="btn-browse-parent" (click)="browseParentDir()" [disabled]="browsingPath === '/'">
+          <button
+            class="btn-browse-parent"
+            (click)="browseParentDir()"
+            [disabled]="browsingPath === '/'"
+          >
             <span class="material-symbols-outlined">arrow_upward</span>
             Up
           </button>
         </div>
-        <p class="current-path">Current Path: <code class="current-path-code">{{ browsingPath }}</code></p>
+        <p class="current-path">
+          Current Path: <code class="current-path-code">{{ browsingPath }}</code>
+        </p>
         <div class="browser-list" *ngIf="!isBrowsing">
           <div *ngFor="let item of fsItems" class="browser-item" (click)="selectBrowsedPath(item)">
             <span class="material-symbols-outlined folder-icon">folder</span>
@@ -264,7 +295,11 @@
 
     <div class="modal-footer">
       <button class="btn-glass" (click)="closeAddModal()">Cancel</button>
-      <button class="btn-primary" (click)="saveLibraryMapping()" [disabled]="isSaving || !newLibPath">
+      <button
+        class="btn-primary"
+        (click)="saveLibraryMapping()"
+        [disabled]="isSaving || !newLibPath"
+      >
         {{ isSaving ? 'Saving...' : 'Add Mapping' }}
       </button>
     </div>

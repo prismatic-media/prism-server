@@ -31,7 +31,11 @@
         <span class="stat-label label-mono">ACTIVE TRANSCODES</span>
         <span class="stat-value">{{ stats.transcodingJobs }}</span>
       </div>
-      <span class="material-symbols-outlined stat-icon icon-indigo" [class.pulse]="stats.transcodingJobs > 0">settings_input_component</span>
+      <span
+        class="material-symbols-outlined stat-icon icon-indigo"
+        [class.pulse]="stats.transcodingJobs > 0"
+        >settings_input_component</span
+      >
     </div>
 
     <!-- Stat 4: Storage Health -->
@@ -48,29 +52,41 @@
   <!-- Continue Watching Section -->
   <section class="media-section" *ngIf="continueWatching.length > 0">
     <h2 class="section-title">Continue Watching</h2>
-    
+
     <div class="horizontal-scroll-container">
-      <div 
-        class="movie-card group" 
-        *ngFor="let item of continueWatching; trackBy: trackByHistoryId" 
-        (click)="item.media && onMediaClick(item.media)">
-        
+      <div
+        class="movie-card group"
+        *ngFor="let item of continueWatching; trackBy: trackByHistoryId"
+        (click)="item.media && onMediaClick(item.media)"
+      >
         <div class="poster-container">
-          <img [src]="getContinueWatchingPosterUrl(item)" [alt]="getMediaLabel(item)" class="poster-img" loading="lazy" />
-          
+          <img
+            [src]="getContinueWatchingPosterUrl(item)"
+            [alt]="getMediaLabel(item)"
+            class="poster-img"
+            loading="lazy"
+          />
+
           <!-- Playback progress bar -->
           <div class="continue-progress-container">
-            <div class="continue-progress-bar" [style.width.%]="calculateProgressPercent(item)"></div>
+            <div
+              class="continue-progress-bar"
+              [style.width.%]="calculateProgressPercent(item)"
+            ></div>
           </div>
-          
+
           <!-- Hover Resume Overlay -->
           <div class="poster-overlay">
-            <button class="overlay-play-btn" (click)="resumeWatch(item, $event)" title="Resume Playback">
+            <button
+              class="overlay-play-btn"
+              (click)="resumeWatch(item, $event)"
+              title="Resume Playback"
+            >
               <span class="material-symbols-outlined">play_arrow</span>
             </button>
           </div>
         </div>
-        
+
         <div class="movie-metadata">
           <h3 class="movie-title" [title]="getMediaLabel(item)">{{ getMediaLabel(item) }}</h3>
           <p class="movie-info-row">{{ formatRemainingTime(item) }} remaining</p>
@@ -82,34 +98,48 @@
   <!-- Recently Added Movies Section -->
   <section class="media-section" *ngIf="recentMovies.length > 0">
     <h2 class="section-title">Recently Added Movies</h2>
-    
+
     <div class="horizontal-scroll-container">
-      <div 
-        class="movie-card group" 
-        *ngFor="let movie of recentMovies; trackBy: trackByMovieId" 
-        (click)="onMediaClick(movie)">
-        
+      <div
+        class="movie-card group"
+        *ngFor="let movie of recentMovies; trackBy: trackByMovieId"
+        (click)="onMediaClick(movie)"
+      >
         <div class="poster-container">
           <img [src]="getPosterUrl(movie)" [alt]="movie.title" class="poster-img" loading="lazy" />
-          
+
           <!-- Hover Gradient Overlay & Badges -->
           <div class="poster-overlay">
             <div class="overlay-badges">
               <span class="badge badge-4k" *ngIf="movie.width >= 3840">4K</span>
-              <span class="badge badge-hd" *ngIf="movie.width >= 1920 && movie.width < 3840">HD</span>
-              <span class="badge badge-hdr" *ngIf="movie.video_codec && (movie.video_codec.toLowerCase().includes('hevc') || movie.video_codec.toLowerCase().includes('h265'))">HDR</span>
-              <span class="badge badge-transcoded" *ngIf="movie.transcode_status === 'done'">TR</span>
+              <span class="badge badge-hd" *ngIf="movie.width >= 1920 && movie.width < 3840"
+                >HD</span
+              >
+              <span
+                class="badge badge-hdr"
+                *ngIf="
+                  movie.video_codec &&
+                  (movie.video_codec.toLowerCase().includes('hevc') ||
+                    movie.video_codec.toLowerCase().includes('h265'))
+                "
+                >HDR</span
+              >
+              <span class="badge badge-transcoded" *ngIf="movie.transcode_status === 'done'"
+                >TR</span
+              >
             </div>
-            
+
             <button class="overlay-play-btn" (click)="playMovie(movie, $event)" title="Play Movie">
               <span class="material-symbols-outlined">play_arrow</span>
             </button>
           </div>
         </div>
-        
+
         <div class="movie-metadata">
           <h3 class="movie-title">{{ movie.title }}</h3>
-          <p class="movie-info-row">{{ movie.year || 'N/A' }} • {{ formatDuration(movie.duration) }}</p>
+          <p class="movie-info-row">
+            {{ movie.year || 'N/A' }} • {{ formatDuration(movie.duration) }}
+          </p>
         </div>
       </div>
     </div>
@@ -118,22 +148,22 @@
   <!-- Recently Added TV Shows Section -->
   <section class="media-section" *ngIf="recentShows.length > 0">
     <h2 class="section-title">Recently Added TV Shows</h2>
-    
+
     <div class="horizontal-scroll-container">
-      <div 
-        class="movie-card group" 
-        *ngFor="let show of recentShows; trackBy: trackByShowId" 
-        (click)="onShowClick(show)">
-        
+      <div
+        class="movie-card group"
+        *ngFor="let show of recentShows; trackBy: trackByShowId"
+        (click)="onShowClick(show)"
+      >
         <div class="poster-container">
           <img [src]="getShowPosterUrl(show)" [alt]="show.name" class="poster-img" loading="lazy" />
-          
+
           <!-- Hover Gradient Overlay -->
           <div class="poster-overlay">
             <!-- No direct play button for show cards since we navigate to show details -->
           </div>
         </div>
-        
+
         <div class="movie-metadata">
           <h3 class="movie-title">{{ show.name }}</h3>
           <p class="movie-info-row">{{ show.first_air_year || 'N/A' }}</p>

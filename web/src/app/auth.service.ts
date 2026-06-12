@@ -17,7 +17,7 @@ interface LoginResponse {
 }
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class AuthService {
   private http = inject(HttpClient);
@@ -61,11 +61,11 @@ export class AuthService {
 
   public login(username: string, password: string): Observable<LoginResponse> {
     return this.http.post<LoginResponse>('/api/v1/auth/login', { username, password }).pipe(
-      tap(response => {
+      tap((response) => {
         localStorage.setItem(this.tokenKey, response.access_token);
         localStorage.setItem(this.userKey, JSON.stringify(response.user));
         this.currentUserSubject.next(response.user);
-      })
+      }),
     );
   }
 
@@ -75,15 +75,15 @@ export class AuthService {
     }
 
     this.refreshObservable = this.http.post<any>('/api/v1/auth/refresh', {}).pipe(
-      tap(response => {
+      tap((response) => {
         localStorage.setItem(this.tokenKey, response.access_token);
         this.refreshObservable = null;
       }),
-      catchError(err => {
+      catchError((err) => {
         this.refreshObservable = null;
         return throwError(() => err);
       }),
-      shareReplay(1)
+      shareReplay(1),
     );
 
     return this.refreshObservable;
@@ -93,7 +93,7 @@ export class AuthService {
     // Fire-and-forget logout call to the server
     this.http.post('/api/v1/auth/logout', {}).subscribe({
       next: () => this.finalizeLogout(),
-      error: () => this.finalizeLogout() // Logout anyway on failure
+      error: () => this.finalizeLogout(), // Logout anyway on failure
     });
   }
 

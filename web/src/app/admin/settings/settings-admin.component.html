@@ -4,14 +4,28 @@
     <div class="header-text flex items-center justify-between w-full">
       <div>
         <h2 class="page-title spectral-gradient-text">System Settings</h2>
-        <p class="page-subtitle">Configure core system behaviors, API credentials, and processing paths.</p>
+        <p class="page-subtitle">
+          Configure core system behaviors, API credentials, and processing paths.
+        </p>
       </div>
-      
+
       <!-- Auto-save Status Indicator -->
       <div class="save-status-indicator" [ngClass]="saveStatus">
-        <span class="material-symbols-outlined status-icon spinner-icon" *ngIf="saveStatus === 'saving'">sync</span>
-        <span class="material-symbols-outlined status-icon check-icon" *ngIf="saveStatus === 'saved'">check_circle</span>
-        <span class="material-symbols-outlined status-icon error-icon" *ngIf="saveStatus === 'error'">error</span>
+        <span
+          class="material-symbols-outlined status-icon spinner-icon"
+          *ngIf="saveStatus === 'saving'"
+          >sync</span
+        >
+        <span
+          class="material-symbols-outlined status-icon check-icon"
+          *ngIf="saveStatus === 'saved'"
+          >check_circle</span
+        >
+        <span
+          class="material-symbols-outlined status-icon error-icon"
+          *ngIf="saveStatus === 'error'"
+          >error</span
+        >
         <span class="status-label">{{ getSaveStatusLabel() }}</span>
       </div>
     </div>
@@ -38,48 +52,56 @@
         <span class="material-symbols-outlined text-primary section-icon">key</span>
         <h3 class="section-title">API &amp; Credentials</h3>
       </div>
-      
+
       <div class="glass-card p-6 space-y-6">
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium text-on-surface">TMDB API Key</label>
           <div class="relative">
-            <input 
-              class="input-glass pr-12 font-mono" 
-              [type]="showTmdbKey ? 'text' : 'password'" 
+            <input
+              class="input-glass pr-12 font-mono"
+              [type]="showTmdbKey ? 'text' : 'password'"
               [(ngModel)]="tmdbApiKey"
               (ngModelChange)="onSettingChange(false)"
-              placeholder="Enter TMDB API Key" />
-            <button 
+              placeholder="Enter TMDB API Key"
+            />
+            <button
               class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-white flex items-center justify-center bg-transparent border-none cursor-pointer"
               (click)="showTmdbKey = !showTmdbKey"
-              type="button">
+              type="button"
+            >
               <span class="material-symbols-outlined text-xl">
                 {{ showTmdbKey ? 'visibility' : 'visibility_off' }}
               </span>
             </button>
           </div>
-          <p class="text-xs text-on-surface-variant">Required for fetching movie and TV show metadata.</p>
+          <p class="text-xs text-on-surface-variant">
+            Required for fetching movie and TV show metadata.
+          </p>
         </div>
-        
+
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium text-on-surface">Chromecast App ID</label>
           <div class="relative">
-            <input 
-              class="input-glass pr-12 font-mono" 
-              [type]="showCastId ? 'text' : 'password'" 
+            <input
+              class="input-glass pr-12 font-mono"
+              [type]="showCastId ? 'text' : 'password'"
               [(ngModel)]="castReceiverAppId"
               (ngModelChange)="onSettingChange(false)"
-              placeholder="Enter Chromecast App ID" />
-            <button 
+              placeholder="Enter Chromecast App ID"
+            />
+            <button
               class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-white flex items-center justify-center bg-transparent border-none cursor-pointer"
               (click)="showCastId = !showCastId"
-              type="button">
+              type="button"
+            >
               <span class="material-symbols-outlined text-xl">
                 {{ showCastId ? 'visibility' : 'visibility_off' }}
               </span>
             </button>
           </div>
-          <p class="text-xs text-on-surface-variant">Unique identifier for your custom Google Cast receiver application.</p>
+          <p class="text-xs text-on-surface-variant">
+            Unique identifier for your custom Google Cast receiver application.
+          </p>
         </div>
       </div>
     </section>
@@ -90,36 +112,55 @@
         <span class="material-symbols-outlined text-on-surface section-icon">database</span>
         <h3 class="section-title">Asset Storage</h3>
       </div>
-      
+
       <div class="glass-card overflow-visible">
         <div class="table-container">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-outline-variant bg-white/5">
-                <th class="px-6 py-4 font-mono text-xs uppercase tracking-widest text-on-surface-variant">Component</th>
-                <th class="px-6 py-4 font-mono text-xs uppercase tracking-widest text-on-surface-variant">Absolute Path</th>
-                <th class="px-6 py-4 font-mono text-xs uppercase tracking-widest text-on-surface-variant">Status</th>
+                <th
+                  class="px-6 py-4 font-mono text-xs uppercase tracking-widest text-on-surface-variant"
+                >
+                  Component
+                </th>
+                <th
+                  class="px-6 py-4 font-mono text-xs uppercase tracking-widest text-on-surface-variant"
+                >
+                  Absolute Path
+                </th>
+                <th
+                  class="px-6 py-4 font-mono text-xs uppercase tracking-widest text-on-surface-variant"
+                >
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
               <tr class="hover:bg-white/5 transition-colors group">
-                <td class="px-6 py-5 text-on-surface font-medium whitespace-nowrap">Asset Storage Path (Thumbnails)</td>
+                <td class="px-6 py-5 text-on-surface font-medium whitespace-nowrap">
+                  Asset Storage Path (Thumbnails)
+                </td>
                 <td class="px-6 py-5 relative">
-                  <input 
-                    class="bg-transparent border-none p-0 w-full focus:ring-0 text-on-surface-variant group-hover:text-primary transition-colors font-mono focus:outline-none" 
-                    type="text" 
+                  <input
+                    class="bg-transparent border-none p-0 w-full focus:ring-0 text-on-surface-variant group-hover:text-primary transition-colors font-mono focus:outline-none"
+                    type="text"
                     [(ngModel)]="thumbsDir"
                     (input)="onPathInput(thumbsDir)"
                     (ngModelChange)="onSettingChange(false)"
                     (blur)="closeSuggestions()"
-                    placeholder="/path/to/thumbnails" />
-                    
+                    placeholder="/path/to/thumbnails"
+                  />
+
                   <!-- Directory autocomplete suggestions -->
-                  <div class="autocomplete-dropdown frosted-glass" *ngIf="activeInput === 'thumbs' && thumbsSuggestions.length > 0">
-                    <div 
-                      *ngFor="let suggestion of thumbsSuggestions" 
+                  <div
+                    class="autocomplete-dropdown frosted-glass"
+                    *ngIf="activeInput === 'thumbs' && thumbsSuggestions.length > 0"
+                  >
+                    <div
+                      *ngFor="let suggestion of thumbsSuggestions"
                       class="autocomplete-item"
-                      (mousedown)="selectSuggestion(suggestion)">
+                      (mousedown)="selectSuggestion(suggestion)"
+                    >
                       <span class="material-symbols-outlined folder-icon">folder</span>
                       <span class="suggestion-text">{{ suggestion }}</span>
                     </div>
@@ -138,5 +179,4 @@
       </div>
     </section>
   </div>
-
 </div>
