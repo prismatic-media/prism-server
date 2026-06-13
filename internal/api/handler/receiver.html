@@ -351,9 +351,9 @@
 
           // Listen for player state changes to toggle overlays
           receiverPlayerManager.addEventListener(
-            cast.framework.events.EventType.PLAYER_STATE_CHANGED,
+            cast.framework.events.EventType.MEDIA_STATUS,
             function(event) {
-              console.log("[Prism] Player state changed:", event.value);
+              console.log("[Prism] Media status changed:", event);
               updateDisplayState();
             }
           );

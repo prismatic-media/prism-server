@@ -13,6 +13,7 @@ var receiverHTML []byte
 
 // CastHandler serves the Chromecast custom receiver page and the
 // App ID configuration endpoint consumed by the Angular sender.
+// Rebuild triggered for updated receiver HTML template.
 type CastHandler struct {
 	db *sql.DB
 }
