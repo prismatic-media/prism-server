@@ -1,0 +1,20 @@
+[Unit]
+Description=Prism Media Server
+After=network.target
+
+[Service]
+Type=simple
+User=prism
+Group=prism
+WorkingDirectory=/opt/prism
+ExecStartPre=-/opt/prism/update.sh
+ExecStart=/opt/prism/prism --db /var/lib/prism/prism.db
+Restart=always
+RestartSec=5
+
+# Optional: Set environment variables
+# Environment=PRISM_PORT=8080
+
+[Install]
+WantedBy=multi-user.target
+
