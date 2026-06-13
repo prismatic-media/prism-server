@@ -6,15 +6,17 @@ import {
   HostListener,
   ElementRef,
   ChangeDetectorRef,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subject, Subscription, of } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { AuthService } from '../auth.service';
 import { CastService } from '../cast.service';
+import { LibraryStateService } from '../library-state.service';
 
 @Component({
   selector: 'app-layout',
@@ -30,6 +32,11 @@ export class LayoutComponent implements OnInit, OnDestroy {
   private elementRef = inject(ElementRef);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+  public libraryStateService = inject(LibraryStateService);
+
+  @ViewChild('contentContainer', { static: false }) contentContainerRef?: ElementRef<HTMLElement>;
+
+  private routerSub?: Subscription;
 
   userDropdownOpen = false;
   castDropdownOpen = false;
@@ -43,6 +50,12 @@ export class LayoutComponent implements OnInit, OnDestroy {
   private searchSub?: Subscription;
 
   ngOnInit(): void {
+    this.routerSub = this.router.events.subscribe((event) => {
+      if (event instanceof NavigationEnd) {
+        this.restoreScrollForUrl(event.urlAfterRedirects);
+      }
+    });
+
     this.searchSub = this.searchSubject
       .pipe(
         debounceTime(300),
@@ -82,6 +95,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.searchSub) {
       this.searchSub.unsubscribe();
+    }
+    if (this.routerSub) {
+      this.routerSub.unsubscribe();
     }
   }
 
@@ -275,6 +291,34 @@ export class LayoutComponent implements OnInit, OnDestroy {
     const media = this.castService.currentMedia$.value;
     if (media && media.id) {
       this.router.navigate(['/watch', media.id]);
+    }
+  }
+
+  onScroll(event: Event): void {
+    const element = event.target as HTMLElement;
+    const currentUrl = this.router.url;
+    if (currentUrl === '/movies') {
+      this.libraryStateService.moviesScrollPosition = element.scrollTop;
+    } else if (currentUrl === '/tv-shows') {
+      this.libraryStateService.tvShowsScrollPosition = element.scrollTop;
+    }
+  }
+
+  private restoreScrollForUrl(url: string): void {
+    if (url === '/movies') {
+      setTimeout(() => {
+        const container = this.contentContainerRef?.nativeElement;
+        if (container) {
+          container.scrollTop = this.libraryStateService.moviesScrollPosition;
+        }
+      }, 50);
+    } else if (url === '/tv-shows') {
+      setTimeout(() => {
+        const container = this.contentContainerRef?.nativeElement;
+        if (container) {
+          container.scrollTop = this.libraryStateService.tvShowsScrollPosition;
+        }
+      }, 50);
     }
   }
 }

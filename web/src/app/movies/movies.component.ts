@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { EventService } from '../event.service';
+import { LibraryStateService } from '../library-state.service';
 
 export interface Movie {
   id: string;
@@ -43,6 +44,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private eventService = inject(EventService);
+  private libraryStateService = inject(LibraryStateService);
   private eventSub?: Subscription;
 
   allMovies: Movie[] = [];
@@ -55,7 +57,21 @@ export class MoviesComponent implements OnInit, OnDestroy {
   error = '';
 
   ngOnInit(): void {
-    this.fetchMovies();
+    const cached = this.libraryStateService.moviesCache;
+    if (cached) {
+      this.allMovies = cached;
+      this.searchQuery = this.libraryStateService.moviesSearchQuery;
+      this.selectedFilter = this.libraryStateService.moviesFilter;
+      this.filterMovies();
+      this.loading = false;
+      this.cdr.detectChanges();
+
+      // Refresh in background silently
+      this.fetchMovies(true);
+    } else {
+      this.fetchMovies();
+    }
+
     this.eventSub = this.eventService.events$.subscribe((events) => {
       const shouldRefresh = events.some(
         (evt) =>
@@ -83,6 +99,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
       next: (data) => {
         // Filter only items of type movie
         this.allMovies = data ? data.filter((item) => item.media_type === 'movie') : [];
+        this.libraryStateService.moviesCache = this.allMovies;
         this.filterMovies();
         this.loading = false;
         this.cdr.detectChanges();
@@ -97,6 +114,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
 
   filterMovies(): void {
     let list = [...this.allMovies];
+    this.libraryStateService.moviesSearchQuery = this.searchQuery;
 
     // Search query filter
     if (this.searchQuery.trim()) {
@@ -121,6 +139,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
 
   setFilter(filter: 'all' | '4k' | '1080p' | 'transcoded'): void {
     this.selectedFilter = filter;
+    this.libraryStateService.moviesFilter = filter;
     this.filterMovies();
   }
 

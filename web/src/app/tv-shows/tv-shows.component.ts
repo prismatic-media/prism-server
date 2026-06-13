@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { forkJoin, map, of, switchMap, Subscription } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { EventService } from '../event.service';
+import { LibraryStateService } from '../library-state.service';
 
 export interface TVShow {
   id: string;
@@ -56,6 +57,7 @@ export class TVShowsComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private eventService = inject(EventService);
+  private libraryStateService = inject(LibraryStateService);
   private eventSub?: Subscription;
 
   allShows: TVShow[] = [];
@@ -67,7 +69,20 @@ export class TVShowsComponent implements OnInit, OnDestroy {
   error = '';
 
   ngOnInit(): void {
-    this.fetchTVShows();
+    const cached = this.libraryStateService.tvShowsCache;
+    if (cached) {
+      this.allShows = cached;
+      this.searchQuery = this.libraryStateService.tvShowsSearchQuery;
+      this.filterShows();
+      this.loading = false;
+      this.cdr.detectChanges();
+
+      // Refresh in background silently
+      this.fetchTVShows(true);
+    } else {
+      this.fetchTVShows();
+    }
+
     this.eventSub = this.eventService.events$.subscribe((events) => {
       const shouldRefresh = events.some(
         (evt) =>
@@ -114,6 +129,7 @@ export class TVShowsComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (data) => {
           this.allShows = data || [];
+          this.libraryStateService.tvShowsCache = this.allShows;
           this.filterShows();
           this.loading = false;
           this.cdr.detectChanges();
@@ -127,6 +143,7 @@ export class TVShowsComponent implements OnInit, OnDestroy {
   }
 
   filterShows(): void {
+    this.libraryStateService.tvShowsSearchQuery = this.searchQuery;
     if (!this.searchQuery.trim()) {
       this.shows = [...this.allShows];
       return;

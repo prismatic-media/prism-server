@@ -125,35 +125,51 @@
         <span class="material-symbols-outlined">notifications</span>
       </button>
       <!-- Chromecast Control -->
-      <div class="cast-profile" style="position: relative; display: inline-flex;" *ngIf="castService.isAvailable$ | async">
-        <button 
-          class="action-btn" 
-          [class.active-casting-btn]="castService.isConnected$ | async" 
-          (click)="toggleCastHeader()" 
+      <div
+        class="cast-profile"
+        style="position: relative; display: inline-flex"
+        *ngIf="castService.isAvailable$ | async"
+      >
+        <button
+          class="action-btn"
+          [class.active-casting-btn]="castService.isConnected$ | async"
+          (click)="toggleCastHeader()"
           title="Chromecast"
         >
-          <span 
-            class="material-symbols-outlined" 
+          <span
+            class="material-symbols-outlined"
             [class.pulsing-icon]="castService.isConnected$ | async"
-          >{{ (castService.isConnected$ | async) ? 'cast_connected' : 'cast' }}</span>
+            >{{ (castService.isConnected$ | async) ? 'cast_connected' : 'cast' }}</span
+          >
         </button>
 
         <!-- Cast Dropdown -->
-        <div *ngIf="castDropdownOpen && (castService.isConnected$ | async)" class="user-dropdown frosted-glass cast-dropdown">
+        <div
+          *ngIf="castDropdownOpen && (castService.isConnected$ | async)"
+          class="user-dropdown frosted-glass cast-dropdown"
+        >
           <div class="dropdown-header">
             <span class="material-symbols-outlined text-primary">cast_connected</span>
-            <p class="dropdown-username" style="margin-left: 8px; flex-grow: 1;">
+            <p class="dropdown-username" style="margin-left: 8px; flex-grow: 1">
               {{ castService.deviceName$ | async }}
             </p>
           </div>
           <div class="dropdown-divider"></div>
-          
-          <button class="dropdown-item" (click)="goToActiveCastPlayer()" *ngIf="castService.currentMedia$ | async">
+
+          <button
+            class="dropdown-item"
+            (click)="goToActiveCastPlayer()"
+            *ngIf="castService.currentMedia$ | async"
+          >
             <span class="material-symbols-outlined text-primary">play_circle</span>
-            <span style="color: var(--on-surface);">Now Playing</span>
+            <span style="color: var(--on-surface)">Now Playing</span>
           </button>
-          
-          <button class="dropdown-item" (click)="disconnectCast(); castDropdownOpen = false;" style="color: var(--error);">
+
+          <button
+            class="dropdown-item"
+            (click)="disconnectCast(); castDropdownOpen = false"
+            style="color: var(--error)"
+          >
             <span class="material-symbols-outlined text-error">tv_off</span>
             <span>Disconnect Cast</span>
           </button>
@@ -198,14 +214,19 @@
   ></div>
 
   <!-- Active Route Outlet -->
-  <div class="content-container" [class.with-playbar]="(castService.isConnected$ | async) && (castService.currentMedia$ | async)">
+  <div
+    #contentContainer
+    class="content-container"
+    [class.with-playbar]="(castService.isConnected$ | async) && (castService.currentMedia$ | async)"
+    (scroll)="onScroll($event)"
+  >
     <router-outlet></router-outlet>
   </div>
 </main>
 
 <!-- Sticky Now Playing Bottom Playbar -->
-<div 
-  class="now-playing-bar frosted-glass active-playbar" 
+<div
+  class="now-playing-bar frosted-glass active-playbar"
   *ngIf="(castService.isConnected$ | async) && (castService.currentMedia$ | async) as media"
 >
   <!-- Left Column: Poster & Metadata -->
@@ -214,7 +235,9 @@
     <div class="bar-titles">
       <h4 class="bar-title">{{ media.title }}</h4>
       <p class="bar-subtitle">
-        <span *ngIf="media.media_type === 'episode' && media.tv_show_title">{{ media.tv_show_title }} — </span>
+        <span *ngIf="media.media_type === 'episode' && media.tv_show_title"
+          >{{ media.tv_show_title }} —
+        </span>
         <span>Casting to {{ castService.deviceName$ | async }}</span>
       </p>
     </div>
@@ -229,8 +252,8 @@
       </button>
 
       <!-- Play/Pause Toggle -->
-      <button 
-        class="bar-play-btn" 
+      <button
+        class="bar-play-btn"
         (click)="toggleCastPlay()"
         [title]="(castService.isPlaying$ | async) ? 'Pause' : 'Play'"
       >
@@ -249,17 +272,19 @@
     <div class="bar-timeline">
       <span class="time-label">{{ formatCastTime((castService.currentTime$ | async) || 0) }}</span>
       <div class="bar-slider-wrapper">
-        <input 
-          type="range" 
-          min="0" 
-          [max]="(castService.duration$ | async) || 0" 
-          [value]="(castService.currentTime$ | async) || 0" 
+        <input
+          type="range"
+          min="0"
+          [max]="(castService.duration$ | async) || 0"
+          [value]="(castService.currentTime$ | async) || 0"
           (input)="onCastTimelineChange($event)"
           class="bar-timeline-slider"
         />
-        <div 
+        <div
           class="bar-progress-track"
-          [style.width.%]="getCastProgressPercent(castService.currentTime$ | async, castService.duration$ | async)"
+          [style.width.%]="
+            getCastProgressPercent(castService.currentTime$ | async, castService.duration$ | async)
+          "
         ></div>
       </div>
       <span class="time-label">{{ formatCastTime((castService.duration$ | async) || 0) }}</span>
@@ -271,14 +296,20 @@
     <div class="bar-volume-container">
       <button class="bar-control-btn" (click)="toggleCastMute()" title="Mute/Unmute">
         <span class="material-symbols-outlined">
-          {{ (castService.isMuted$ | async) || (castService.volume$ | async) === 0 ? 'volume_off' : ((castService.volume$ | async) || 0) < 50 ? 'volume_down' : 'volume_up' }}
+          {{
+            (castService.isMuted$ | async) || (castService.volume$ | async) === 0
+              ? 'volume_off'
+              : ((castService.volume$ | async) || 0) < 50
+                ? 'volume_down'
+                : 'volume_up'
+          }}
         </span>
       </button>
-      <input 
-        type="range" 
-        min="0" 
-        max="100" 
-        [value]="(castService.isMuted$ | async) ? 0 : ((castService.volume$ | async) || 0)" 
+      <input
+        type="range"
+        min="0"
+        max="100"
+        [value]="(castService.isMuted$ | async) ? 0 : (castService.volume$ | async) || 0"
         (input)="onCastVolumeChange($event)"
         class="bar-volume-slider"
       />
@@ -286,7 +317,11 @@
 
     <div class="bar-divider"></div>
 
-    <button class="bar-control-btn btn-disconnect" (click)="disconnectCast()" title="Disconnect Chromecast">
+    <button
+      class="bar-control-btn btn-disconnect"
+      (click)="disconnectCast()"
+      title="Disconnect Chromecast"
+    >
       <span class="material-symbols-outlined text-error">tv_off</span>
     </button>
   </div>
