@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { forkJoin, map, of, switchMap, Subscription } from 'rxjs';
 import { AuthService } from '../auth.service';
 import { EventService } from '../event.service';
+import { CastService } from '../cast.service';
 
 export interface Movie {
   id: string;
@@ -105,10 +106,12 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private authService = inject(AuthService);
   private eventService = inject(EventService);
+  public castService = inject(CastService);
 
   protected readonly Math = Math;
 
   private eventSub?: Subscription;
+  private castSub?: Subscription;
 
   mediaType: 'movie' | 'tvshow' = 'movie';
   id = '';
@@ -180,12 +183,26 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       }
     });
+
+    this.castSub = this.castService.isConnected$.subscribe((connected) => {
+      if (connected) {
+        if (this.mediaType === 'movie' && this.movie) {
+          this.castService.showPreview(this.movie);
+        } else if (this.mediaType === 'tvshow' && this.tvShow) {
+          this.castService.showPreview(this.tvShow);
+        }
+      }
+    });
   }
 
   ngOnDestroy(): void {
     if (this.eventSub) {
       this.eventSub.unsubscribe();
     }
+    if (this.castSub) {
+      this.castSub.unsubscribe();
+    }
+    this.castService.clearPreview();
   }
 
   loadDetails(silent = false): void {
@@ -212,6 +229,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
           this.movie = data;
           this.loading = false;
           this.cdr.detectChanges();
+          this.castService.showPreview(data);
         },
         error: (err) => {
           if (!silent) {
@@ -227,6 +245,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         next: (data) => {
           this.tvShow = data;
           this.loadSeasons(this.id, silent);
+          this.castService.showPreview(data);
         },
         error: (err) => {
           if (!silent) {
@@ -357,6 +376,21 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   playEpisodeFromBeginning(episode: Episode, event: MouseEvent): void {
     event.stopPropagation();
     this.router.navigate(['/watch', episode.id], { queryParams: { startOver: true } });
+  }
+
+  previewEpisode(ep: Episode): void {
+    const previewItem = {
+      ...ep,
+      tv_show_title: this.tvShow?.name,
+      media_type: 'episode'
+    };
+    this.castService.showPreview(previewItem);
+  }
+
+  restoreShowPreview(): void {
+    if (this.tvShow) {
+      this.castService.showPreview(this.tvShow);
+    }
   }
 
   triggerTranscode(item: Movie | Episode, event?: MouseEvent): void {

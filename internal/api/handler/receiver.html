@@ -3,6 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <title>Prism Media Receiver</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <style>
       * {
         margin: 0;
@@ -33,11 +36,189 @@
         z-index: 9999;
         display: none;
       }
+      .overlay-container {
+        display: flex;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        padding: 40px;
+        text-align: center;
+        transition: opacity 0.5s ease-in-out, visibility 0.5s ease-in-out;
+        opacity: 0;
+        visibility: hidden;
+      }
+      .overlay-container.show {
+        opacity: 1;
+        visibility: visible;
+      }
+      #welcome-overlay {
+        background: radial-gradient(circle at center, #1b2729 0%, #0a0f10 100%);
+      }
+      #preview-overlay {
+        background: radial-gradient(circle at center, #203033 0%, #0a0f10 100%);
+      }
+      
+      .prism-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 64px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #00dbe9 0%, #d0bcff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 12px;
+      }
+      
+      .prism-status {
+        font-family: 'Inter', sans-serif;
+        font-size: 20px;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.7);
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+      }
+      
+      .preview-poster-img {
+        max-height: 55%;
+        max-width: 35%;
+        border-radius: 12px;
+        box-shadow: 0 24px 48px rgba(0,0,0,0.7);
+        border: 1px solid rgba(255,255,255,0.1);
+        margin-bottom: 30px;
+        object-fit: cover;
+      }
+      
+      .preview-title-text {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 48px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        color: #ffffff;
+      }
+      
+      .preview-subtitle-text {
+        font-family: 'Inter', sans-serif;
+        font-size: 24px;
+        color: rgba(255,255,255,0.7);
+        text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+      }
+      
+      .prism-logo-svg {
+        overflow: visible;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.92; }
+        50% { opacity: 0.5; }
+      }
+      .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .animate-spin-12s {
+        transform-origin: 50px 50px;
+        animation: spin 12s linear infinite;
+      }
+      .animate-spin-10s {
+        transform-origin: 50px 50px;
+        animation: spin 10s linear infinite;
+      }
+      @keyframes spin-reverse {
+        from { transform: rotate(360deg); }
+        to { transform: rotate(0deg); }
+      }
+      .animate-spin-6s-reverse {
+        transform-origin: 50px 50px;
+        animation: spin-reverse 6s linear infinite;
+      }
     </style>
   </head>
   <body>
     <cast-media-player></cast-media-player>
     <div id="diag"></div>
+
+    <div id="welcome-overlay" class="overlay-container show">
+      <div style="width: 180px; height: 180px; margin-bottom: 30px;">
+        <svg 
+          viewBox="0 0 100 100" 
+          width="100%" 
+          height="100%" 
+          class="prism-logo-svg"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            <linearGradient id="vortex-color" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="35%" stop-color="#6366f1" />
+              <stop offset="70%" stop-color="#a855f7" />
+              <stop offset="100%" stop-color="#ec4899" />
+            </linearGradient>
+            <linearGradient id="core-light" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="100%" stop-color="#a5b4fc" />
+            </linearGradient>
+          </defs>
+          <g class="animate-spin-10s" style="transform-origin: 50px 50px;">
+            <circle cx="50" cy="12" r="2.5" fill="#6366f1" opacity="0.8" style="filter: drop-shadow(0 0 6px #6366f1);" />
+            <circle cx="88" cy="50" r="1.5" fill="#38bdf8" opacity="0.6" style="filter: drop-shadow(0 0 4px #38bdf8);" />
+            <circle cx="50" cy="88" r="2" fill="#a855f7" opacity="0.8" style="filter: drop-shadow(0 0 6px #a855f7);" />
+            <circle cx="12" cy="50" r="1" fill="#ec4899" opacity="0.5" />
+          </g>
+          <circle 
+            cx="50" 
+            cy="50" 
+            r="38" 
+            fill="none" 
+            stroke="url(#vortex-color)" 
+            stroke-width="5" 
+            stroke-linecap="round"
+            stroke-dasharray="90 40 20 40" 
+            class="animate-spin-12s"
+            style="transform-origin: 50px 50px; filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.4));"
+          />
+          <circle 
+            cx="50" 
+            cy="50" 
+            r="24" 
+            fill="none" 
+            stroke="url(#vortex-color)" 
+            stroke-width="3.5" 
+            stroke-linecap="round"
+            stroke-dasharray="40 30 15 30" 
+            class="animate-spin-6s-reverse"
+            style="transform-origin: 50px 50px; filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.3));"
+          />
+          <polygon 
+            points="50,33 35,61 65,61" 
+            fill="url(#core-light)" 
+            opacity="0.92"
+            stroke="rgba(255, 255, 255, 0.85)"
+            stroke-width="1.5"
+            style="transform-origin: 50px 50px; filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.6));"
+            class="animate-pulse"
+          />
+          <line x1="50" y1="48" x2="70" y2="35" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" opacity="0.7" />
+          <line x1="43" y1="54" x2="25" y2="65" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round" opacity="0.7" />
+        </svg>
+      </div>
+      <h1 class="prism-title">Prism</h1>
+      <p class="prism-status">Ready to Cast</p>
+    </div>
+
+    <div id="preview-overlay" class="overlay-container">
+      <img id="preview-poster" class="preview-poster-img" src="" />
+      <h1 id="preview-title" class="preview-title-text"></h1>
+      <p id="preview-subtitle" class="preview-subtitle-text"></p>
+    </div>
 
     <script>
       // Show any error visibly on the TV screen.
@@ -116,6 +297,65 @@
             function (e) {
               showError("PLAYER ERROR\n" + JSON.stringify(e, null, 2));
             },
+          );
+
+          var activePreview = null;
+
+          function showPreviewOverlay(title, subtitle, posterUrl) {
+            activePreview = { title: title, subtitle: subtitle, posterUrl: posterUrl };
+            updateDisplayState();
+          }
+
+          function hidePreviewOverlay() {
+            activePreview = null;
+            updateDisplayState();
+          }
+
+          function updateDisplayState() {
+            var welcomeEl = document.getElementById("welcome-overlay");
+            var previewEl = document.getElementById("preview-overlay");
+            
+            var playerState = receiverPlayerManager.getPlayerState();
+            var isPlaying = playerState === cast.framework.messages.PlayerState.PLAYING ||
+                            playerState === cast.framework.messages.PlayerState.BUFFERING ||
+                            playerState === cast.framework.messages.PlayerState.PAUSED;
+
+            if (isPlaying) {
+              welcomeEl.classList.remove("show");
+              previewEl.classList.remove("show");
+            } else if (activePreview) {
+              welcomeEl.classList.remove("show");
+              
+              document.getElementById("preview-poster").src = activePreview.posterUrl;
+              document.getElementById("preview-title").textContent = activePreview.title;
+              document.getElementById("preview-subtitle").textContent = activePreview.subtitle;
+              
+              previewEl.classList.add("show");
+            } else {
+              previewEl.classList.remove("show");
+              welcomeEl.classList.add("show");
+            }
+          }
+
+          // Register metadata channel namespace listener
+          var METADATA_NAMESPACE = "urn:x-cast:com.prism.metadata";
+          receiverContext.addCustomMessageListener(METADATA_NAMESPACE, function(event) {
+            var message = event.data;
+            console.log("[Prism] Custom metadata message:", message);
+            if (message && message.type === "SHOW_PREVIEW") {
+              showPreviewOverlay(message.title, message.subtitle, message.posterUrl);
+            } else if (message && message.type === "CLEAR_PREVIEW") {
+              hidePreviewOverlay();
+            }
+          });
+
+          // Listen for player state changes to toggle overlays
+          receiverPlayerManager.addEventListener(
+            cast.framework.events.EventType.PLAYER_STATE_CHANGED,
+            function(event) {
+              console.log("[Prism] Player state changed:", event.value);
+              updateDisplayState();
+            }
           );
 
           receiverContext.start();

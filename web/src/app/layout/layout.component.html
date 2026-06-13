@@ -124,14 +124,41 @@
       <button class="action-btn" title="Notifications">
         <span class="material-symbols-outlined">notifications</span>
       </button>
-      <button 
-        class="action-btn active-casting-btn" 
-        *ngIf="castService.isConnected$ | async" 
-        (click)="goToActiveCastPlayer()" 
-        title="Now Playing"
-      >
-        <span class="material-symbols-outlined pulsing-icon">cast_connected</span>
-      </button>
+      <!-- Chromecast Control -->
+      <div class="cast-profile" style="position: relative; display: inline-flex;" *ngIf="castService.isAvailable$ | async">
+        <button 
+          class="action-btn" 
+          [class.active-casting-btn]="castService.isConnected$ | async" 
+          (click)="toggleCastHeader()" 
+          title="Chromecast"
+        >
+          <span 
+            class="material-symbols-outlined" 
+            [class.pulsing-icon]="castService.isConnected$ | async"
+          >{{ (castService.isConnected$ | async) ? 'cast_connected' : 'cast' }}</span>
+        </button>
+
+        <!-- Cast Dropdown -->
+        <div *ngIf="castDropdownOpen && (castService.isConnected$ | async)" class="user-dropdown frosted-glass cast-dropdown">
+          <div class="dropdown-header">
+            <span class="material-symbols-outlined text-primary">cast_connected</span>
+            <p class="dropdown-username" style="margin-left: 8px; flex-grow: 1;">
+              {{ castService.deviceName$ | async }}
+            </p>
+          </div>
+          <div class="dropdown-divider"></div>
+          
+          <button class="dropdown-item" (click)="goToActiveCastPlayer()" *ngIf="castService.currentMedia$ | async">
+            <span class="material-symbols-outlined text-primary">play_circle</span>
+            <span style="color: var(--on-surface);">Now Playing</span>
+          </button>
+          
+          <button class="dropdown-item" (click)="disconnectCast(); castDropdownOpen = false;" style="color: var(--error);">
+            <span class="material-symbols-outlined text-error">tv_off</span>
+            <span>Disconnect Cast</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- User Avatar & Dropdown -->

@@ -307,7 +307,12 @@
         </div>
 
         <div class="episodes-list-box" *ngIf="!episodesLoading && episodes.length > 0">
-          <div *ngFor="let ep of episodes; trackBy: trackByEpisodeId" class="episode-row">
+          <div 
+            *ngFor="let ep of episodes; trackBy: trackByEpisodeId" 
+            class="episode-row"
+            (mouseenter)="previewEpisode(ep)"
+            (mouseleave)="restoreShowPreview()"
+          >
             <div class="ep-number label-mono">E{{ ep.episode_number }}</div>
 
             <!-- Episode Still / Artwork -->

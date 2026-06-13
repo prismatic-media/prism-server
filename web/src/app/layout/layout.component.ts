@@ -32,6 +32,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   private router = inject(Router);
 
   userDropdownOpen = false;
+  castDropdownOpen = false;
 
   // Search state
   searchQuery = '';
@@ -101,6 +102,12 @@ export class LayoutComponent implements OnInit, OnDestroy {
         changed = true;
       }
     }
+    if (!target.closest('.cast-profile')) {
+      if (this.castDropdownOpen) {
+        this.castDropdownOpen = false;
+        changed = true;
+      }
+    }
 
     if (changed) {
       this.cdr.detectChanges();
@@ -165,6 +172,19 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   toggleUserDropdown(): void {
     this.userDropdownOpen = !this.userDropdownOpen;
+    this.castDropdownOpen = false;
+    this.cdr.detectChanges();
+  }
+
+  toggleCastHeader(): void {
+    if (this.castService.isConnected$.value) {
+      this.castDropdownOpen = !this.castDropdownOpen;
+      this.userDropdownOpen = false;
+    } else {
+      this.castService.requestSession().catch((err) => {
+        console.warn('[Prism] Failed to request Cast session:', err);
+      });
+    }
     this.cdr.detectChanges();
   }
 

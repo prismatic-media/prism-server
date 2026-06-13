@@ -15,6 +15,7 @@ export class CastService {
 
   // Reactive state subjects
   public isConnected$ = new BehaviorSubject<boolean>(false);
+  public isAvailable$ = new BehaviorSubject<boolean>(false);
   public currentMedia$ = new BehaviorSubject<any | null>(null);
   public isPlaying$ = new BehaviorSubject<boolean>(false);
   public currentTime$ = new BehaviorSubject<number>(0);
@@ -22,6 +23,8 @@ export class CastService {
   public volume$ = new BehaviorSubject<number>(100);
   public isMuted$ = new BehaviorSubject<boolean>(false);
   public deviceName$ = new BehaviorSubject<string>('');
+
+  private currentPreviewItem: any = null;
 
   // Watch history tracking
   private historyIntervalId: any = null;
@@ -83,6 +86,21 @@ export class CastService {
 
       this.castContext = context;
 
+      // Set initial availability
+      const initialCastState = context.getCastState();
+      this.isAvailable$.next(initialCastState !== cast.framework.CastState.NO_DEVICES_AVAILABLE);
+
+      // Listen to cast state changes
+      context.addEventListener(
+        cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+        (event: any) => {
+          this.zone.run(() => {
+            const state = event.castState;
+            this.isAvailable$.next(state !== cast.framework.CastState.NO_DEVICES_AVAILABLE);
+          });
+        }
+      );
+
       // Initialize remote player and controller
       this.remotePlayer = new cast.framework.RemotePlayer();
       this.remotePlayerController = new cast.framework.RemotePlayerController(
@@ -121,6 +139,11 @@ export class CastService {
             if (session) {
               const device = session.getCastDevice();
               this.deviceName$.next(device ? device.friendlyName : 'Chromecast');
+              
+              // If connected and nothing is actively playing, push active preview
+              if (this.currentPreviewItem && !this.currentMedia$.value) {
+                this.showPreview(this.currentPreviewItem);
+              }
             }
           }
         });
@@ -206,6 +229,11 @@ export class CastService {
                 media_type: 'movie',
                 duration: this.remotePlayer.duration || 0,
               });
+            }
+          } else {
+            this.currentMedia$.next(null);
+            if (this.currentPreviewItem) {
+              this.showPreview(this.currentPreviewItem);
             }
           }
         });
@@ -462,6 +490,65 @@ export class CastService {
             console.error('[Prism Cast] Failed to save cast watch history:', err);
           },
         });
+    }
+  }
+
+  // --- Preview Actions ---
+
+  public showPreview(mediaItem: any): void {
+    this.currentPreviewItem = mediaItem;
+    if (!mediaItem) return;
+    if (!this.isConnected$.value || this.currentMedia$.value) return;
+
+    const session = this.castContext ? this.castContext.getCurrentSession() : null;
+    if (session) {
+      let title = mediaItem.title || mediaItem.name || '';
+      let subtitle = '';
+
+      if (mediaItem.media_type === 'episode') {
+        subtitle = mediaItem.tv_show_title ? `${mediaItem.tv_show_title} — S${mediaItem.season_number}E${mediaItem.episode_number}` : '';
+      } else if (mediaItem.media_type === 'movie' && mediaItem.year) {
+        subtitle = `${mediaItem.year}`;
+      } else if (mediaItem.first_air_year) {
+        subtitle = `${mediaItem.first_air_year}`;
+      }
+
+      let posterUrl = '';
+      if (mediaItem.poster_path) {
+        if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
+          posterUrl = `${window.location.origin}/api/v1/media/${mediaItem.id}/poster`;
+        } else {
+          posterUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/poster`;
+        }
+      } else {
+        posterUrl = 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+      }
+
+      const message = {
+        type: 'SHOW_PREVIEW',
+        title,
+        subtitle,
+        posterUrl,
+      };
+
+      session.sendMessage('urn:x-cast:com.prism.metadata', message).then(
+        () => console.log('[Prism Cast] Sent preview metadata to receiver:', message),
+        (err: any) => console.error('[Prism Cast] Failed to send preview metadata:', err)
+      );
+    }
+  }
+
+  public clearPreview(): void {
+    this.currentPreviewItem = null;
+    if (!this.isConnected$.value) return;
+
+    const session = this.castContext ? this.castContext.getCurrentSession() : null;
+    if (session) {
+      const message = { type: 'CLEAR_PREVIEW' };
+      session.sendMessage('urn:x-cast:com.prism.metadata', message).then(
+        () => console.log('[Prism Cast] Sent clear preview to receiver'),
+        (err: any) => console.error('[Prism Cast] Failed to send clear preview:', err)
+      );
     }
   }
 }
