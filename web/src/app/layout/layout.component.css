@@ -691,6 +691,9 @@
 /* Pulsing Cast Icon */
 .active-casting-btn {
   color: var(--surface-tint) !important;
+  background: rgba(0, 219, 233, 0.08) !important;
+  border: 1px solid rgba(0, 219, 233, 0.25) !important;
+  box-shadow: 0 0 12px rgba(0, 219, 233, 0.15) !important;
 }
 
 .pulsing-icon {

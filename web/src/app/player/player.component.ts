@@ -108,6 +108,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Drag-to-scrub state
   isDragging = false;
+  draggedTime = 0;
   private timelineRect: DOMRect | null = null;
 
   private fullscreenListener = () => {
@@ -200,7 +201,8 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     });
 
     // Initial config
-    this.player.initialize(videoEl, manifestUrl, true);
+    const shouldAutoPlayLocal = !this.castService.isConnected$.value;
+    this.player.initialize(videoEl, manifestUrl, shouldAutoPlayLocal);
     this.player.setVolume(this.volume / 100);
 
     // Bind playback events
@@ -229,17 +231,23 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     this.http.get<WatchHistory[]>('/api/v1/history').subscribe({
       next: (historyList) => {
         const startOver = this.route.snapshot.queryParamMap.get('startOver') === 'true';
-        if (startOver) {
-          this.cdr.detectChanges();
-          this.startHistoryInterval();
-          return;
-        }
+        let resumeTime = 0;
 
         const entry = historyList.find((h) => h.media_item_id === this.mediaId);
         if (entry && !entry.completed && entry.position > 0) {
           // Resume position (if less than duration - 5 seconds)
-          const resumeTime = entry.position;
-          if (resumeTime < this.mediaItem!.duration - 5) {
+          if (entry.position < this.mediaItem!.duration - 5) {
+            resumeTime = entry.position;
+          }
+        }
+
+        if (this.castService.isConnected$.value) {
+          // Cast the video immediately to the Chromecast
+          this.castService.startCasting(this.mediaItem!, startOver ? 0 : resumeTime);
+          this.resumePosition = startOver ? 0 : resumeTime;
+        } else {
+          // Normal local playback
+          if (resumeTime > 0 && !startOver) {
             if (this.isStreamInitialized) {
               this.player?.seek(resumeTime);
               this.lastSavedPosition = resumeTime;
@@ -248,12 +256,16 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
             }
           }
         }
+
         this.cdr.detectChanges();
 
         // Start watch history sync interval
         this.startHistoryInterval();
       },
       error: () => {
+        if (this.castService.isConnected$.value) {
+          this.castService.startCasting(this.mediaItem!, 0);
+        }
         // Fall back to playing from start
         this.cdr.detectChanges();
         this.startHistoryInterval();
@@ -358,28 +370,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     this.player.seek(Math.min(duration, current + 30));
   }
 
-  seek(event: MouseEvent): void {
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
-      let rect = this.timelineRect;
-      if (!rect) {
-        let target = event.target as HTMLElement;
-        while (target && !target.classList.contains('timeline-slider')) {
-          target = target.parentElement as HTMLElement;
-        }
-        if (target) {
-          rect = target.getBoundingClientRect();
-        }
-      }
-      if (!rect) return;
-      const x = event.clientX - rect.left;
-      const width = rect.width;
-      const percentage = Math.max(0, Math.min(1, x / width));
-      const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
-      this.castService.seek(percentage * duration);
-      return;
-    }
-    if (!this.player || !this.videoElement) return;
-
+  updateSliderProgress(event: MouseEvent): void {
     let rect = this.timelineRect;
     if (!rect) {
       let target = event.target as HTMLElement;
@@ -390,14 +381,23 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
         rect = target.getBoundingClientRect();
       }
     }
-
     if (!rect) return;
 
     const x = event.clientX - rect.left;
     const width = rect.width;
     const percentage = Math.max(0, Math.min(1, x / width));
-    const duration = this.player.duration() || this.mediaItem?.duration || 0;
-    this.player.seek(percentage * duration);
+
+    let duration = 0;
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
+    } else if (this.player) {
+      duration = this.player.duration() || this.mediaItem?.duration || 0;
+    }
+
+    this.draggedTime = percentage * duration;
+    this.progressPercent = percentage * 100;
+    this.currentTimeStr = this.formatTime(this.draggedTime);
+    this.cdr.detectChanges();
   }
 
   onMouseDown(event: MouseEvent): void {
@@ -411,18 +411,25 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
       this.timelineRect = target.getBoundingClientRect();
     }
 
-    this.seek(event);
+    this.updateSliderProgress(event);
   }
 
   onMouseMoveDrag(event: MouseEvent): void {
     if (this.isDragging) {
-      this.seek(event);
+      this.updateSliderProgress(event);
     }
   }
 
   onMouseUp(): void {
-    this.isDragging = false;
-    this.timelineRect = null;
+    if (this.isDragging) {
+      if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+        this.castService.seek(this.draggedTime);
+      } else if (this.player) {
+        this.player.seek(this.draggedTime);
+      }
+      this.isDragging = false;
+      this.timelineRect = null;
+    }
   }
 
   toggleMute(): void {
@@ -549,6 +556,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private updateProgress(): void {
+    if (this.isDragging) return;
     if (!this.player) return;
     const current = this.player.time();
     const duration = this.player.duration() || this.mediaItem?.duration || 0;
@@ -669,11 +677,20 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   setupCastSubscriptions(): void {
     this.castSubs.push(
       this.castService.isConnected$.subscribe((connected) => {
-        if (connected && this.castService.currentMedia$.value?.id === this.mediaId) {
-          if (this.player && this.isPlaying) {
-            this.player.pause();
+        if (connected) {
+          if (this.castService.currentMedia$.value?.id === this.mediaId) {
+            if (this.player && this.isPlaying) {
+              this.player.pause();
+            }
+            this.isPlaying = this.castService.isPlaying$.value;
+          } else if (this.mediaItem) {
+            // If connected but casting another item, auto-start casting this item
+            const currentPosition = this.player ? this.player.time() : 0;
+            if (this.player) {
+              this.player.pause();
+            }
+            this.castService.startCasting(this.mediaItem, currentPosition);
           }
-          this.isPlaying = this.castService.isPlaying$.value;
         } else if (!connected && this.isPlaying && this.isStreamInitialized) {
           // If we disconnected while on this page, seek the local player to the cast's last time and play
           const lastTime = this.castService.currentTime$.value;
@@ -698,6 +715,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     this.castSubs.push(
       this.castService.currentTime$.subscribe((time) => {
         if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+          if (this.isDragging) return;
           this.currentTimeStr = this.formatTime(time);
           const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
           this.totalTimeStr = this.formatTime(duration);
@@ -712,6 +730,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     this.castSubs.push(
       this.castService.duration$.subscribe((dur) => {
         if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId && dur > 0) {
+          if (this.isDragging) return;
           this.totalTimeStr = this.formatTime(dur);
           const time = this.castService.currentTime$.value;
           this.progressPercent = (time / dur) * 100;

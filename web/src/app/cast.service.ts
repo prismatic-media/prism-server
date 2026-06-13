@@ -26,6 +26,7 @@ export class CastService {
   // Watch history tracking
   private historyIntervalId: any = null;
   private lastSavedPosition = 0;
+  private progressIntervalId: any = null;
 
   constructor() {
     this.initCastSDK();
@@ -114,6 +115,7 @@ export class CastService {
             this.isPlaying$.next(false);
             this.deviceName$.next('');
             this.stopHistoryTimer();
+            this.stopProgressTimer();
           } else {
             const session = this.castContext.getCurrentSession();
             if (session) {
@@ -138,8 +140,10 @@ export class CastService {
 
           if (isPlaying) {
             this.startHistoryTimer();
+            this.startProgressTimer();
           } else {
             this.stopHistoryTimer();
+            this.stopProgressTimer();
           }
         });
       }
@@ -232,6 +236,7 @@ export class CastService {
 
       if (isPlaying) {
         this.startHistoryTimer();
+        this.startProgressTimer();
       }
     }
   }
@@ -401,6 +406,31 @@ export class CastService {
     if (this.historyIntervalId) {
       clearInterval(this.historyIntervalId);
       this.historyIntervalId = null;
+    }
+  }
+
+  // --- Progress Estimation ---
+
+  private startProgressTimer(): void {
+    this.stopProgressTimer();
+    this.progressIntervalId = setInterval(() => {
+      this.zone.run(() => {
+        const session = this.castContext ? this.castContext.getCurrentSession() : null;
+        if (session) {
+          const mediaSession = session.getMediaSession();
+          if (mediaSession && typeof mediaSession.getEstimatedTime === 'function') {
+            const estimatedTime = mediaSession.getEstimatedTime();
+            this.currentTime$.next(estimatedTime);
+          }
+        }
+      });
+    }, 500);
+  }
+
+  private stopProgressTimer(): void {
+    if (this.progressIntervalId) {
+      clearInterval(this.progressIntervalId);
+      this.progressIntervalId = null;
     }
   }
 
