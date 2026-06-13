@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ringmaster217/prism/internal/auth"
+	"github.com/prismatic-media/prism-server/internal/auth"
 )
 
 type contextKey string

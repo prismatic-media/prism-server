@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	apimw "github.com/ringmaster217/prism/internal/api/middleware"
+	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
 )
 
 func TestTimeout_AppliesTimeout(t *testing.T) {

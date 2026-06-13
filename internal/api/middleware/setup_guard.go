@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 // SetupGuard intercepts all requests when setup is not yet complete and

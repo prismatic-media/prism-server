@@ -6,7 +6,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/ringmaster217/prism/pkg/events"
+	"github.com/prismatic-media/prism-server/pkg/events"
 )
 
 // EventsHandler serves the global real-time event WebSocket.

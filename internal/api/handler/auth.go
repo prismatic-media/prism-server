@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ringmaster217/prism/internal/auth"
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/auth"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 const (

@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ringmaster217/prism/internal/auth"
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/auth"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 // SetupHandler handles the first-run web setup wizard.

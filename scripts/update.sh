@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REPO="ringmaster217/prism"
+REPO="prismatic-media/prism-server"
 INSTALL_DIR="/opt/prism"
 VERSION_FILE="${INSTALL_DIR}/.version"
 BINARY_PATH="${INSTALL_DIR}/prism"

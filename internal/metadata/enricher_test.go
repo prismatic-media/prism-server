@@ -12,9 +12,9 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
-	"github.com/ringmaster217/prism/migrations"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/migrations"
 )
 
 func openEnricherTestDB(t *testing.T) *sql.DB {

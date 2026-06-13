@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 // openTestDB opens an in-memory SQLite database, runs all migrations, and

@@ -9,14 +9,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/ringmaster217/prism/internal/api/handler"
-	apimw "github.com/ringmaster217/prism/internal/api/middleware"
-	"github.com/ringmaster217/prism/internal/config"
-	"github.com/ringmaster217/prism/internal/metadata"
-	"github.com/ringmaster217/prism/internal/scanner"
-	"github.com/ringmaster217/prism/internal/transcoder"
-	"github.com/ringmaster217/prism/pkg/events"
-	"github.com/ringmaster217/prism/web"
+	"github.com/prismatic-media/prism-server/internal/api/handler"
+	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
+	"github.com/prismatic-media/prism-server/internal/config"
+	"github.com/prismatic-media/prism-server/internal/metadata"
+	"github.com/prismatic-media/prism-server/internal/scanner"
+	"github.com/prismatic-media/prism-server/internal/transcoder"
+	"github.com/prismatic-media/prism-server/pkg/events"
+	"github.com/prismatic-media/prism-server/web"
 )
 
 // NewRouter wires up all routes and middleware.

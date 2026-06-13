@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/ringmaster217/prism/internal/store/sqlite"
-	"github.com/ringmaster217/prism/internal/transcoder"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/transcoder"
 )
 
 var wsUpgrader = websocket.Upgrader{

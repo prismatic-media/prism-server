@@ -11,10 +11,10 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/api/handler"
-	apimw "github.com/ringmaster217/prism/internal/api/middleware"
-	"github.com/ringmaster217/prism/internal/scanner"
-	"github.com/ringmaster217/prism/pkg/events"
+	"github.com/prismatic-media/prism-server/internal/api/handler"
+	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
+	"github.com/prismatic-media/prism-server/internal/scanner"
+	"github.com/prismatic-media/prism-server/pkg/events"
 )
 
 // artifactRouter creates a chi router with artifact handlers and RequireAdmin middleware.

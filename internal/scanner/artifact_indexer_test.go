@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ringmaster217/prism/internal/artifact"
+	"github.com/prismatic-media/prism-server/internal/artifact"
 )
 
 func TestWriteAndReadSidecar(t *testing.T) {

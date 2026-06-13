@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 // MediaHandler handles media item queries and deletions.

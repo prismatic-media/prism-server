@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 func TestGetSetting_NotFound(t *testing.T) {

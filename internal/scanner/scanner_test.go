@@ -10,11 +10,11 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/scanner"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
-	"github.com/ringmaster217/prism/migrations"
-	"github.com/ringmaster217/prism/pkg/events"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/scanner"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/migrations"
+	"github.com/prismatic-media/prism-server/pkg/events"
 
 	gosql "database/sql"
 )

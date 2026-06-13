@@ -11,11 +11,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/ringmaster217/prism/internal/api/handler"
-	apimw "github.com/ringmaster217/prism/internal/api/middleware"
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/scanner"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/api/handler"
+	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/scanner"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 // newTestRouterPhase2 extends the Phase 1 test router with Phase 2 routes.

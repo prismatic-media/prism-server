@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/models"
+	"github.com/prismatic-media/prism-server/internal/models"
 )
 
 // ErrJobNotPending indicates a job exists but is not in pending state.

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ringmaster217/prism/internal/models"
+	"github.com/prismatic-media/prism-server/internal/models"
 )
 
 // CreateWorker creates a new worker with the given name and a generated API Key.

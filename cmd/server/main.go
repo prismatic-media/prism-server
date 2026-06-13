@@ -10,14 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ringmaster217/prism/internal/api"
-	"github.com/ringmaster217/prism/internal/config"
-	"github.com/ringmaster217/prism/internal/metadata"
-	"github.com/ringmaster217/prism/internal/scanner"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
-	"github.com/ringmaster217/prism/internal/transcoder"
-	"github.com/ringmaster217/prism/pkg/dash"
-	"github.com/ringmaster217/prism/pkg/events"
+	"github.com/prismatic-media/prism-server/internal/api"
+	"github.com/prismatic-media/prism-server/internal/config"
+	"github.com/prismatic-media/prism-server/internal/metadata"
+	"github.com/prismatic-media/prism-server/internal/scanner"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/transcoder"
+	"github.com/prismatic-media/prism-server/pkg/dash"
+	"github.com/prismatic-media/prism-server/pkg/events"
 )
 
 // Main entry point for the Prism media server.

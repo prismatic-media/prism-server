@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/pkg/fingerprint"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/pkg/fingerprint"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 // RelinkResult holds the counts from a relinking operation.

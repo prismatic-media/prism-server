@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ringmaster217/prism/internal/api/handler"
-	apimw "github.com/ringmaster217/prism/internal/api/middleware"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/api/handler"
+	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 func setupRouter(db *sql.DB) http.Handler {

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ringmaster217/prism/internal/models"
+	"github.com/prismatic-media/prism-server/internal/models"
 )
 
 const (

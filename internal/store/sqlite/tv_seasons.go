@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/models"
+	"github.com/prismatic-media/prism-server/internal/models"
 )
 
 // UpsertTVSeason inserts a new season or returns the existing one. season.ID

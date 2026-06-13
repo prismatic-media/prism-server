@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	apimw "github.com/ringmaster217/prism/internal/api/middleware"
-	"github.com/ringmaster217/prism/internal/auth"
+	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
+	"github.com/prismatic-media/prism-server/internal/auth"
 )
 
 const testSecret = "test-secret-key-32-bytes-long!!!"

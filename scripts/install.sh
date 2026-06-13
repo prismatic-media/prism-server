@@ -19,7 +19,7 @@ else
 fi
 
 # GitHub URL configurations for standalone install
-GITHUB_REPO="ringmaster217/prism"
+GITHUB_REPO="prismatic-media/prism-server"
 BRANCH="main"
 RAW_BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/${BRANCH}"
 SERVICE_URL="${RAW_BASE_URL}/prism.service"

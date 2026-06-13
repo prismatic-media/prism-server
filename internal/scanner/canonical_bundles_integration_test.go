@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/ringmaster217/prism/internal/artifact"
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
-	"github.com/ringmaster217/prism/internal/transcoder"
-	"github.com/ringmaster217/prism/pkg/dash"
-	"github.com/ringmaster217/prism/pkg/events"
-	"github.com/ringmaster217/prism/pkg/fingerprint"
+	"github.com/prismatic-media/prism-server/internal/artifact"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/transcoder"
+	"github.com/prismatic-media/prism-server/pkg/dash"
+	"github.com/prismatic-media/prism-server/pkg/events"
+	"github.com/prismatic-media/prism-server/pkg/fingerprint"
 )
 
 func setupTestEnv(t *testing.T) (*sql.DB, string, string) {

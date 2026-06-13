@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 func newLib(path string, mt models.MediaType) *models.Library {

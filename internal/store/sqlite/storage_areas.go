@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/models"
+	"github.com/prismatic-media/prism-server/internal/models"
 )
 
 func ListStorageAreas(ctx context.Context, db *sql.DB) ([]*models.StorageArea, error) {

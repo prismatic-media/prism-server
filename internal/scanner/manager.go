@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/metadata"
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
-	"github.com/ringmaster217/prism/pkg/events"
+	"github.com/prismatic-media/prism-server/internal/metadata"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/pkg/events"
 )
 
 // Manager owns one Scanner per library and keeps them running.

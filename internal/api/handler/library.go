@@ -9,9 +9,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/ringmaster217/prism/internal/models"
-	"github.com/ringmaster217/prism/internal/scanner"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/internal/models"
+	"github.com/prismatic-media/prism-server/internal/scanner"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
 // LibraryHandler handles CRUD operations on libraries and triggers scans.

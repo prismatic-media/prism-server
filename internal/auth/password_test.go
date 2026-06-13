@@ -3,7 +3,7 @@ package auth_test
 import (
 	"testing"
 
-	"github.com/ringmaster217/prism/internal/auth"
+	"github.com/prismatic-media/prism-server/internal/auth"
 )
 
 func TestHashPassword_ProducesNonEmptyHash(t *testing.T) {

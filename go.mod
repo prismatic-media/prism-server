@@ -1,4 +1,4 @@
-module github.com/ringmaster217/prism
+module github.com/prismatic-media/prism-server
 
 go 1.26.3
 

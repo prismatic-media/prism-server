@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ringmaster217/prism/internal/auth"
-	"github.com/ringmaster217/prism/internal/store/sqlite"
-	"github.com/ringmaster217/prism/pkg/dash"
+	"github.com/prismatic-media/prism-server/internal/auth"
+	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/pkg/dash"
 )
 
 // StreamHandler serves DASH manifests and fMP4 segment files.
