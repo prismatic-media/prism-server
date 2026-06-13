@@ -62,7 +62,7 @@ func ListWatchHistory(ctx context.Context, db *sql.DB, userID uuid.UUID) ([]*mod
 	if err != nil {
 		return nil, fmt.Errorf("listing watch history: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.WatchHistory
 	for rows.Next() {
@@ -72,7 +72,7 @@ func ListWatchHistory(ctx context.Context, db *sql.DB, userID uuid.UUID) ([]*mod
 		}
 		items = append(items, h)
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	var populatedItems []*models.WatchHistory
 	for _, h := range items {

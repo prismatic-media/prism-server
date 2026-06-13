@@ -53,7 +53,7 @@ func ListTranscodeJobs(ctx context.Context, db *sql.DB) ([]*models.TranscodeJob,
 	if err != nil {
 		return nil, fmt.Errorf("listing transcode jobs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var jobs []*models.TranscodeJob
 	for rows.Next() {
@@ -74,7 +74,7 @@ func ListPendingJobs(ctx context.Context, db *sql.DB) ([]*models.TranscodeJob, e
 	if err != nil {
 		return nil, fmt.Errorf("listing pending jobs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var jobs []*models.TranscodeJob
 	for rows.Next() {
@@ -227,7 +227,7 @@ func PrioritizeJob(ctx context.Context, db *sql.DB, id uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var status string
 	err = tx.QueryRowContext(ctx, `SELECT status FROM transcode_jobs WHERE id = ?`, id.String()).Scan(&status)
@@ -270,7 +270,7 @@ func BulkEnqueueUntranscoded(ctx context.Context, db *sql.DB) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	rows, err := tx.QueryContext(ctx, `
 		SELECT m.id
@@ -282,7 +282,7 @@ func BulkEnqueueUntranscoded(ctx context.Context, db *sql.DB) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("querying untranscoded media: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var mediaIDs []string
 	for rows.Next() {
@@ -329,14 +329,14 @@ func BulkEnqueueFailed(ctx context.Context, db *sql.DB) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Get all media_item_ids for failed jobs so we can update media_items.transcode_status
 	rows, err := tx.QueryContext(ctx, `SELECT media_item_id FROM transcode_jobs WHERE status = 'failed'`)
 	if err != nil {
 		return 0, fmt.Errorf("querying failed jobs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var mediaIDs []string
 	for rows.Next() {

@@ -70,7 +70,7 @@ func ListWorkers(ctx context.Context, db *sql.DB) ([]*models.TranscodeWorker, er
 	if err != nil {
 		return nil, fmt.Errorf("listing workers: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var workers []*models.TranscodeWorker
 	for rows.Next() {
@@ -222,7 +222,7 @@ func RecoverFailedWorkers(ctx context.Context, db *sql.DB, timeout time.Duration
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	threshold := time.Now().UTC().Add(-timeout).Format(time.RFC3339)
 
@@ -235,7 +235,7 @@ func RecoverFailedWorkers(ctx context.Context, db *sql.DB, timeout time.Duration
 	if err != nil {
 		return nil, fmt.Errorf("querying failed workers: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var failedWorkerIDs []string
 	for rows.Next() {
@@ -280,7 +280,7 @@ func RecoverFailedWorkers(ctx context.Context, db *sql.DB, timeout time.Duration
 		if err != nil {
 			return nil, fmt.Errorf("querying processing jobs for worker: %w", err)
 		}
-		defer jRows.Close()
+		defer func() { _ = jRows.Close() }()
 
 		for jRows.Next() {
 			var jIDStr, mIDStr, lIDStr string

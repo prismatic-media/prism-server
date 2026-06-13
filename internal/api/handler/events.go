@@ -28,7 +28,7 @@ func (h *EventsHandler) ServeEvents(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	subID, ch := h.bus.Subscribe()
 	defer h.bus.Unsubscribe(subID)

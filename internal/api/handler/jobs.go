@@ -170,7 +170,7 @@ func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 	if wsErr != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if job.Status == "done" || job.Status == "failed" {
 		errStr := ""

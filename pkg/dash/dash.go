@@ -45,11 +45,9 @@ func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitle
 		bandwidth := (r.VideoBitrateK + r.AudioBitrateK) * 1000
 		relDir := r.Name // relative path from MPD location
 
-		sb.WriteString(fmt.Sprintf(
-			`      <Representation id=%q bandwidth="%d" width="auto" height="%d">`+"\n",
-			r.Name, bandwidth, r.Height,
-		))
-		sb.WriteString(fmt.Sprintf(`        <BaseURL>segments/%s/</BaseURL>`+"\n", relDir))
+		fmt.Fprintf(&sb, `      <Representation id=%q bandwidth="%d" width="auto" height="%d">`+"\n",
+			r.Name, bandwidth, r.Height)
+		fmt.Fprintf(&sb, `        <BaseURL>segments/%s/</BaseURL>`+"\n", relDir)
 		sb.WriteString(`        <SegmentTemplate initialization="init.mp4" media="seg_$Number%05d$.m4s" startNumber="1" duration="4"/>` + "\n")
 		sb.WriteString(`      </Representation>` + "\n")
 	}
@@ -58,12 +56,10 @@ func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitle
 	// Text adaptation sets (one per subtitle track).
 	for _, sub := range subtitles {
 		relVTT := filepath.Base(sub.VTTPath)
-		sb.WriteString(fmt.Sprintf(
-			`    <AdaptationSet mimeType="text/vtt" lang=%q>`+"\n",
-			sub.Language,
-		))
-		sb.WriteString(fmt.Sprintf(`      <Representation id="sub_%s" bandwidth="0">`+"\n", sub.Language))
-		sb.WriteString(fmt.Sprintf(`        <BaseURL>segments/%s</BaseURL>`+"\n", relVTT))
+		fmt.Fprintf(&sb, `    <AdaptationSet mimeType="text/vtt" lang=%q>`+"\n",
+			sub.Language)
+		fmt.Fprintf(&sb, `      <Representation id="sub_%s" bandwidth="0">`+"\n", sub.Language)
+		fmt.Fprintf(&sb, `        <BaseURL>segments/%s</BaseURL>`+"\n", relVTT)
 		sb.WriteString(`      </Representation>` + "\n")
 		sb.WriteString(`    </AdaptationSet>` + "\n")
 	}

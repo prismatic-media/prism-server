@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	apimw "github.com/ringmaster217/prism/internal/api/middleware"
 	"github.com/ringmaster217/prism/internal/models"
 	"github.com/ringmaster217/prism/internal/scanner"
 	"github.com/ringmaster217/prism/internal/store/sqlite"
@@ -139,9 +138,8 @@ func (h *LibraryHandler) ScanLibrary(w http.ResponseWriter, r *http.Request) {
 
 	// Run scan in background so the HTTP response is immediate.
 	go func() {
-		if err := h.manager.Scan(r.Context(), id); err != nil {
-			// Context may be cancelled after response is sent — that is fine.
-		}
+		// Context may be cancelled after response is sent — that is fine.
+		_ = h.manager.Scan(r.Context(), id)
 	}()
 
 	respondJSON(w, http.StatusAccepted, map[string]string{"status": "scan started"})
@@ -152,14 +150,4 @@ func uuidParam(r *http.Request, key string) (uuid.UUID, error) {
 	return uuid.Parse(chi.URLParam(r, key))
 }
 
-// requireAdmin checks that the request has admin claims. Returns false and
-// writes a 403 if not. Convenience wrapper for handlers that need it without
-// being in the RequireAdmin middleware chain.
-func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	claims := apimw.ClaimsFromContext(r.Context())
-	if claims == nil || !claims.IsAdmin {
-		respondError(w, http.StatusForbidden, "admin access required")
-		return false
-	}
-	return true
-}
+

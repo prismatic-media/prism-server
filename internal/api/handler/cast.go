@@ -27,7 +27,7 @@ func NewCastHandler(db *sql.DB) *CastHandler {
 func (h *CastHandler) ServeReceiver(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Write(receiverHTML)
+	_, _ = w.Write(receiverHTML)
 }
 
 // GetConfig handles GET /api/v1/cast/config.

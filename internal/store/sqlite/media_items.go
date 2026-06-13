@@ -151,7 +151,7 @@ func ListMediaItems(ctx context.Context, db *sql.DB, libraryID uuid.UUID) ([]*mo
 	if err != nil {
 		return nil, fmt.Errorf("listing media items: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.MediaItem
 	for rows.Next() {
@@ -176,7 +176,7 @@ func ListMediaItemsAll(ctx context.Context, db *sql.DB, libraryID uuid.UUID) ([]
 	if err != nil {
 		return nil, fmt.Errorf("listing all media items for library: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.MediaItem
 	for rows.Next() {
@@ -201,7 +201,7 @@ func ListAllMediaItems(ctx context.Context, db *sql.DB) ([]*models.MediaItem, er
 	if err != nil {
 		return nil, fmt.Errorf("listing all media items: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.MediaItem
 	for rows.Next() {
@@ -226,7 +226,7 @@ func ListRecentMediaItems(ctx context.Context, db *sql.DB, limit int) ([]*models
 	if err != nil {
 		return nil, fmt.Errorf("listing recent media items: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.MediaItem
 	for rows.Next() {
@@ -443,7 +443,7 @@ func ListAllMediaItemsAll(ctx context.Context, db *sql.DB) ([]*models.MediaItem,
 	if err != nil {
 		return nil, fmt.Errorf("listing all media items (all types): %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.MediaItem
 	for rows.Next() {
@@ -653,7 +653,7 @@ func SearchMedia(ctx context.Context, db *sql.DB, query string) ([]*models.Searc
 	if err != nil {
 		return nil, fmt.Errorf("searching media: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []*models.SearchResult
 	for rows.Next() {

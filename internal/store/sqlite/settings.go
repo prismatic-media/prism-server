@@ -78,7 +78,7 @@ func GetAllSettings(ctx context.Context, db *sql.DB, onlyConfigurable bool) (map
 	if err != nil {
 		return nil, fmt.Errorf("querying settings: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make(map[string]string)
 	for rows.Next() {

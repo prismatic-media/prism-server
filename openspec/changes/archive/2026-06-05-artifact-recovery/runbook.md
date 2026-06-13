@@ -24,6 +24,7 @@ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 Response:
+
 ```json
 {
   "ready": true,
@@ -33,9 +34,9 @@ Response:
       "storage_area_path": "/mnt/segments",
       "enabled": true,
       "by_health": [
-        {"health": "healthy", "count": 150},
-        {"health": "stale", "count": 5},
-        {"health": "missing", "count": 2}
+        { "health": "healthy", "count": 150 },
+        { "health": "stale", "count": 5 },
+        { "health": "missing", "count": 2 }
       ]
     }
   ],
@@ -57,6 +58,7 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 Response:
+
 ```json
 {
   "summaries": [
@@ -75,12 +77,12 @@ Response:
 
 ### Indexing Results
 
-| Field | Description |
-|-------|-------------|
-| `registered` | New artifact records created |
-| `updated` | Existing records updated (last_seen refreshed) |
-| `removed` | Artifacts marked as missing (sidecar deleted) |
-| `errors` | Directories that failed to process |
+| Field        | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `registered` | New artifact records created                   |
+| `updated`    | Existing records updated (last_seen refreshed) |
+| `removed`    | Artifacts marked as missing (sidecar deleted)  |
+| `errors`     | Directories that failed to process             |
 
 ### Indexing Behavior
 
@@ -114,6 +116,7 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 Response:
+
 ```json
 {
   "linked": 3,
@@ -126,13 +129,13 @@ Response:
 
 ### Relinking Results
 
-| Field | Description |
-|-------|-------------|
-| `linked` | New exact fingerprint matches created |
-| `unmatched` | Artifacts with no matching media item |
-| `ambiguous` | Artifacts matching multiple media items |
-| `invalid` | Artifacts with invalid/missing fingerprints |
-| `skipped` | Already-linked artifacts (no action needed) |
+| Field       | Description                                 |
+| ----------- | ------------------------------------------- |
+| `linked`    | New exact fingerprint matches created       |
+| `unmatched` | Artifacts with no matching media item       |
+| `ambiguous` | Artifacts matching multiple media items     |
+| `invalid`   | Artifacts with invalid/missing fingerprints |
+| `skipped`   | Already-linked artifacts (no action needed) |
 
 ### Relinking Behavior
 
@@ -155,24 +158,30 @@ Response:
 1. **Deploy new database**: Set up a fresh database and apply all migrations.
 
 2. **Run indexing**:
+
    ```bash
    curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
      http://localhost:8080/api/v1/admin/artifacts/index | jq .
    ```
+
    This registers all artifacts found on disk.
 
 3. **Run relinking**:
+
    ```bash
    curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
      http://localhost:8080/api/v1/admin/artifacts/relink | jq .
    ```
+
    This creates links between artifacts and media items.
 
 4. **Verify**:
+
    ```bash
    curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
      http://localhost:8080/api/v1/admin/artifacts/status | jq .
    ```
+
    Check that `unmatched` count is acceptable and `healthy` count is high.
 
 5. **Manual review**: For unmatched artifacts, check if the source files still
@@ -194,6 +203,7 @@ Response:
 When artifacts are marked as `ambiguous`, manual intervention is needed:
 
 1. **Check the artifacts**:
+
    ```sql
    SELECT a.id, a.source_path, a.health, l.media_item_id
    FROM artifact_records a
@@ -204,6 +214,7 @@ When artifacts are marked as `ambiguous`, manual intervention is needed:
 2. **Review the linked media items** and determine if the link is correct.
 
 3. **Fix incorrect links**: Delete the wrong link and let relinking recreate it:
+
    ```sql
    DELETE FROM artifact_media_links
    WHERE artifact_id = '<wrong-artifact-id>' AND status = 'ambiguous';
@@ -216,6 +227,7 @@ When artifacts are marked as `ambiguous`, manual intervention is needed:
 ### Indexing Returns 409 Conflict
 
 The artifact schema migration hasn't been applied:
+
 ```bash
 # Check migration status
 goose -dir migrations status
@@ -227,13 +239,16 @@ goose -dir migrations up
 ### Relink Returns No Matches
 
 1. **Check storage area configuration**:
+
    ```bash
    curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
      http://localhost:8080/api/v1/admin/artifacts/status | jq .areas
    ```
+
    Ensure enabled segment storage areas have non-zero artifact counts.
 
 2. **Check for missing fingerprints**:
+
    ```sql
    SELECT COUNT(*) FROM artifact_records
    WHERE source_fingerprint IS NULL OR source_fingerprint = '';
@@ -245,6 +260,7 @@ goose -dir migrations up
 ### Manifest Resolution Fails After Recovery
 
 After database loss recovery, manifest resolution may fail if:
+
 1. The `mpd_path` column is empty on media items
 2. The artifact's `output_dir` or `mpd_path` fields are not populated
 
@@ -255,20 +271,23 @@ then run relinking to create links.
 
 Artifacts marked as `stale` haven't been seen in over 7 days. This is normal
 for archived content. To adjust the threshold:
+
 - Modify the `staleAfter` field in the `Indexer` struct
-- Default is 7 days (7 * 24 * time.Hour)
+- Default is 7 days (7 _ 24 _ time.Hour)
 
 ## Rollback
 
 If artifact operations cause issues:
 
 1. **Drop artifact tables**:
+
    ```sql
    DROP TABLE IF EXISTS artifact_media_links;
    DROP TABLE IF EXISTS artifact_records;
    ```
 
 2. **Revert migration** (optional):
+
    ```bash
    goose -dir migrations down 1
    ```

@@ -26,7 +26,7 @@ func openTestDB(t *testing.T) *gosql.DB {
 	if err != nil {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	goose.SetBaseFS(migrations.FS)
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)

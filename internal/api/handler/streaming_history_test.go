@@ -245,7 +245,7 @@ func TestGetHistory_Empty(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	var items []map[string]interface{}
-	json.NewDecoder(rec.Body).Decode(&items)
+	_ = json.NewDecoder(rec.Body).Decode(&items)
 	if len(items) != 0 {
 		t.Errorf("expected empty list, got %d items", len(items))
 	}
@@ -352,7 +352,7 @@ func TestUpsertHistory_CompletedExcludedFromList(t *testing.T) {
 	rec = do(t, r, http.MethodGet, "/api/v1/history", nil,
 		map[string]string{"Authorization": "Bearer " + tok})
 	var items []map[string]interface{}
-	json.NewDecoder(rec.Body).Decode(&items)
+	_ = json.NewDecoder(rec.Body).Decode(&items)
 	if len(items) != 0 {
 		t.Errorf("expected 0 items (completed filtered), got %d", len(items))
 	}

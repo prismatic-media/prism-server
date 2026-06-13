@@ -23,7 +23,7 @@ func openEnricherTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	goose.SetBaseFS(migrations.FS)
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
@@ -138,11 +138,12 @@ func TestEnricher_Movie_WritesMetadata(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/search/movie" {
-			w.Write(movieResp)
-		} else if r.URL.Path == "/movie/27205" {
-			w.Write(movieDetailResp)
-		} else {
+		switch r.URL.Path {
+		case "/search/movie":
+			_, _ = w.Write(movieResp)
+		case "/movie/27205":
+			_, _ = w.Write(movieDetailResp)
+		default:
 			http.Error(w, "not found", http.StatusNotFound)
 		}
 	}))
@@ -205,11 +206,12 @@ func TestEnricher_TVShow_WritesMetadata(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/search/tv" {
-			w.Write(tvResp)
-		} else if r.URL.Path == "/tv/1396" {
-			w.Write(tvDetailResp)
-		} else {
+		switch r.URL.Path {
+		case "/search/tv":
+			_, _ = w.Write(tvResp)
+		case "/tv/1396":
+			_, _ = w.Write(tvDetailResp)
+		default:
 			http.Error(w, "not found", http.StatusNotFound)
 		}
 	}))
@@ -238,7 +240,7 @@ func TestEnricher_NoResults_NoUpdate(t *testing.T) {
 	emptySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		b, _ := json.Marshal(map[string]any{"results": []any{}})
-		w.Write(b)
+		_, _ = w.Write(b)
 	}))
 	defer emptySrv.Close()
 

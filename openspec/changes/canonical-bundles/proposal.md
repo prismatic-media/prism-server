@@ -14,10 +14,12 @@ After transcoding, the source file has no operational purpose — the transcode 
 ## Capabilities
 
 ### New Capabilities
+
 - `discovery-deduplication`: When a source file is discovered, its fingerprint is checked against existing artifact records and media items. If a matching bundle exists, the media item is linked to the existing bundle, preventing redundant transcodes. Covers the scanner's fingerprint computation, lookup, and linking behavior at discovery time.
 - `bundle-sourced-media`: Media items can exist backed solely by a transcode bundle, without a source file on disk. The system tracks source and bundle availability independently, the scanner preserves bundle-backed items during pruning, and the indexer can create full media items from sidecar metadata.
 
 ### Modified Capabilities
+
 - `artifact-metadata`: Sidecar metadata is expanded to include full media metadata (title, year, TMDB enrichment, TV hierarchy, poster reference) and is updated when metadata changes occur (TMDB enrichment, metadata refresh). Poster images are stored in the bundle directory.
 - `artifact-indexing`: The indexer can create `media_items` rows from bundle sidecar metadata when no matching media item exists in the database, making it a co-equal creator of media items alongside the scanner.
 - `auto-transcode-on-discovery`: Before auto-enqueuing a transcode job for a newly discovered item, the system checks whether a bundle with a matching source fingerprint already exists and skips enqueue if so.

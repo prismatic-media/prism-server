@@ -59,7 +59,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 	// Health check (unauthenticated)
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	})
 
 	// Chromecast custom receiver page — fetched directly by the Cast device.
@@ -224,10 +224,10 @@ func spaHandler() http.HandlerFunc {
 			// File not found — serve index.html for client-side routing.
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
-			w.Write(indexHTML)
+			_, _ = w.Write(indexHTML)
 			return
 		}
-		f.Close()
+		_ = f.Close()
 		fileServer.ServeHTTP(w, r)
 	}
 }
@@ -247,10 +247,4 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func placeholder(name string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte(`{"error":"not implemented","route":"` + name + `"}`))
-	}
-}
+

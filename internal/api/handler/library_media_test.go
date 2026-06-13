@@ -55,7 +55,7 @@ func newTestRouterPhase2(t *testing.T) (http.Handler, func()) {
 		r.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/write-sidecars", artifactH.HandleWriteSidecars)
 	})
 
-	cleanup := func() { db.Close() }
+	cleanup := func() { _ = db.Close() }
 	return r, cleanup
 }
 
@@ -78,7 +78,7 @@ func setupAdminUser(t *testing.T, router http.Handler) string {
 		t.Fatalf("login: status %d", loginRec.Code)
 	}
 	var resp map[string]any
-	json.NewDecoder(loginRec.Body).Decode(&resp)
+	_ = json.NewDecoder(loginRec.Body).Decode(&resp)
 	return resp["access_token"].(string)
 }
 
@@ -104,7 +104,7 @@ func TestCreateLibrary_Success(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp["id"] == "" {
 		t.Error("expected id in response")
 	}
@@ -170,7 +170,7 @@ func TestListLibraries_EmptyArray(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 	var resp []any
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if len(resp) != 0 {
 		t.Errorf("want [], got %v", resp)
 	}
@@ -198,7 +198,7 @@ func TestDeleteLibrary_Success(t *testing.T) {
 		adminHeader(token),
 	)
 	var lib map[string]any
-	json.NewDecoder(createRec.Body).Decode(&lib)
+	_ = json.NewDecoder(createRec.Body).Decode(&lib)
 	libID := lib["id"].(string)
 
 	delRec := do(t, router, http.MethodDelete, "/api/v1/libraries/"+libID, nil, adminHeader(token))
@@ -222,7 +222,7 @@ func TestScanLibrary_Accepted(t *testing.T) {
 		adminHeader(token),
 	)
 	var lib map[string]any
-	json.NewDecoder(createRec.Body).Decode(&lib)
+	_ = json.NewDecoder(createRec.Body).Decode(&lib)
 
 	scanRec := do(t, router, http.MethodPost, "/api/v1/libraries/"+lib["id"].(string)+"/scan",
 		nil, adminHeader(token))
@@ -245,7 +245,7 @@ func TestListMedia_EmptyArray(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 	var resp []any
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if len(resp) != 0 {
 		t.Errorf("want [], got %v", resp)
 	}
@@ -253,7 +253,7 @@ func TestListMedia_EmptyArray(t *testing.T) {
 
 func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 	db := openTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeTVShow}
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
@@ -290,7 +290,7 @@ func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec1.Code)
 	}
 	var resp1 []models.MediaItem
-	json.NewDecoder(rec1.Body).Decode(&resp1)
+	_ = json.NewDecoder(rec1.Body).Decode(&resp1)
 	if len(resp1) != 1 {
 		t.Errorf("expected 1 media item (movie), got %d", len(resp1))
 	} else if resp1[0].Title != "Movie Title" {
@@ -303,7 +303,7 @@ func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec2.Code)
 	}
 	var resp2 []models.MediaItem
-	json.NewDecoder(rec2.Body).Decode(&resp2)
+	_ = json.NewDecoder(rec2.Body).Decode(&resp2)
 	if len(resp2) != 2 {
 		t.Errorf("expected 2 media items (movie + episode), got %d", len(resp2))
 	}

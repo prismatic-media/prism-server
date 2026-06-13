@@ -132,7 +132,9 @@ func TestRefresh_ValidCookie(t *testing.T) {
 		t.Errorf("refresh status = %d, want 200; body: %s", rec.Code, rec.Body)
 	}
 	var resp map[string]any
-	json.NewDecoder(rec.Body).Decode(&resp)
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if resp["access_token"] == "" {
 		t.Error("expected access_token in refresh response")
 	}

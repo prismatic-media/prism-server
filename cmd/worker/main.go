@@ -186,7 +186,7 @@ func poll(ctx context.Context) {
 		slog.Error("heartbeat failed", "error", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		slog.Error("Unauthorized: Invalid API Key")
@@ -237,7 +237,7 @@ func executeJob(ctx context.Context, job *models.TranscodeJob, hwaccel string) e
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	sourcePath := filepath.Join(tempDir, "source.tmp")
 
@@ -359,7 +359,7 @@ func downloadFile(ctx context.Context, mediaID uuid.UUID, destPath string) error
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned status %s", resp.Status)
@@ -369,7 +369,7 @@ func downloadFile(ctx context.Context, mediaID uuid.UUID, destPath string) error
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	_, err = io.Copy(out, resp.Body)
 	return err
@@ -392,7 +392,7 @@ func reportProgress(ctx context.Context, jobID uuid.UUID, progress float64) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 }
 
@@ -414,7 +414,7 @@ func reportFailure(ctx context.Context, jobID uuid.UUID, errMsg string) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 }
 
@@ -425,14 +425,14 @@ func uploadBundle(ctx context.Context, jobID uuid.UUID, zipPath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
 
 	go func() {
 		err := func() error {
-			defer writer.Close()
+			defer func() { _ = writer.Close() }()
 			part, err := writer.CreateFormFile("bundle", "bundle.zip")
 			if err != nil {
 				return err
@@ -443,7 +443,7 @@ func uploadBundle(ctx context.Context, jobID uuid.UUID, zipPath string) error {
 		if err != nil {
 			pw.CloseWithError(err)
 		} else {
-			pw.Close()
+			_ = pw.Close()
 		}
 	}()
 
@@ -458,7 +458,7 @@ func uploadBundle(ctx context.Context, jobID uuid.UUID, zipPath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -473,10 +473,10 @@ func zipDir(src string, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer zipfile.Close()
+	defer func() { _ = zipfile.Close() }()
 
 	archive := zip.NewWriter(zipfile)
-	defer archive.Close()
+	defer func() { _ = archive.Close() }()
 
 	err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -508,7 +508,7 @@ func zipDir(src string, dest string) error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		_, err = io.Copy(writer, file)
 		return err
 	})

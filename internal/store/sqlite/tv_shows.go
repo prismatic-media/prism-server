@@ -61,7 +61,7 @@ func ListTVShows(ctx context.Context, db *sql.DB, libraryID uuid.UUID) ([]*model
 	if err != nil {
 		return nil, fmt.Errorf("listing tv shows: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var shows []*models.TVShow
 	for rows.Next() {
@@ -144,7 +144,7 @@ func ListAllTVShows(ctx context.Context, db *sql.DB) ([]*models.TVShow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing all tv shows: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var shows []*models.TVShow
 	for rows.Next() {
@@ -166,7 +166,7 @@ func ListRecentTVShows(ctx context.Context, db *sql.DB, limit int) ([]*models.TV
 	if err != nil {
 		return nil, fmt.Errorf("listing recent tv shows: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var shows []*models.TVShow
 	for rows.Next() {

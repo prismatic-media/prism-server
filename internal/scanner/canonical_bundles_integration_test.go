@@ -24,7 +24,7 @@ func setupTestEnv(t *testing.T) (*sql.DB, string, string) {
 	if err != nil {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("sqlite.Migrate: %v", err)
@@ -85,8 +85,8 @@ func TestIntegration_DiscoveryDeduplication(t *testing.T) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(outputDir, "manifest.mpd"), []byte("<MPD/>"), 0644)
-	os.WriteFile(filepath.Join(outputDir, "media_0.mp4"), []byte("segments"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "manifest.mpd"), []byte("<MPD/>"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "media_0.mp4"), []byte("segments"), 0644)
 
 	sc := &artifact.SidecarMetadata{
 		Version:           2,
@@ -182,7 +182,7 @@ func TestIntegration_BundleOnlyLifecycle(t *testing.T) {
 	}
 
 	// Remove source file and scan
-	os.Remove(moviePath)
+	_ = os.Remove(moviePath)
 	if err := s.ScanAll(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -246,8 +246,8 @@ func TestIntegration_DBRebuild(t *testing.T) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(outputDir, "manifest.mpd"), []byte("<MPD/>"), 0644)
-	os.WriteFile(filepath.Join(outputDir, "media_0.mp4"), []byte("segments"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "manifest.mpd"), []byte("<MPD/>"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "media_0.mp4"), []byte("segments"), 0644)
 
 	sc := &artifact.SidecarMetadata{
 		Version:           2,
@@ -381,8 +381,8 @@ func TestIntegration_SegmentsFirstThenScan_ExistingID(t *testing.T) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(outputDir, "manifest.mpd"), []byte("<MPD/>"), 0644)
-	os.WriteFile(filepath.Join(outputDir, "media_0.mp4"), []byte("segments"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "manifest.mpd"), []byte("<MPD/>"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "media_0.mp4"), []byte("segments"), 0644)
 
 	sc := &artifact.SidecarMetadata{
 		Version:           2,

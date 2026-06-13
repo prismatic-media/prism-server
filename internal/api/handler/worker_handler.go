@@ -304,10 +304,10 @@ func (h *WorkerHandler) UploadBundle(w http.ResponseWriter, r *http.Request) {
 		}
 		if part.FormName() == "bundle" {
 			file = part
-			defer part.Close()
+			defer func() { _ = part.Close() }()
 			break
 		}
-		part.Close()
+		_ = part.Close()
 	}
 
 	if file == nil {
@@ -326,8 +326,8 @@ func (h *WorkerHandler) UploadBundle(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to create temp file", err)
 		return
 	}
-	defer os.Remove(tempFile.Name())
-	defer tempFile.Close()
+	defer func() { _ = os.Remove(tempFile.Name()) }()
+	defer func() { _ = tempFile.Close() }()
 
 	_, err = io.Copy(tempFile, file)
 	if err != nil {
@@ -393,7 +393,7 @@ func unzipFile(src string, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
 		fpath := filepath.Join(dest, f.Name)
@@ -403,7 +403,9 @@ func unzipFile(src string, dest string) error {
 		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, os.ModePerm)
+			if err := os.MkdirAll(fpath, os.ModePerm); err != nil {
+				return err
+			}
 			continue
 		}
 
@@ -418,13 +420,13 @@ func unzipFile(src string, dest string) error {
 
 		rc, err := f.Open()
 		if err != nil {
-			outFile.Close()
+			_ = outFile.Close()
 			return err
 		}
 
 		_, err = io.Copy(outFile, rc)
-		outFile.Close()
-		rc.Close()
+		_ = outFile.Close()
+		_ = rc.Close()
 
 		if err != nil {
 			return err

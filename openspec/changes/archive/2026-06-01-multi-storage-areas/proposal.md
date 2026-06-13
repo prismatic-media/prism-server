@@ -16,9 +16,11 @@ A single segments directory is a scaling bottleneck because DASH transcodes can 
 ## Capabilities
 
 ### New Capabilities
+
 - `storage-areas`: Storage area lifecycle, capacity telemetry, reserve headroom policy, and storage-aware transcode placement.
 
 ### Modified Capabilities
+
 - `server-settings`: Replace single `segments_dir` configuration expectations with storage reserve configuration and storage-page-linked management behavior.
 - `settings-subnav`: Extend admin nested navigation to include a Storage entry under Admin.
 - `transcode-queue`: Add storage-area selection requirements for output placement when jobs are processed.

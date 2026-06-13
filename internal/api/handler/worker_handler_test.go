@@ -43,7 +43,7 @@ func TestWorkerAuthMiddleware(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(worker.Name))
+		_, _ = w.Write([]byte(worker.Name))
 	})
 
 	// 1. Missing header
@@ -339,7 +339,7 @@ func TestWorkerUploadBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = f.Write([]byte("<MPD></MPD>"))
-	zw.Close()
+	_ = zw.Close()
 
 	// Prepare multipart request
 	body := &bytes.Buffer{}
@@ -349,7 +349,7 @@ func TestWorkerUploadBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = io.Copy(part, &zipBuf)
-	writer.Close()
+	_ = writer.Close()
 
 	r := chi.NewRouter()
 	r.Use(wHandler.Authenticate)

@@ -69,7 +69,7 @@ func TestIndexer_IndexStorageArea(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Migrate.
 	if err := sqlite.Migrate(db); err != nil {
@@ -140,7 +140,7 @@ func TestIndexer_IndexAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
@@ -208,7 +208,7 @@ func TestIndexer_IdempotentIndexing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
@@ -299,7 +299,7 @@ func TestRelink_RelinkExact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
@@ -445,7 +445,7 @@ func TestRelink_RelinkExactUnmatched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
@@ -534,7 +534,7 @@ func TestIndexer_DatabaseLossRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
@@ -598,7 +598,3 @@ func TestIndexer_DatabaseLossRecovery(t *testing.T) {
 	}
 }
 
-// helper function to convert string to *string
-func strPtr(s string) *string {
-	return &s
-}

@@ -50,7 +50,7 @@ func tmdbEmptyResponse() []byte {
 func TestSearchMovie_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(tmdbMovieResponse(550, "Fight Club", "1999-10-15", "An insomniac office worker...", "/poster.jpg"))
+		_, _ = w.Write(tmdbMovieResponse(550, "Fight Club", "1999-10-15", "An insomniac office worker...", "/poster.jpg"))
 	}))
 	defer srv.Close()
 
@@ -81,7 +81,7 @@ func TestSearchMovie_Success(t *testing.T) {
 func TestSearchMovie_NoResults(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(tmdbEmptyResponse())
+		_, _ = w.Write(tmdbEmptyResponse())
 	}))
 	defer srv.Close()
 
@@ -115,7 +115,7 @@ func TestSearchMovie_HTTPError(t *testing.T) {
 func TestSearchTV_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(tmdbTVResponse(1396, "Breaking Bad", "2008-01-20", "A teacher turns cook.", "/bbposter.jpg"))
+		_, _ = w.Write(tmdbTVResponse(1396, "Breaking Bad", "2008-01-20", "A teacher turns cook.", "/bbposter.jpg"))
 	}))
 	defer srv.Close()
 
@@ -140,7 +140,7 @@ func TestSearchTV_Success(t *testing.T) {
 func TestDownloadPoster_Success(t *testing.T) {
 	imageData := []byte("FAKEIMAGE")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(imageData)
+		_, _ = w.Write(imageData)
 	}))
 	defer srv.Close()
 

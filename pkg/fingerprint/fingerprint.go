@@ -21,7 +21,7 @@ func GenerateDeterministic(filePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("opening file for fingerprint: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h := sha256.New()
 	if _, err := io.CopyN(h, f, 64*1024); err != nil {
@@ -41,7 +41,7 @@ func GenerateDeterministicN(filePath string, n int64) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("opening file for fingerprint: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h := sha256.New()
 	if _, err := io.CopyN(h, f, n); err != nil {

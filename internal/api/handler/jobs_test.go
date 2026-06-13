@@ -19,59 +19,6 @@ import (
 	"github.com/ringmaster217/prism/pkg/dash"
 )
 
-// newJobsRouter builds a minimal test router with Phase 4 job endpoints.
-// Returns the router, the transcoder.Pool (for direct manipulation), and a cleanup func.
-func newJobsRouter(t *testing.T) (http.Handler, *transcoder.Pool, func()) {
-	t.Helper()
-	db := openTestDB(t)
-
-	mpdCache := &dash.Cache{}
-	// workers=0 means we don't start any workers — we test the API layer only.
-	pool := transcoder.NewPool(db, 0, mpdCache, nil)
-
-	authH := handler.NewAuthHandler(db, testSecret)
-	userH := handler.NewUsersHandler(db, testSecret)
-	jobsH := handler.NewJobsHandler(db, pool)
-	mediaH := handler.NewMediaHandler(db)
-
-	r := chi.NewRouter()
-	r.Use(chimw.Recoverer)
-
-	r.Post("/api/v1/auth/login", authH.Login)
-	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
-
-	r.Group(func(r chi.Router) {
-		r.Use(apimw.Authenticate(testSecret))
-		r.Get("/api/v1/media/{id}", mediaH.GetMedia)
-		r.With(apimw.RequireAdmin).Post("/api/v1/media/{id}/transcode", jobsH.EnqueueTranscode)
-		r.With(apimw.RequireAdmin).Get("/api/v1/jobs", jobsH.ListJobs)
-		r.With(apimw.RequireAdmin).Get("/api/v1/jobs/{id}", jobsH.GetJob)
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/bulk-enqueue", jobsH.BulkEnqueueJobs)
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/{id}/prioritize", jobsH.PrioritizeJob)
-		r.With(apimw.RequireAdmin).Get("/api/v1/ws/jobs/{id}", jobsH.JobProgress)
-	})
-
-	cleanup := func() { db.Close() }
-	return r, pool, cleanup
-}
-
-// seedMediaItem inserts a library + media item in the jobs test DB.
-func seedMediaItemForJobTest(t *testing.T, r http.Handler, adminToken string) string {
-	t.Helper()
-	// We need direct DB access; grab it from the router's underlying store
-	// via a helper that creates the item directly in the test DB.
-	// Since the router and db share context, just call the REST create-library
-	// route isn't wired here — create item via the sqlite store directly.
-	// Use a raw SQL approach: the test DB is accessible from the parent test.
-	return "" // caller builds the item directly using seedJobItem instead
-}
-
-// seedJobItem creates a library + item in db and returns the item.
-func seedJobItem(t *testing.T) (interface{ Close() error }, *models.MediaItem) {
-	t.Helper()
-	// This helper is used in the standalone test that has its own DB.
-	return nil, nil
-}
 
 func TestEnqueueTranscode_Success(t *testing.T) {
 	db := openTestDB(t)
@@ -97,7 +44,7 @@ func TestEnqueueTranscode_Success(t *testing.T) {
 		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/{id}/prioritize", jobsH.PrioritizeJob)
 		r.With(apimw.RequireAdmin).Get("/api/v1/ws/jobs/{id}", jobsH.JobProgress)
 	})
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	// Seed a library + media item.
 	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
@@ -118,7 +65,7 @@ func TestEnqueueTranscode_Success(t *testing.T) {
 	loginRec := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var loginResp map[string]any
-	json.NewDecoder(loginRec.Body).Decode(&loginResp)
+	_ = json.NewDecoder(loginRec.Body).Decode(&loginResp)
 	token := loginResp["access_token"].(string)
 	auth := map[string]string{"Authorization": "Bearer " + token}
 
@@ -141,7 +88,7 @@ func TestEnqueueTranscode_Success(t *testing.T) {
 
 func TestBulkEnqueueJobs_UnknownFilter(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
 	jobsH := handler.NewJobsHandler(db, pool)
 	authH := handler.NewAuthHandler(db, testSecret)
@@ -161,7 +108,7 @@ func TestBulkEnqueueJobs_UnknownFilter(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	rec := do(t, r, http.MethodPost, "/api/v1/jobs/bulk-enqueue", jsonBody(map[string]string{"filter": "bad"}), auth)
@@ -172,7 +119,7 @@ func TestBulkEnqueueJobs_UnknownFilter(t *testing.T) {
 
 func TestBulkEnqueueJobs_Untranscoded(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
 	jobsH := handler.NewJobsHandler(db, pool)
 	authH := handler.NewAuthHandler(db, testSecret)
@@ -210,7 +157,7 @@ func TestBulkEnqueueJobs_Untranscoded(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	rec := do(t, r, http.MethodPost, "/api/v1/jobs/bulk-enqueue", jsonBody(map[string]string{"filter": "untranscoded"}), auth)
@@ -229,7 +176,7 @@ func TestBulkEnqueueJobs_Untranscoded(t *testing.T) {
 
 func TestBulkEnqueueJobs_FailedFilter(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
 	jobsH := handler.NewJobsHandler(db, pool)
 	authH := handler.NewAuthHandler(db, testSecret)
@@ -276,7 +223,7 @@ func TestBulkEnqueueJobs_FailedFilter(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	rec := do(t, r, http.MethodPost, "/api/v1/jobs/bulk-enqueue", jsonBody(map[string]string{"filter": "failed"}), auth)
@@ -295,7 +242,7 @@ func TestBulkEnqueueJobs_FailedFilter(t *testing.T) {
 
 func TestPrioritizeJob_StatusCodes(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
 	jobsH := handler.NewJobsHandler(db, pool)
 	authH := handler.NewAuthHandler(db, testSecret)
@@ -339,7 +286,7 @@ func TestPrioritizeJob_StatusCodes(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	// Pending job can be prioritized.
@@ -363,7 +310,7 @@ func TestPrioritizeJob_StatusCodes(t *testing.T) {
 
 func TestEnqueueTranscode_MediaNotFound(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	mpdCache := &dash.Cache{}
 	pool := transcoder.NewPool(db, 0, mpdCache, nil)
 	jobsH := handler.NewJobsHandler(db, pool)
@@ -384,7 +331,7 @@ func TestEnqueueTranscode_MediaNotFound(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	rec := do(t, r, http.MethodPost, "/api/v1/media/00000000-0000-0000-0000-000000000001/transcode", nil, auth)
@@ -395,7 +342,7 @@ func TestEnqueueTranscode_MediaNotFound(t *testing.T) {
 
 func TestListJobs_Empty(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
 	jobsH := handler.NewJobsHandler(db, pool)
 	authH := handler.NewAuthHandler(db, testSecret)
@@ -415,7 +362,7 @@ func TestListJobs_Empty(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	rec := do(t, r, http.MethodGet, "/api/v1/jobs", nil, auth)
@@ -423,7 +370,7 @@ func TestListJobs_Empty(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 	var jobs []any
-	json.NewDecoder(rec.Body).Decode(&jobs)
+	_ = json.NewDecoder(rec.Body).Decode(&jobs)
 	if len(jobs) != 0 {
 		t.Errorf("want empty array, got %v", jobs)
 	}
@@ -431,7 +378,7 @@ func TestListJobs_Empty(t *testing.T) {
 
 func TestGetJob_NotFound(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
 	jobsH := handler.NewJobsHandler(db, pool)
 	authH := handler.NewAuthHandler(db, testSecret)
@@ -451,7 +398,7 @@ func TestGetJob_NotFound(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	rec := do(t, r, http.MethodGet, "/api/v1/jobs/00000000-0000-0000-0000-000000000001", nil, auth)
@@ -462,7 +409,7 @@ func TestGetJob_NotFound(t *testing.T) {
 
 func TestJobProgressWS_TerminalJob(t *testing.T) {
 	db := openTestDB(t)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	mpdCache := &dash.Cache{}
 	pool := transcoder.NewPool(db, 0, mpdCache, nil)
@@ -508,7 +455,7 @@ func TestJobProgressWS_TerminalJob(t *testing.T) {
 	lr := do(t, r, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
 	var lresp map[string]any
-	json.NewDecoder(lr.Body).Decode(&lresp)
+	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	token := lresp["access_token"].(string)
 
 	// Spin up a test HTTP server with the chi router.
@@ -526,7 +473,7 @@ func TestJobProgressWS_TerminalJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial WS: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var evt transcoder.ProgressEvent
 	if err := conn.ReadJSON(&evt); err != nil {

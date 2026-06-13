@@ -3,6 +3,7 @@
 The current system assumes a single segments root for both transcode output placement and segment serving. This creates a storage hot spot and limits operational flexibility when transcode output grows. The target behavior is a storage-aware backend that can choose from multiple admin-managed storage areas, while giving admins visibility into utilization and path health from the UI.
 
 Constraints and system realities:
+
 - Storage decisions happen in a transcode worker path that must remain robust under disk/path failures.
 - Segment playback URLs are stable API routes (`/stream/{id}/...`) and should remain independent of specific mount roots.
 - Existing admin settings and sidebar navigation patterns should be reused where possible.
@@ -11,6 +12,7 @@ Constraints and system realities:
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Introduce a normalized `storage_areas` model with enabled/disabled state and type (`segments`, `thumbnails`).
 - Select the transcode output area by maximum free raw bytes among eligible segment areas.
 - Enforce configurable reserve headroom (`storage_min_free_bytes`, default 20 GiB).
@@ -20,6 +22,7 @@ Constraints and system realities:
 - Ensure segment serving resolves from persisted media output location (`mpd_path`) rather than a global segments root.
 
 **Non-Goals:**
+
 - Automatic rebalancing/migration of already transcoded media between storage areas.
 - Multi-area thumbnail writing behavior (thumbnail writes remain single-area for this change).
 - Cross-host distributed placement or cluster-wide storage orchestration.
@@ -28,6 +31,7 @@ Constraints and system realities:
 ## Decisions
 
 1. Storage areas use a dedicated table, not settings JSON.
+
 - Decision: Add `storage_areas` table (`id`, `kind`, `path`, `enabled`, timestamps) and manage via dedicated APIs.
 - Rationale: Enables lifecycle actions and future metadata without overloading key/value settings.
 - Alternatives considered:
@@ -35,12 +39,14 @@ Constraints and system realities:
   - One table per kind: unnecessary duplication.
 
 2. Keep reserve headroom as a setting, not per-area property.
+
 - Decision: Add `storage_min_free_bytes` in settings with default `21474836480`.
 - Rationale: One global policy is easy to reason about and satisfy current requirement.
 - Alternatives considered:
   - Per-area reserve: more flexible but adds complexity and UI burden now.
 
 3. Eligibility-first then max-free selection for transcode output.
+
 - Decision: For each enabled `segments` area, require successful statfs, existing path, writable check, and `free_bytes > storage_min_free_bytes`; choose candidate with greatest free bytes.
 - Rationale: Matches requested semantics and safely avoids bad targets.
 - Alternatives considered:
@@ -48,6 +54,7 @@ Constraints and system realities:
   - Weighted round-robin: smoother spread but not required and less deterministic.
 
 4. Segment serving derives from media `mpd_path`.
+
 - Decision: Resolve segment file path relative to directory containing the persisted `mpd_path` for the media item.
 - Rationale: Playback correctness across multiple roots and future storage relocation flexibility.
 - Alternatives considered:
@@ -55,12 +62,14 @@ Constraints and system realities:
   - Persist separate `segments_root` column: redundant if `mpd_path` is authoritative.
 
 5. Storage management gets dedicated admin endpoints and page.
+
 - Decision: Add `/api/v1/admin/storage` surface for list/create/update/config and add `/admin/storage` page under Admin subnav.
 - Rationale: Separates operational storage concerns from generic settings editing; provides richer typed responses.
 - Alternatives considered:
   - Reuse generic `/admin/settings`: weak typing and poor fit for list-based resources.
 
 6. Bootstrap defaults through migrations/bootstrap path.
+
 - Decision: On bootstrap, ensure at least one default segments area (`/data/segments`) and one default thumbnails area (`/data/thumbs`) exist when table is empty.
 - Rationale: Predictable startup behavior and clean migration for fresh/test deployments.
 - Alternatives considered:
@@ -79,16 +88,20 @@ Constraints and system realities:
 1. Add migration creating `storage_areas` and any supporting index/constraints.
 2. Add/bootstrap `storage_min_free_bytes` default setting (`21474836480`).
 3. Seed default rows when absent:
+
 - `segments:/data/segments enabled=true`
 - `thumbnails:/data/thumbs enabled=true`
+
 4. Update runtime settings loading and admin APIs/UI to use new model.
 5. Update transcode worker placement and stream segment resolution.
 6. Rollout test plan:
+
 - Single-area baseline behavior remains valid.
 - Multi-area selection chooses largest free bytes.
 - Unavailable/unwritable/disabled/below-reserve areas are skipped.
 
 Rollback strategy (test deployments):
+
 - Revert binary and database to previous snapshot. Since this is explicitly breaking and test-only, no in-place compatibility downgrade path is required.
 
 ## Open Questions

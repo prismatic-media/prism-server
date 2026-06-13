@@ -11,13 +11,6 @@ import (
 	"github.com/ringmaster217/prism/internal/store/sqlite"
 )
 
-// seedItemForJob creates a library + media item and returns the item ID.
-func seedItemForJob(t *testing.T, db interface {
-	ExecContext(context.Context, string, ...any) (interface{}, error)
-}) uuid.UUID {
-	t.Helper()
-	return uuid.Nil // placeholder — we use the existing openTestDB + helpers
-}
 
 func TestCreateTranscodeJob(t *testing.T) {
 	db := openTestDB(t)

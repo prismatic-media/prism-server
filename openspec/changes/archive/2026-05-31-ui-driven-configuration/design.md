@@ -9,6 +9,7 @@ This design replaces all of that with a database-backed settings system and a br
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Eliminate `config.yaml` entirely
 - Store all runtime settings in the SQLite `settings` table, loaded at startup
 - Auto-generate and persist `jwt_secret` on first DB open — no user involvement
@@ -18,6 +19,7 @@ This design replaces all of that with a database-backed settings system and a br
 - Remove Viper as a dependency
 
 **Non-Goals:**
+
 - Per-user settings
 - Live/hot-reload of settings without restart
 - Settings history or audit log

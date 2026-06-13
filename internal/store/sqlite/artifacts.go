@@ -83,7 +83,7 @@ func ListArtifactRecordsByStorageArea(ctx context.Context, db *sql.DB, storageAr
 	if err != nil {
 		return nil, fmt.Errorf("listing artifact records: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.ArtifactRecord
 	for rows.Next() {
@@ -111,7 +111,7 @@ func ListArtifactRecordsByHealth(ctx context.Context, db *sql.DB, health models.
 	if err != nil {
 		return nil, fmt.Errorf("listing artifact records by health: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.ArtifactRecord
 	for rows.Next() {
@@ -139,7 +139,7 @@ func ListArtifactRecordsByFingerprint(ctx context.Context, db *sql.DB, fingerpri
 	if err != nil {
 		return nil, fmt.Errorf("listing artifact records by fingerprint: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.ArtifactRecord
 	for rows.Next() {
@@ -227,7 +227,7 @@ func GetArtifactMediaLinkByMedia(ctx context.Context, db *sql.DB, mediaItemID uu
 	if err != nil {
 		return nil, fmt.Errorf("listing artifact media links: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.ArtifactMediaLink
 	for rows.Next() {
@@ -270,7 +270,7 @@ func CountArtifactRecordsByHealth(ctx context.Context, db *sql.DB, storageAreaID
 	if err != nil {
 		return nil, fmt.Errorf("counting artifact records by health: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var counts []ArtifactHealthCount
 	for rows.Next() {
@@ -297,7 +297,7 @@ func CountArtifactsByStatus(ctx context.Context, db *sql.DB) (map[string]int, er
 	if err != nil {
 		return nil, fmt.Errorf("counting artifacts by status: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	counts := make(map[string]int)
 	for rows.Next() {
@@ -359,7 +359,7 @@ func GetArtifactsByMediaID(ctx context.Context, db *sql.DB, mediaItemID uuid.UUI
 	if err != nil {
 		return nil, fmt.Errorf("listing artifacts by media item: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.ArtifactRecord
 	for rows.Next() {
@@ -431,7 +431,7 @@ func GetUnmatchedArtifacts(ctx context.Context, db *sql.DB) ([]*models.ArtifactR
 	if err != nil {
 		return nil, fmt.Errorf("listing unmatched artifacts: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.ArtifactRecord
 	for rows.Next() {
@@ -459,7 +459,7 @@ func GetArtifactsWithoutFingerprint(ctx context.Context, db *sql.DB) ([]*models.
 	if err != nil {
 		return nil, fmt.Errorf("listing artifacts without fingerprint: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.ArtifactRecord
 	for rows.Next() {
@@ -490,7 +490,7 @@ func GetMediaItemsWithoutFingerprint(ctx context.Context, db *sql.DB) ([]*models
 	if err != nil {
 		return nil, fmt.Errorf("listing media items without fingerprint: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.MediaItem
 	for rows.Next() {
@@ -515,7 +515,7 @@ func CountArtifactsByStorageArea(ctx context.Context, db *sql.DB) (map[uuid.UUID
 	if err != nil {
 		return nil, fmt.Errorf("counting artifacts by storage area: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	counts := make(map[uuid.UUID]int)
 	for rows.Next() {

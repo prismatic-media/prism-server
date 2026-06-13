@@ -236,7 +236,7 @@ func runTranscodeCmd(ctx context.Context, ffmpegPath, dir string, args []string,
 		if pipeErr == nil {
 			cmd.Stderr = pw
 			go func() {
-				defer pr.Close()
+				defer func() { _ = pr.Close() }()
 				scanner := bufio.NewScanner(pr)
 				for scanner.Scan() {
 					line := scanner.Text()
@@ -249,7 +249,7 @@ func runTranscodeCmd(ctx context.Context, ffmpegPath, dir string, args []string,
 				}
 			}()
 			err := cmd.Run()
-			pw.Close()
+			_ = pw.Close()
 			if err != nil {
 				return fmt.Errorf("transcoding: %w — stderr: %s", err, stderr.String())
 			}

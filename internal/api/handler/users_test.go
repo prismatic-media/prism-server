@@ -24,7 +24,7 @@ func TestCreateUser_FirstUserBecomesAdmin(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp["is_admin"] != true {
 		t.Errorf("first user should be forced to admin, got is_admin = %v", resp["is_admin"])
 	}
@@ -119,7 +119,7 @@ func TestGetMe_Authenticated(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp["username"] != "frank" {
 		t.Errorf("username = %v, want frank", resp["username"])
 	}
@@ -153,7 +153,7 @@ func TestUpdateMe_ChangesUsername(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp["username"] != "grace2" {
 		t.Errorf("username = %v, want grace2", resp["username"])
 	}

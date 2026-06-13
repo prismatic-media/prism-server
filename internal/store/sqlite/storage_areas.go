@@ -19,7 +19,7 @@ func ListStorageAreas(ctx context.Context, db *sql.DB) ([]*models.StorageArea, e
 	if err != nil {
 		return nil, fmt.Errorf("listing storage areas: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.StorageArea
 	for rows.Next() {
@@ -50,7 +50,7 @@ func ListStorageAreasByKind(ctx context.Context, db *sql.DB, kind models.Storage
 	if err != nil {
 		return nil, fmt.Errorf("listing storage areas by kind: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.StorageArea
 	for rows.Next() {
@@ -115,20 +115,6 @@ func BootstrapStorageAreas(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func ensureDefaultStorageArea(ctx context.Context, db *sql.DB, kind models.StorageAreaKind, path string) error {
-	var count int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(1) FROM storage_areas WHERE kind = ?`, string(kind)).Scan(&count); err != nil {
-		return fmt.Errorf("checking default storage area for %s: %w", kind, err)
-	}
-	if count > 0 {
-		return nil
-	}
-	area := &models.StorageArea{Kind: kind, Path: path, Enabled: true}
-	if err := CreateStorageArea(ctx, db, area); err != nil {
-		return fmt.Errorf("creating default storage area for %s: %w", kind, err)
-	}
-	return nil
-}
 
 func scanStorageArea(row *sql.Row) (*models.StorageArea, error) {
 	var (

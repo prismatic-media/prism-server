@@ -12,6 +12,7 @@ The existing SQLite `transcode_jobs` table already persists job state (`pending`
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Replace the channel queue with DB-backed polling; make the DB the single source of truth for job ordering
 - Add numeric priority to jobs; `PrioritizeJob` bumps a job ahead of all others
 - Add crash recovery: jobs stuck in `processing` at startup are reset to `pending`
@@ -20,6 +21,7 @@ The existing SQLite `transcode_jobs` table already persists job state (`pending`
 - Add `transcode_poll_interval` setting controlling idle worker sleep (default 15s)
 
 **Non-Goals:**
+
 - Distributed / remote workers (future work; requires Postgres + `LISTEN/NOTIFY`)
 - Preempting or cancelling an in-progress transcode job
 - Per-library transcode policies
@@ -32,6 +34,7 @@ The existing SQLite `transcode_jobs` table already persists job state (`pending`
 **Chosen**: Remove `chan Job` entirely. Each worker runs a tight loop: claim the next highest-priority pending job via an atomic `UPDATE … RETURNING` statement, process it, then immediately loop back. If no job is found, the worker sleeps for `transcode_poll_interval` seconds before trying again.
 
 **Alternatives considered**:
+
 - `sync.Cond` for instant wakeup: adds complexity without meaningful benefit for a background transcoding queue. Millisecond dispatch latency is irrelevant here.
 - Buffered `chan struct{}` as a wake signal alongside polling: slightly better latency but more moving parts. Deferred — can always be added later without changing the queue semantics.
 
@@ -63,7 +66,7 @@ This is safe under SQLite's serialized write model — two workers cannot claim 
 
 ### Decision: Worker wake-up is polling only (no early signal)
 
-After `PrioritizeJob`, the job will be claimed at the next poll cycle after the current job finishes — up to `transcode_poll_interval` seconds. This is acceptable; the job is guaranteed to be *next*, just not *immediately* next.
+After `PrioritizeJob`, the job will be claimed at the next poll cycle after the current job finishes — up to `transcode_poll_interval` seconds. This is acceptable; the job is guaranteed to be _next_, just not _immediately_ next.
 
 If sub-second dispatch latency becomes important (e.g., interactive use), a buffered `chan struct{}` notify signal can be added without changing queue semantics.
 
@@ -88,12 +91,12 @@ New jobs are created with `priority = 0` (normal). Callers may subsequently `Pri
 
 ## Risks / Trade-offs
 
-| Risk | Mitigation |
-|---|---|
-| SQLite write contention under many workers | SQLite serializes writes; the atomic claim is a single short write. With the default 2 workers, contention is negligible. If worker count grows significantly, this is a signal to migrate to Postgres. |
-| Bulk enqueue of very large libraries creates many DB rows at once | Insert in a single transaction for atomicity and performance. The operation is bounded by library size; no streaming needed at current scale. |
-| Poll interval means up to 15s latency when queue drains | Acceptable for background transcoding. Configurable down to 1s if needed. |
-| Re-scan after restart re-fires `EventMediaCreated` for all files | Listener guards: skip if `TranscodeStatus != ""`. Already-queued, in-progress, done, and failed items are all ignored. |
+| Risk                                                              | Mitigation                                                                                                                                                                                              |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQLite write contention under many workers                        | SQLite serializes writes; the atomic claim is a single short write. With the default 2 workers, contention is negligible. If worker count grows significantly, this is a signal to migrate to Postgres. |
+| Bulk enqueue of very large libraries creates many DB rows at once | Insert in a single transaction for atomicity and performance. The operation is bounded by library size; no streaming needed at current scale.                                                           |
+| Poll interval means up to 15s latency when queue drains           | Acceptable for background transcoding. Configurable down to 1s if needed.                                                                                                                               |
+| Re-scan after restart re-fires `EventMediaCreated` for all files  | Listener guards: skip if `TranscodeStatus != ""`. Already-queued, in-progress, done, and failed items are all ignored.                                                                                  |
 
 ## Migration Plan
 

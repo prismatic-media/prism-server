@@ -108,7 +108,7 @@ func (c *Client) GetTVSeason(ctx context.Context, showTMDBID, seasonNumber int) 
 	if err != nil {
 		return nil, fmt.Errorf("TMDB request %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
 	}
@@ -153,7 +153,7 @@ func (c *Client) GetTVEpisode(ctx context.Context, showTMDBID, seasonNumber, epi
 	if err != nil {
 		return nil, fmt.Errorf("TMDB request %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
 	}
@@ -213,7 +213,7 @@ func (c *Client) DownloadPoster(ctx context.Context, posterPath, destDir string)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("TMDB image server: HTTP %d", resp.StatusCode)
@@ -226,7 +226,7 @@ func (c *Client) DownloadPoster(ctx context.Context, posterPath, destDir string)
 	if err != nil {
 		return "", fmt.Errorf("creating poster file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		return "", fmt.Errorf("writing poster: %w", err)
@@ -252,7 +252,7 @@ func (c *Client) search(ctx context.Context, path string, params url.Values, tit
 	if err != nil {
 		return nil, fmt.Errorf("TMDB request %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("TMDB: HTTP %d for %s", resp.StatusCode, path)
@@ -330,7 +330,7 @@ func (c *Client) GetMovieDetails(ctx context.Context, tmdbID int) (*TMDBMovieDet
 	if err != nil {
 		return nil, fmt.Errorf("TMDB movie details request %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
@@ -440,7 +440,7 @@ func (c *Client) GetTVDetails(ctx context.Context, tmdbID int) (*TMDBTVDetails, 
 	if err != nil {
 		return nil, fmt.Errorf("TMDB tv details request %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil

@@ -202,9 +202,10 @@ func TestPruneStaleMediaItems_PrunesStale(t *testing.T) {
 	// Find the items
 	var gotKeep, gotGoneWithBundle *models.MediaItem
 	for _, item := range items {
-		if item.FilePath == "/l/keep.mkv" {
+		switch item.FilePath {
+		case "/l/keep.mkv":
 			gotKeep = item
-		} else if item.FilePath == "/l/gone_with_bundle.mkv" {
+		case "/l/gone_with_bundle.mkv":
 			gotGoneWithBundle = item
 		}
 	}

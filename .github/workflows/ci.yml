@@ -2,11 +2,11 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -20,8 +20,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '26'
-          cache: 'npm'
+          node-version: "26"
+          cache: "npm"
           cache-dependency-path: web/package-lock.json
 
       - name: Install Dependencies
@@ -42,7 +42,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.3'
+          go-version: "1.26.3"
           cache: true
 
       - name: Run golangci-lint
@@ -62,8 +62,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '26'
-          cache: 'npm'
+          node-version: "26"
+          cache: "npm"
           cache-dependency-path: web/package-lock.json
 
       - name: Install Dependencies
@@ -96,7 +96,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.3'
+          go-version: "1.26.3"
           cache: true
 
       - name: Download Frontend Artifact

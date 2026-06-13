@@ -51,8 +51,8 @@ func TestValidateBundle(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a minimal segment file.
-	os.WriteFile(tmpDir+"/media_0.mp4", []byte("fake"), 0644)
-	os.WriteFile(tmpDir+"/manifest.mpd", []byte("<MPD/>"), 0644)
+	_ = os.WriteFile(tmpDir+"/media_0.mp4", []byte("fake"), 0644)
+	_ = os.WriteFile(tmpDir+"/manifest.mpd", []byte("<MPD/>"), 0644)
 
 	v, err := ValidateBundle(tmpDir)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestValidateBundle(t *testing.T) {
 	}
 
 	// Add sidecar.
-	WriteSidecar(tmpDir, &SidecarMetadata{MediaItemID: "test"})
+	_ = WriteSidecar(tmpDir, &SidecarMetadata{MediaItemID: "test"})
 	v, err = ValidateBundle(tmpDir)
 	if err != nil {
 		t.Fatalf("ValidateBundle after sidecar: %v", err)

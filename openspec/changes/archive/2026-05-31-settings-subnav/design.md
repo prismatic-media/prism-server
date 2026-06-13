@@ -5,10 +5,12 @@ The sidebar nav in `shell.component.ts` is a flat list of top-level links. Serve
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Add a "Server Settings" link to the sidebar, visually subordinate to "Admin"
 - Use existing `routerLinkActive` mechanics — no new state or logic needed
 
 **Non-Goals:**
+
 - Collapsible/expandable admin sub-menu
 - Role-based visibility (both Admin and Server Settings are already guarded at the route level)
 - Removing or changing the existing link in the admin panel header

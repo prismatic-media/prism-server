@@ -118,7 +118,7 @@ func (s *Scanner) Start(ctx context.Context) error {
 	s.mu.Lock()
 	s.watcher = w
 	s.mu.Unlock()
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	// Watch the root and all existing subdirectories.
 	if err := filepath.WalkDir(s.library.Path, func(path string, d fs.DirEntry, _ error) error {
@@ -155,7 +155,7 @@ func (s *Scanner) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.watcher != nil {
-		s.watcher.Close()
+		_ = s.watcher.Close()
 		s.watcher = nil
 	}
 }

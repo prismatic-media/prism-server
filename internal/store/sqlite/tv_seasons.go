@@ -64,7 +64,7 @@ func ListTVSeasons(ctx context.Context, db *sql.DB, showID uuid.UUID) ([]*models
 	if err != nil {
 		return nil, fmt.Errorf("listing tv seasons: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var seasons []*models.TVSeason
 	for rows.Next() {
@@ -92,7 +92,7 @@ func ListSeasonEpisodes(ctx context.Context, db *sql.DB, seasonID uuid.UUID) ([]
 	if err != nil {
 		return nil, fmt.Errorf("listing season episodes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.MediaItem
 	for rows.Next() {
@@ -105,7 +105,7 @@ func ListSeasonEpisodes(ctx context.Context, db *sql.DB, seasonID uuid.UUID) ([]
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	rows.Close() // Close rows to release the DB connection under SetMaxOpenConns(1)
+	_ = rows.Close() // Close rows to release the DB connection under SetMaxOpenConns(1)
 
 	for _, m := range items {
 		prog, err := GetMediaItemTranscodeProgress(ctx, db, m.ID)

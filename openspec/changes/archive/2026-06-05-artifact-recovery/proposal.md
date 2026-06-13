@@ -13,11 +13,13 @@ Transcoded artifacts are currently coupled to database state, so database loss o
 ## Capabilities
 
 ### New Capabilities
+
 - `artifact-indexing`: Discover and register transcode artifact bundles from enabled segment storage areas.
 - `artifact-metadata`: Persist and maintain artifact identity and health metadata independent of media row IDs.
 - `artifact-relinking`: Relink discovered artifacts to current media items using deterministic matching with safe ambiguity handling.
 
 ### Modified Capabilities
+
 - None.
 
 ## Impact

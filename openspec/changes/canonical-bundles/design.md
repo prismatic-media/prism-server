@@ -5,6 +5,7 @@ Prism Media Server currently treats the source video file and its database row a
 However, the sidecar contains only enough metadata to relink — not enough to reconstruct a media item. If the database is lost, TMDB enrichment data, TV hierarchy, and poster references are gone. If a source file is deleted, the scanner prunes the media item row entirely, even though the bundle is fully playable. And when the same source file appears at a new path (moved/renamed), the system treats it as a brand-new item and retranscodes.
 
 ### Current sidecar (v1)
+
 ```json
 {
   "v": 1,
@@ -20,14 +21,17 @@ However, the sidecar contains only enough metadata to relink — not enough to r
 ```
 
 ### Current scanner prune (scanner.go:84)
+
 ```go
 sqlite.DeleteMediaItemsNotIn(ctx, s.db, s.library.ID, paths)
 ```
+
 This unconditionally deletes any `media_items` row whose file is no longer on disk.
 
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Make the transcode bundle self-describing: the sidecar contains all metadata needed to reconstruct a `media_items` row, including TMDB enrichment and TV hierarchy
 - Allow media items to survive source file deletion when a bundle exists
 - Detect duplicate source files at scan time via fingerprint matching, avoiding redundant transcodes
@@ -35,6 +39,7 @@ This unconditionally deletes any `media_items` row whose file is no longer on di
 - Enable the indexer to create `media_items` rows from bundle sidecar metadata alone
 
 **Non-Goals:**
+
 - Shared bundles across libraries (each library's copy gets independent bundles)
 - Automatic startup indexing (indexing remains admin-invoked)
 - Heuristic/fuzzy matching for discovery deduplication (fingerprint-exact only)
@@ -100,6 +105,7 @@ This unconditionally deletes any `media_items` row whose file is no longer on di
 **Rationale**: Ensures the sidecar stays in sync with the DB for the metadata that matters most (TMDB enrichment). Without this, a sidecar written at transcode time before enrichment completes would have empty TMDB fields.
 
 **Update flow**:
+
 ```
 Enricher.EnrichItem()
   ├── Search TMDB → get metadata
@@ -126,6 +132,7 @@ Enricher.EnrichItem()
 ### 5. Source and bundle status tracking on media_items
 
 **Decision**: Add two columns to `media_items`:
+
 - `source_status TEXT CHECK(source_status IN ('available', 'missing')) DEFAULT 'available'`
 - `bundle_status TEXT CHECK(bundle_status IN ('none', 'available', 'missing')) DEFAULT 'none'`
 
@@ -136,6 +143,7 @@ Enricher.EnrichItem()
 ### 6. Scanner prune logic: respect bundle-backed items
 
 **Decision**: Replace `DeleteMediaItemsNotIn()` with a two-phase prune:
+
 1. For items NOT in the found set AND `bundle_status = 'none'`: delete the row (current behavior)
 2. For items NOT in the found set AND `bundle_status IN ('available', 'missing')`: set `source_status = 'missing'` instead
 
@@ -146,6 +154,7 @@ Similarly, the fsnotify Remove/Rename handler changes from `DeleteMediaItem()` t
 ### 7. Scanner fingerprint-based deduplication at discovery time
 
 **Decision**: At scan time, after FFprobe, compute the source fingerprint. Before upserting, check:
+
 1. **Same library, same fingerprint, different path**: This is a file move/rename. Update the existing row's `file_path` and `source_status = 'available'`. Do not fire `EventMediaCreated` or enqueue a transcode.
 2. **Same library, same fingerprint, existing bundle**: The source file matches an existing bundle. Link the item, set `bundle_status = 'available'`, `transcode_status = 'done'`, assign `mpd_path`. Do not enqueue a transcode.
 3. **No fingerprint match**: Create a new row as today.
@@ -157,6 +166,7 @@ Similarly, the fsnotify Remove/Rename handler changes from `DeleteMediaItem()` t
 ### 8. Indexer as media item creator
 
 **Decision**: When the indexer discovers a v2 sidecar with no matching `media_items` row (by fingerprint), it creates a new `media_items` row from the sidecar metadata:
+
 - `source_status = 'missing'` (no source file verified yet)
 - `bundle_status = 'available'`
 - `transcode_status = 'done'`
