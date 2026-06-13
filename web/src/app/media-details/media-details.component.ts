@@ -382,6 +382,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     const previewItem = {
       ...ep,
       tv_show_title: this.tvShow?.name,
+      backdrop_path: this.tvShow?.backdrop_path,
       media_type: 'episode'
     };
     this.castService.showPreview(previewItem);

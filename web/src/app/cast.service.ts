@@ -524,11 +524,23 @@ export class CastService {
         posterUrl = 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
       }
 
+      let backdropUrl = '';
+      if (mediaItem.backdrop_path) {
+        if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
+          backdropUrl = `${window.location.origin}/api/v1/media/${mediaItem.id}/backdrop`;
+        } else {
+          backdropUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/backdrop`;
+        }
+      } else {
+        backdropUrl = posterUrl;
+      }
+
       const message = {
         type: 'SHOW_PREVIEW',
         title,
         subtitle,
         posterUrl,
+        backdropUrl,
       };
 
       session.sendMessage('urn:x-cast:com.prism.metadata', message).then(
