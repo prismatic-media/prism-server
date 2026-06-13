@@ -8,12 +8,13 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subject, Subscription, of } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { AuthService } from '../auth.service';
+import { CastService } from '../cast.service';
 
 @Component({
   selector: 'app-layout',
@@ -24,9 +25,11 @@ import { AuthService } from '../auth.service';
 })
 export class LayoutComponent implements OnInit, OnDestroy {
   public authService = inject(AuthService);
+  public castService = inject(CastService);
   private http = inject(HttpClient);
   private elementRef = inject(ElementRef);
   private cdr = inject(ChangeDetectorRef);
+  private router = inject(Router);
 
   userDropdownOpen = false;
 
@@ -167,5 +170,91 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   logout(): void {
     this.authService.logout();
+  }
+
+  // --- Chromecast Control Wrappers ---
+
+  playCast(): void {
+    this.castService.play();
+  }
+
+  pauseCast(): void {
+    this.castService.pause();
+  }
+
+  toggleCastPlay(): void {
+    if (this.castService.isPlaying$.value) {
+      this.castService.pause();
+    } else {
+      this.castService.play();
+    }
+  }
+
+  replayCast10s(): void {
+    const current = this.castService.currentTime$.value;
+    this.castService.seek(Math.max(0, current - 10));
+  }
+
+  forwardCast30s(): void {
+    const current = this.castService.currentTime$.value;
+    const duration = this.castService.duration$.value || 0;
+    this.castService.seek(Math.min(duration, current + 30));
+  }
+
+  onCastVolumeChange(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const val = parseInt(target.value, 10);
+    this.castService.setVolume(val);
+  }
+
+  toggleCastMute(): void {
+    this.castService.setMute(!this.castService.isMuted$.value);
+  }
+
+  disconnectCast(): void {
+    this.castService.disconnect();
+  }
+
+  onCastTimelineChange(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const val = parseFloat(target.value);
+    this.castService.seek(val);
+  }
+
+  formatCastTime(seconds: number): string {
+    if (isNaN(seconds) || seconds === Infinity || seconds < 0) return '00:00';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    if (hrs > 0) {
+      return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+    }
+    return `${pad(mins)}:${pad(secs)}`;
+  }
+
+  getCastPosterUrl(mediaItem: any): string {
+    if (mediaItem && mediaItem.poster_path) {
+      if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
+        return `/api/v1/media/${mediaItem.id}/poster`;
+      } else {
+        return `/api/v1/tv/shows/${mediaItem.id}/poster`;
+      }
+    }
+    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+  }
+
+  getCastProgressPercent(current: number | null, duration: number | null): number {
+    const curVal = current || 0;
+    const durVal = duration || 0;
+    if (durVal <= 0) return 0;
+    return (curVal / durVal) * 100;
+  }
+
+  goToActiveCastPlayer(): void {
+    const media = this.castService.currentMedia$.value;
+    if (media && media.id) {
+      this.router.navigate(['/watch', media.id]);
+    }
   }
 }

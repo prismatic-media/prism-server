@@ -124,8 +124,13 @@
       <button class="action-btn" title="Notifications">
         <span class="material-symbols-outlined">notifications</span>
       </button>
-      <button class="action-btn" title="Now Playing">
-        <span class="material-symbols-outlined">play_circle</span>
+      <button 
+        class="action-btn active-casting-btn" 
+        *ngIf="castService.isConnected$ | async" 
+        (click)="goToActiveCastPlayer()" 
+        title="Now Playing"
+      >
+        <span class="material-symbols-outlined pulsing-icon">play_circle</span>
       </button>
     </div>
 
@@ -166,7 +171,96 @@
   ></div>
 
   <!-- Active Route Outlet -->
-  <div class="content-container">
+  <div class="content-container" [class.with-playbar]="(castService.isConnected$ | async) && (castService.currentMedia$ | async)">
     <router-outlet></router-outlet>
   </div>
 </main>
+
+<!-- Sticky Now Playing Bottom Playbar -->
+<div 
+  class="now-playing-bar frosted-glass active-playbar" 
+  *ngIf="(castService.isConnected$ | async) && (castService.currentMedia$ | async) as media"
+>
+  <!-- Left Column: Poster & Metadata -->
+  <div class="bar-metadata">
+    <img [src]="getCastPosterUrl(media)" class="bar-poster" alt="Poster" />
+    <div class="bar-titles">
+      <h4 class="bar-title">{{ media.title }}</h4>
+      <p class="bar-subtitle">
+        <span *ngIf="media.media_type === 'episode' && media.tv_show_title">{{ media.tv_show_title }} — </span>
+        <span>Casting to {{ castService.deviceName$ | async }}</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Center Column: Controls & Timeline -->
+  <div class="bar-controls-container">
+    <div class="bar-buttons">
+      <!-- Replay 10s -->
+      <button class="bar-control-btn" (click)="replayCast10s()" title="Back 10s">
+        <span class="material-symbols-outlined">replay_10</span>
+      </button>
+
+      <!-- Play/Pause Toggle -->
+      <button 
+        class="bar-play-btn" 
+        (click)="toggleCastPlay()"
+        [title]="(castService.isPlaying$ | async) ? 'Pause' : 'Play'"
+      >
+        <span class="material-symbols-outlined fill-icon text-2xl">
+          {{ (castService.isPlaying$ | async) ? 'pause' : 'play_arrow' }}
+        </span>
+      </button>
+
+      <!-- Forward 30s -->
+      <button class="bar-control-btn" (click)="forwardCast30s()" title="Forward 30s">
+        <span class="material-symbols-outlined">forward_30</span>
+      </button>
+    </div>
+
+    <!-- Timeline Slider -->
+    <div class="bar-timeline">
+      <span class="time-label">{{ formatCastTime((castService.currentTime$ | async) || 0) }}</span>
+      <div class="bar-slider-wrapper">
+        <input 
+          type="range" 
+          min="0" 
+          [max]="(castService.duration$ | async) || 0" 
+          [value]="(castService.currentTime$ | async) || 0" 
+          (input)="onCastTimelineChange($event)"
+          class="bar-timeline-slider"
+        />
+        <div 
+          class="bar-progress-track"
+          [style.width.%]="getCastProgressPercent(castService.currentTime$ | async, castService.duration$ | async)"
+        ></div>
+      </div>
+      <span class="time-label">{{ formatCastTime((castService.duration$ | async) || 0) }}</span>
+    </div>
+  </div>
+
+  <!-- Right Column: Volume & Disconnect -->
+  <div class="bar-actions">
+    <div class="bar-volume-container">
+      <button class="bar-control-btn" (click)="toggleCastMute()" title="Mute/Unmute">
+        <span class="material-symbols-outlined">
+          {{ (castService.isMuted$ | async) || (castService.volume$ | async) === 0 ? 'volume_off' : ((castService.volume$ | async) || 0) < 50 ? 'volume_down' : 'volume_up' }}
+        </span>
+      </button>
+      <input 
+        type="range" 
+        min="0" 
+        max="100" 
+        [value]="(castService.isMuted$ | async) ? 0 : ((castService.volume$ | async) || 0)" 
+        (input)="onCastVolumeChange($event)"
+        class="bar-volume-slider"
+      />
+    </div>
+
+    <div class="bar-divider"></div>
+
+    <button class="bar-control-btn btn-disconnect" (click)="disconnectCast()" title="Disconnect Chromecast">
+      <span class="material-symbols-outlined text-error">tv_off</span>
+    </button>
+  </div>
+</div>

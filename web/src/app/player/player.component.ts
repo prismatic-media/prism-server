@@ -11,8 +11,10 @@ import {
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { Subscription } from 'rxjs';
 import * as dashjs from 'dashjs';
 import { AuthService } from '../auth.service';
+import { CastService } from '../cast.service';
 
 interface MediaItem {
   id: string;
@@ -52,6 +54,9 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   private cdr = inject(ChangeDetectorRef);
   private authService = inject(AuthService);
   private location = inject(Location);
+  public castService = inject(CastService);
+
+  private castSubs: Subscription[] = [];
 
   @ViewChild('videoPlayer') videoElement!: ElementRef<HTMLVideoElement>;
 
@@ -125,6 +130,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.loadMedia();
     this.resetControlsTimer();
+    this.setupCastSubscriptions();
   }
 
   ngAfterViewInit(): void {
@@ -145,6 +151,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     }
     this.isStreamInitialized = false;
     this.resumePosition = null;
+    this.castSubs.forEach((s) => s.unsubscribe());
   }
 
   loadMedia(): void {
@@ -311,6 +318,14 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   togglePlay(): void {
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      if (this.isPlaying) {
+        this.castService.pause();
+      } else {
+        this.castService.play();
+      }
+      return;
+    }
     if (!this.player) return;
     if (this.isPlaying) {
       this.player.pause();
@@ -320,12 +335,23 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   replay10s(): void {
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      const current = this.castService.currentTime$.value;
+      this.castService.seek(Math.max(0, current - 10));
+      return;
+    }
     if (!this.player) return;
     const current = this.player.time();
     this.player.seek(Math.max(0, current - 10));
   }
 
   forward30s(): void {
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      const current = this.castService.currentTime$.value;
+      const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
+      this.castService.seek(Math.min(duration, current + 30));
+      return;
+    }
     if (!this.player) return;
     const current = this.player.time();
     const duration = this.player.duration();
@@ -333,6 +359,25 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   seek(event: MouseEvent): void {
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      let rect = this.timelineRect;
+      if (!rect) {
+        let target = event.target as HTMLElement;
+        while (target && !target.classList.contains('timeline-slider')) {
+          target = target.parentElement as HTMLElement;
+        }
+        if (target) {
+          rect = target.getBoundingClientRect();
+        }
+      }
+      if (!rect) return;
+      const x = event.clientX - rect.left;
+      const width = rect.width;
+      const percentage = Math.max(0, Math.min(1, x / width));
+      const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
+      this.castService.seek(percentage * duration);
+      return;
+    }
     if (!this.player || !this.videoElement) return;
 
     let rect = this.timelineRect;
@@ -381,6 +426,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   toggleMute(): void {
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      this.castService.setMute(!this.isMuted);
+      return;
+    }
     if (!this.videoElement) return;
     const videoEl = this.videoElement.nativeElement;
     videoEl.muted = !videoEl.muted;
@@ -391,6 +440,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     const target = event.target as HTMLInputElement;
     const val = parseInt(target.value, 10);
     this.volume = val;
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      this.castService.setVolume(val);
+      return;
+    }
     if (this.player) {
       this.player.setVolume(val / 100);
     }
@@ -575,6 +628,9 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private saveHistory(force = false): void {
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      return; // Handled by CastService background timer
+    }
     if (!this.player || !this.mediaItem) return;
 
     const current = this.player.time();
@@ -605,6 +661,98 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
             console.error('Failed to save watch history:', err);
           },
         });
+    }
+  }
+
+  // --- Chromecast Handlers ---
+
+  setupCastSubscriptions(): void {
+    this.castSubs.push(
+      this.castService.isConnected$.subscribe((connected) => {
+        if (connected && this.castService.currentMedia$.value?.id === this.mediaId) {
+          if (this.player && this.isPlaying) {
+            this.player.pause();
+          }
+          this.isPlaying = this.castService.isPlaying$.value;
+        } else if (!connected && this.isPlaying && this.isStreamInitialized) {
+          // If we disconnected while on this page, seek the local player to the cast's last time and play
+          const lastTime = this.castService.currentTime$.value;
+          if (lastTime > 0) {
+            this.player?.seek(lastTime);
+            this.player?.play();
+          }
+        }
+        this.cdr.detectChanges();
+      })
+    );
+
+    this.castSubs.push(
+      this.castService.isPlaying$.subscribe((playing) => {
+        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+          this.isPlaying = playing;
+          this.cdr.detectChanges();
+        }
+      })
+    );
+
+    this.castSubs.push(
+      this.castService.currentTime$.subscribe((time) => {
+        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+          this.currentTimeStr = this.formatTime(time);
+          const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
+          this.totalTimeStr = this.formatTime(duration);
+          if (duration > 0) {
+            this.progressPercent = (time / duration) * 100;
+          }
+          this.cdr.detectChanges();
+        }
+      })
+    );
+
+    this.castSubs.push(
+      this.castService.duration$.subscribe((dur) => {
+        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId && dur > 0) {
+          this.totalTimeStr = this.formatTime(dur);
+          const time = this.castService.currentTime$.value;
+          this.progressPercent = (time / dur) * 100;
+          this.cdr.detectChanges();
+        }
+      })
+    );
+
+    this.castSubs.push(
+      this.castService.volume$.subscribe((vol) => {
+        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+          this.volume = vol;
+          this.cdr.detectChanges();
+        }
+      })
+    );
+
+    this.castSubs.push(
+      this.castService.isMuted$.subscribe((muted) => {
+        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+          this.isMuted = muted;
+          this.cdr.detectChanges();
+        }
+      })
+    );
+  }
+
+  startCast(): void {
+    if (!this.mediaItem) return;
+    const currentPosition = this.player ? this.player.time() : 0;
+    if (this.player) {
+      this.player.pause();
+    }
+    this.castService.startCasting(this.mediaItem, currentPosition);
+  }
+
+  toggleCast(): void {
+    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      this.castService.disconnect();
+    } else {
+      this.startCast();
     }
   }
 

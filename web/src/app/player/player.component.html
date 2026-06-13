@@ -33,12 +33,24 @@
   <!-- Video Canvas -->
   <div
     class="video-wrapper"
-    *ngIf="!loading && !error"
+    *ngIf="!loading && !error && !((castService.isConnected$ | async) && (castService.currentMedia$ | async)?.id === mediaId)"
     [class.mode-fit]="aspectRatioMode === 'fit'"
     [class.mode-fill]="aspectRatioMode === 'fill'"
     [class.mode-stretch]="aspectRatioMode === 'stretch'"
   >
     <video #videoPlayer playsinline class="video-element"></video>
+  </div>
+
+  <!-- Casting Screen (Visible when Chromecast is active for this item) -->
+  <div
+    class="casting-screen-container"
+    *ngIf="!loading && !error && (castService.isConnected$ | async) && (castService.currentMedia$ | async)?.id === mediaId"
+  >
+    <div class="casting-details text-center">
+      <span class="material-symbols-outlined casting-icon-large">cast</span>
+      <h2 class="font-headline-lg text-primary mt-6">Playing on Chromecast</h2>
+      <p class="text-on-surface-variant mt-2">Streaming to {{ castService.deviceName$ | async }}</p>
+    </div>
   </div>
 
   <!-- Big Play Overlay Trigger (Visible when controls are shown and playback is paused) -->
@@ -131,6 +143,19 @@
             <span
               class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors"
               >audiotrack</span
+            >
+          </button>
+          <!-- Cast Toggle -->
+          <button
+            class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group"
+            [class.active-track]="(castService.isConnected$ | async) && (castService.currentMedia$ | async)?.id === mediaId"
+            (click)="toggleCast()"
+            title="Cast to Device"
+          >
+            <span
+              class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors"
+              [class.active-casting-btn]="(castService.isConnected$ | async) && (castService.currentMedia$ | async)?.id === mediaId"
+              >{{ (castService.isConnected$ | async) && (castService.currentMedia$ | async)?.id === mediaId ? 'cast_connected' : 'cast' }}</span
             >
           </button>
           <!-- Telemetry Toggle -->

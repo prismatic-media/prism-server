@@ -456,3 +456,256 @@
   overflow: hidden;
   line-height: 1.4;
 }
+
+/* --- Now Playing Bottom Bar --- */
+.now-playing-bar {
+  position: fixed;
+  bottom: 0;
+  left: 260px; /* Aligned with sidebar */
+  width: calc(100% - 260px);
+  height: 90px;
+  background: rgba(20, 28, 29, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 1000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 var(--spacing-gutter);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Adjust content container height when playbar is present */
+.content-container.with-playbar {
+  height: calc(100vh - 64px - 90px);
+}
+
+.bar-metadata {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 25%;
+  min-width: 200px;
+}
+
+.bar-poster {
+  width: 48px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--rounded-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.bar-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bar-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-subtitle {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bar-controls-container {
+  flex: 1;
+  max-width: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.bar-control-btn {
+  background: transparent;
+  border: none;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.bar-control-btn:hover {
+  color: var(--surface-tint);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bar-control-btn:active {
+  transform: scale(0.95);
+}
+
+.bar-play-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-tint);
+  color: var(--on-primary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(0, 219, 233, 0.3);
+  transition: all 0.2s ease;
+}
+
+.bar-play-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 24px rgba(0, 219, 233, 0.5);
+}
+
+.bar-play-btn:active {
+  transform: scale(0.95);
+}
+
+.bar-timeline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.time-label {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--on-surface-variant);
+  opacity: 0.8;
+  min-width: 35px;
+}
+
+.bar-slider-wrapper {
+  position: relative;
+  flex: 1;
+  height: 12px; /* Thicker touch/drag zone */
+  display: flex;
+  align-items: center;
+}
+
+.bar-timeline-slider {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--surface-tint);
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.3s;
+}
+
+.bar-timeline-slider:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.bar-progress-track {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  background: var(--surface-tint);
+  border-radius: var(--rounded-full);
+  box-shadow: 0 0 8px rgba(0, 219, 233, 0.4);
+  z-index: 1;
+  pointer-events: none;
+  display: none; /* Let accent-color handle the track naturally or we can style with CSS */
+}
+
+/* Volume and Actions */
+.bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: flex-end;
+  min-width: 200px;
+}
+
+.bar-volume-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-volume-slider {
+  width: 80px;
+  height: 4px;
+  cursor: pointer;
+  accent-color: var(--surface-tint);
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+}
+
+.bar-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-disconnect:hover {
+  color: var(--error) !important;
+  background: rgba(244, 67, 54, 0.1) !important;
+}
+
+/* Pulsing Cast Icon */
+.active-casting-btn {
+  color: var(--surface-tint) !important;
+}
+
+.pulsing-icon {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+  }
+}
+
