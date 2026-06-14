@@ -102,6 +102,9 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   private resumePosition: number | null = null;
   private isStreamInitialized = false;
 
+  // Flag to prevent double-casting when startCast() is in progress
+  castPending = false;
+
   // UI Visibility timers (for auto-hiding controls)
   controlsVisible = true;
   private controlsTimer: any = null;
@@ -679,12 +682,20 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
       this.castService.isConnected$.subscribe((connected) => {
         if (connected) {
           if (this.castService.currentMedia$.value?.id === this.mediaId) {
+            this.castPending = false;
             if (this.player && this.isPlaying) {
               this.player.pause();
             }
             this.isPlaying = this.castService.isPlaying$.value;
+          } else if (this.castPending) {
+            // Cast already being initiated by startCast() — just pause local
+            // and let the pending loadMedia handle it (avoid double-load).
+            if (this.player && this.isPlaying) {
+              this.player.pause();
+            }
           } else if (this.mediaItem) {
-            // If connected but casting another item, auto-start casting this item
+            // Connected externally (e.g. via Cast button in browser chrome)
+            // while this player is open — auto-start casting this item.
             const currentPosition = this.player ? this.player.time() : 0;
             if (this.player) {
               this.player.pause();
@@ -692,6 +703,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
             this.castService.startCasting(this.mediaItem, currentPosition);
           }
         } else if (!connected && this.player) {
+          this.castPending = false;
           // Disconnected while on the player page — resume local playback
           // at the position the cast was at (preserved by CastService before
           // it cleared its BehaviorSubjects).
@@ -766,11 +778,16 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.player) {
       this.player.pause();
     }
+    this.castPending = true;
     this.castService.startCasting(this.mediaItem, currentPosition);
   }
 
   toggleCast(): void {
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castPending ||
+      (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId)
+    ) {
+      this.castPending = false;
       this.castService.disconnect();
     } else {
       this.startCast();
