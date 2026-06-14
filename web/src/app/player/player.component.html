@@ -33,7 +33,7 @@
   <!-- Video Canvas -->
   <div
     class="video-wrapper"
-    *ngIf="!loading && !error && !((castService.isConnected$ | async) && (castService.currentMedia$ | async)?.id === mediaId)"
+    [style.display]="(!loading && !error && !((castService.isConnected$ | async) && (castService.currentMedia$ | async)?.id === mediaId)) ? '' : 'none'"
     [class.mode-fit]="aspectRatioMode === 'fit'"
     [class.mode-fill]="aspectRatioMode === 'fill'"
     [class.mode-stretch]="aspectRatioMode === 'stretch'"
