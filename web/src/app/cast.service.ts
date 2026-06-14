@@ -57,6 +57,14 @@ export class CastService {
           }
         };
 
+        // If Cast SDK is already loaded (e.g. from cache or on hot reload), initialize immediately
+        const cast = (window as any).cast;
+        const chrome = (window as any).chrome;
+        if (cast && cast.framework && chrome && chrome.cast) {
+          this.initializeCastContext(appId);
+          return;
+        }
+
         // 3. Inject Cast Sender API script if not already present
         if (!document.getElementById('cast-sender-script')) {
           const script = document.createElement('script');
@@ -86,7 +94,7 @@ export class CastService {
       context.setOptions({
         receiverApplicationId: appId,
         autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
-        androidReceiverCompatible: true,
+        androidReceiverCompatible: false, // Must be false for custom Web Receivers (without native ATV app package)
       });
 
       this.castContext = context;
