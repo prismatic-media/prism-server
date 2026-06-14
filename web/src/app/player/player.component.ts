@@ -711,7 +711,11 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
           if (lastPos && lastPos.time > 0) {
             this.player.seek(lastPos.time);
           }
-          this.player.play();
+          if (lastPos && !lastPos.isPlaying) {
+            this.player.pause();
+          } else {
+            this.player.play();
+          }
         }
         this.cdr.detectChanges();
       })

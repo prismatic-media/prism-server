@@ -31,6 +31,7 @@ export class CastService {
   private lastCastDuration = 0;
   private lastCastMediaId: string | null = null;
   private lastCastMediaItem: any = null;
+  private lastCastWasPlaying = false;
 
   // Watch history tracking
   private historyIntervalId: any = null;
@@ -155,6 +156,7 @@ export class CastService {
               this.lastCastMediaId = media.id;
               this.lastCastMediaItem = media;
             }
+            this.lastCastWasPlaying = this.isPlaying$.value;
 
             // Save final history position before disconnect
             this.saveHistory(true);
@@ -194,6 +196,9 @@ export class CastService {
             playerState === chrome.cast.media.PlayerState.PLAYING ||
             playerState === chrome.cast.media.PlayerState.BUFFERING;
           this.isPlaying$.next(isPlaying);
+          if (this.remotePlayer.isConnected) {
+            this.lastCastWasPlaying = isPlaying;
+          }
 
           if (isPlaying) {
             this.startHistoryTimer();
@@ -316,6 +321,7 @@ export class CastService {
       if (this.remotePlayer.duration > 0) {
         this.lastCastDuration = this.remotePlayer.duration;
       }
+      this.lastCastWasPlaying = isPlaying;
 
       if (isPlaying) {
         this.startHistoryTimer();
@@ -427,6 +433,7 @@ export class CastService {
           this.lastCastDuration = mediaItem.duration || 0;
           this.lastCastMediaId = mediaItem.id;
           this.lastCastMediaItem = mediaItem;
+          this.lastCastWasPlaying = true;
 
           session.loadMedia(loadRequest).then(
             () => {
@@ -489,14 +496,19 @@ export class CastService {
    * This allows the player component to resume local playback at the
    * correct position instead of starting from the beginning.
    */
-  public getLastCastPosition(mediaId: string): { time: number; duration: number } | null {
+  public getLastCastPosition(mediaId: string): { time: number; duration: number; isPlaying: boolean } | null {
     if (this.lastCastMediaId === mediaId && this.lastCastTime > 0) {
-      const result = { time: this.lastCastTime, duration: this.lastCastDuration };
+      const result = {
+        time: this.lastCastTime,
+        duration: this.lastCastDuration,
+        isPlaying: this.lastCastWasPlaying,
+      };
       // Clear after reading to avoid stale reuse
       this.lastCastTime = 0;
       this.lastCastDuration = 0;
       this.lastCastMediaId = null;
       this.lastCastMediaItem = null;
+      this.lastCastWasPlaying = false;
       return result;
     }
     return null;
