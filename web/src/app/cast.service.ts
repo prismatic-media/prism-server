@@ -165,7 +165,7 @@ export class CastService {
             if (session) {
               const device = session.getCastDevice();
               this.deviceName$.next(device ? device.friendlyName : 'Chromecast');
-              
+
               // If connected and nothing is actively playing, push active preview
               if (this.currentPreviewItem && !this.currentMedia$.value) {
                 this.showPreview(this.currentPreviewItem);
