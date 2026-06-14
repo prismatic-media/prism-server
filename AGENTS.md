@@ -100,3 +100,49 @@ You can use these credentials to log in on the login page (`/login`) once the se
   make clean
   make reset
   ```
+
+---
+
+## 4. API Documentation & Swagger Annotations
+
+Prism dynamically generates its OpenAPI/Swagger specification from annotations directly in the Go handler source code.
+
+### Tooling
+
+We use [swaggo/swag](https://github.com/swaggo/swag) to parse code comments and generate spec files.
+
+* **Generate Spec**:
+  ```bash
+  make swagger
+  ```
+  This command executes:
+  ```bash
+  go run github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o internal/api/handler/docs
+  ```
+  *Note*: Spec files are generated inside `internal/api/handler/docs/` (`swagger.yaml`, `swagger.json`, and `docs.go`). These files are embedded at compile-time and served via the `/docs` UI page and `/api/v1/swagger.yaml` endpoints.
+
+### Annotation Rules & Requirements
+
+When creating new endpoints or modifying existing ones, you **must** document them using the following rules:
+
+1. **Global Configuration**: Global details (title, version, base path) and security schemas are configured in `cmd/server/main.go`.
+2. **Security Definitions**:
+   * Use `@Security BearerAuth` for admin/user endpoints requiring a JWT access token in the `Authorization` header.
+   * Use `@Security WorkerAuth` for transcode worker endpoints requiring the `X-Worker-API-Key` header.
+3. **Handler Comment Format**: Every handler function must be preceded by a comment block containing:
+   ```go
+   // @Summary [Short Title]
+   // @Description [Detailed description of the endpoint behavior]
+   // @Tags [Group name, e.g. User Profile, Media Streaming, Worker Interface]
+   // @Security [BearerAuth or WorkerAuth (optional)]
+   // @Accept json (optional)
+   // @Produce json
+   // @Param [name] [paramType] [dataType] [required] "[description]" [attributes]
+   // @Success [code] {[schemaType]} [dataType] "[description]"
+   // @Failure [code] {[schemaType]} [dataType] "[description]"
+   // @Router /[path] [method]
+   ```
+4. **Model Schemas**:
+   * Always reference precise model definitions from `internal/models/models.go` (e.g. `{object} models.User`, `{array} models.TranscodeJob`) so fields and types are accurately documented.
+   * Avoid defining request/response structures inline inside handler functions, as the generator cannot parse function-scoped structs. Instead, define them at the package level.
+5. **Path & Query Parameters**: Ensure path variables match Chi router patterns exactly (e.g. `/tv/shows/{id}` maps to `@Param id path string true "Show ID" format(uuid)`).
