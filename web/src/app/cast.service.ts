@@ -30,6 +30,7 @@ export class CastService {
   private lastCastTime = 0;
   private lastCastDuration = 0;
   private lastCastMediaId: string | null = null;
+  private lastCastMediaItem: any = null;
 
   // Watch history tracking
   private historyIntervalId: any = null;
@@ -143,10 +144,17 @@ export class CastService {
           if (!connected) {
             // Snapshot the current playback position before clearing state
             // so the player component can resume local playback from here
-            this.lastCastTime = this.currentTime$.value;
-            this.lastCastDuration = this.duration$.value;
+            if (this.currentTime$.value > 0) {
+              this.lastCastTime = this.currentTime$.value;
+            }
+            if (this.duration$.value > 0) {
+              this.lastCastDuration = this.duration$.value;
+            }
             const media = this.currentMedia$.value;
-            this.lastCastMediaId = media?.id || null;
+            if (media && media.id) {
+              this.lastCastMediaId = media.id;
+              this.lastCastMediaItem = media;
+            }
 
             // Save final history position before disconnect
             this.saveHistory(true);
@@ -203,7 +211,11 @@ export class CastService {
       events.CURRENT_TIME_CHANGED,
       () => {
         this.zone.run(() => {
-          this.currentTime$.next(this.remotePlayer.currentTime);
+          const time = this.remotePlayer.currentTime;
+          this.currentTime$.next(time);
+          if (this.remotePlayer.isConnected && time > 0) {
+            this.lastCastTime = time;
+          }
         });
       }
     );
@@ -213,7 +225,11 @@ export class CastService {
       events.DURATION_CHANGED,
       () => {
         this.zone.run(() => {
-          this.duration$.next(this.remotePlayer.duration);
+          const duration = this.remotePlayer.duration;
+          this.duration$.next(duration);
+          if (this.remotePlayer.isConnected && duration > 0) {
+            this.lastCastDuration = duration;
+          }
         });
       }
     );
@@ -246,7 +262,10 @@ export class CastService {
           const mediaInfo = this.remotePlayer.mediaInfo;
           if (mediaInfo) {
             if (mediaInfo.customData && mediaInfo.customData.mediaItem) {
-              this.currentMedia$.next(mediaInfo.customData.mediaItem);
+              const mediaItem = mediaInfo.customData.mediaItem;
+              this.currentMedia$.next(mediaItem);
+              this.lastCastMediaId = mediaItem.id;
+              this.lastCastMediaItem = mediaItem;
             } else if (mediaInfo.metadata && mediaInfo.metadata.title) {
               const metadata = mediaInfo.metadata;
               this.currentMedia$.next({
@@ -277,7 +296,10 @@ export class CastService {
       }
       const mediaInfo = this.remotePlayer.mediaInfo;
       if (mediaInfo && mediaInfo.customData && mediaInfo.customData.mediaItem) {
-        this.currentMedia$.next(mediaInfo.customData.mediaItem);
+        const mediaItem = mediaInfo.customData.mediaItem;
+        this.currentMedia$.next(mediaItem);
+        this.lastCastMediaId = mediaItem.id;
+        this.lastCastMediaItem = mediaItem;
       }
       const isPlaying =
         this.remotePlayer.playerState === chrome.cast.media.PlayerState.PLAYING ||
@@ -287,6 +309,13 @@ export class CastService {
       this.duration$.next(this.remotePlayer.duration);
       this.volume$.next(Math.round(this.remotePlayer.volumeLevel * 100));
       this.isMuted$.next(this.remotePlayer.isMuted);
+
+      if (this.remotePlayer.currentTime > 0) {
+        this.lastCastTime = this.remotePlayer.currentTime;
+      }
+      if (this.remotePlayer.duration > 0) {
+        this.lastCastDuration = this.remotePlayer.duration;
+      }
 
       if (isPlaying) {
         this.startHistoryTimer();
@@ -393,10 +422,18 @@ export class CastService {
           loadRequest.currentTime = resumePosition;
           loadRequest.autoplay = true;
 
+          // Set initial cast tracking state in case we disconnect quickly
+          this.lastCastTime = resumePosition;
+          this.lastCastDuration = mediaItem.duration || 0;
+          this.lastCastMediaId = mediaItem.id;
+          this.lastCastMediaItem = mediaItem;
+
           session.loadMedia(loadRequest).then(
             () => {
               console.log('[Prism Cast] Media successfully loaded on Chromecast');
               this.currentMedia$.next(mediaItem);
+              this.lastCastMediaId = mediaItem.id;
+              this.lastCastMediaItem = mediaItem;
             },
             (err: any) => {
               console.error('[Prism Cast] Error loading media on receiver:', err);
@@ -459,6 +496,7 @@ export class CastService {
       this.lastCastTime = 0;
       this.lastCastDuration = 0;
       this.lastCastMediaId = null;
+      this.lastCastMediaItem = null;
       return result;
     }
     return null;
@@ -492,6 +530,9 @@ export class CastService {
           if (mediaSession && typeof mediaSession.getEstimatedTime === 'function') {
             const estimatedTime = mediaSession.getEstimatedTime();
             this.currentTime$.next(estimatedTime);
+            if (this.remotePlayer && this.remotePlayer.isConnected && estimatedTime > 0) {
+              this.lastCastTime = estimatedTime;
+            }
           }
         }
       });
@@ -506,11 +547,11 @@ export class CastService {
   }
 
   private saveHistory(force = false): void {
-    const mediaItem = this.currentMedia$.value;
+    const mediaItem = this.currentMedia$.value || this.lastCastMediaItem;
     if (!mediaItem || !mediaItem.id) return;
 
-    const current = this.currentTime$.value;
-    const duration = this.duration$.value || mediaItem.duration || 0;
+    const current = this.currentTime$.value || this.lastCastTime;
+    const duration = this.duration$.value || this.lastCastDuration || mediaItem.duration || 0;
     if (duration <= 0) return;
 
     const completed = duration - current <= 5;
