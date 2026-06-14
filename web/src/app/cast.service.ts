@@ -26,6 +26,11 @@ export class CastService {
 
   private currentPreviewItem: any = null;
 
+  // Preserved state from last cast session (survives disconnect)
+  private lastCastTime = 0;
+  private lastCastDuration = 0;
+  private lastCastMediaId: string | null = null;
+
   // Watch history tracking
   private historyIntervalId: any = null;
   private lastSavedPosition = 0;
@@ -125,16 +130,29 @@ export class CastService {
       () => {
         this.zone.run(() => {
           const connected = this.remotePlayer.isConnected;
-          this.isConnected$.next(connected);
           console.log('[Prism Cast] Connection state changed:', connected);
 
           if (!connected) {
+            // Snapshot the current playback position before clearing state
+            // so the player component can resume local playback from here
+            this.lastCastTime = this.currentTime$.value;
+            this.lastCastDuration = this.duration$.value;
+            const media = this.currentMedia$.value;
+            this.lastCastMediaId = media?.id || null;
+
+            // Save final history position before disconnect
+            this.saveHistory(true);
+
             this.currentMedia$.next(null);
             this.isPlaying$.next(false);
             this.deviceName$.next('');
             this.stopHistoryTimer();
             this.stopProgressTimer();
+
+            // Emit connected change AFTER preserving state above
+            this.isConnected$.next(false);
           } else {
+            this.isConnected$.next(true);
             const session = this.castContext.getCurrentSession();
             if (session) {
               const device = session.getCastDevice();
@@ -419,6 +437,23 @@ export class CastService {
     if (this.castContext) {
       this.castContext.endCurrentSession(true);
     }
+  }
+
+  /**
+   * Returns the last known cast playback position after a disconnect.
+   * This allows the player component to resume local playback at the
+   * correct position instead of starting from the beginning.
+   */
+  public getLastCastPosition(mediaId: string): { time: number; duration: number } | null {
+    if (this.lastCastMediaId === mediaId && this.lastCastTime > 0) {
+      const result = { time: this.lastCastTime, duration: this.lastCastDuration };
+      // Clear after reading to avoid stale reuse
+      this.lastCastTime = 0;
+      this.lastCastDuration = 0;
+      this.lastCastMediaId = null;
+      return result;
+    }
+    return null;
   }
 
   // --- Watch History ---

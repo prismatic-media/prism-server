@@ -691,11 +691,13 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
             }
             this.castService.startCasting(this.mediaItem, currentPosition);
           }
-        } else if (!connected && this.isPlaying && this.isStreamInitialized) {
-          // If we disconnected while on this page, seek the local player to the cast's last time and play
-          const lastTime = this.castService.currentTime$.value;
-          if (lastTime > 0) {
-            this.player?.seek(lastTime);
+        } else if (!connected && this.isStreamInitialized) {
+          // Disconnected while on the player page — resume local playback
+          // at the position the cast was at (preserved by CastService before
+          // it cleared its BehaviorSubjects).
+          const lastPos = this.castService.getLastCastPosition(this.mediaId);
+          if (lastPos && lastPos.time > 0) {
+            this.player?.seek(lastPos.time);
             this.player?.play();
           }
         }
