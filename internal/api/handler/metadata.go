@@ -26,6 +26,14 @@ func NewMetadataHandler(db *sql.DB, enricher *metadata.Enricher) *MetadataHandle
 // enricher on every item in a background goroutine.
 //
 // The response is immediate (202 Accepted) with a count of affected rows.
+// @Summary Refresh All Metadata
+// @Description Clear metadata across all media items, TV shows, and TV seasons, and re-trigger bulk background TMDB metadata enrichment.
+// @Tags Metadata Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 202 {object} map[string]any "Returns status and count of cleared records"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/metadata/refresh [post]
 func (h *MetadataHandler) RefreshAllMetadata(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

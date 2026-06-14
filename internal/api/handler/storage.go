@@ -55,6 +55,14 @@ type storageListResponse struct {
 	Areas               []storageAreaResponse `json:"areas"`
 }
 
+// @Summary List Storage Areas
+// @Description Retrieve a list of all configured storage areas with path metrics (total, free, used bytes and utilization percentage).
+// @Tags Storage Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} storageListResponse
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/storage [get]
 func (h *StorageHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
 	areas, err := sqlite.ListStorageAreas(r.Context(), h.db)
 	if err != nil {
@@ -89,6 +97,16 @@ func (h *StorageHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, resp)
 }
 
+// @Summary Create Storage Area
+// @Description Register a new storage area for segments.
+// @Tags Storage Administration
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body storageAreaRequest true "Storage area parameters"
+// @Success 201 {object} models.StorageArea
+// @Failure 400 {object} map[string]string "Invalid input or kind"
+// @Router /admin/storage/areas [post]
 func (h *StorageHandler) CreateStorageArea(w http.ResponseWriter, r *http.Request) {
 	var req storageAreaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -124,6 +142,19 @@ func (h *StorageHandler) CreateStorageArea(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusCreated, area)
 }
 
+// @Summary Update Storage Area
+// @Description Update path or enabled status of an existing storage area.
+// @Tags Storage Administration
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Storage Area ID" format(uuid)
+// @Param body body storageAreaRequest true "Storage area parameters"
+// @Success 200 {object} models.StorageArea
+// @Failure 400 {object} map[string]string "Invalid ID or request body"
+// @Failure 404 {object} map[string]string "Storage area not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/storage/areas/{id} [put]
 func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -180,6 +211,15 @@ func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, updated)
 }
 
+// @Summary Delete Storage Area
+// @Description Remove a storage area from the database. Note that files on disk are not deleted.
+// @Tags Storage Administration
+// @Security BearerAuth
+// @Param id path string true "Storage Area ID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/storage/areas/{id} [delete]
 func (h *StorageHandler) DeleteStorageArea(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -196,6 +236,17 @@ func (h *StorageHandler) DeleteStorageArea(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Update Storage Configuration
+// @Description Update global storage settings, such as minimum free bytes required on disk.
+// @Tags Storage Administration
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body storageConfigRequest true "Storage configuration parameters"
+// @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
+// @Failure 400 {object} map[string]string "Invalid request body or parameters"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/storage/config [put]
 func (h *StorageHandler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 	var req storageConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

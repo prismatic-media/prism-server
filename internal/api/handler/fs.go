@@ -18,6 +18,16 @@ func NewFsHandler() *FsHandler { return &FsHandler{} }
 // Returns the immediate subdirectories that match the partial path so the
 // frontend can populate a path-autocomplete dropdown. Hidden directories
 // (names starting with ".") are omitted. Only accessible to admins.
+// @Summary Browse Directories
+// @Description Browse immediate subdirectories matching a partial path for autocomplete in the setup/admin panel.
+// @Tags Admin Configuration
+// @Security BearerAuth
+// @Produce json
+// @Param path query string false "Partial absolute path"
+// @Success 200 {object} map[string][]string "Returns list of matched absolute directory paths: {'dirs': [...]}"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
+// @Router /fs/browse [get]
 func (h *FsHandler) BrowseDir(w http.ResponseWriter, r *http.Request) {
 	raw := r.URL.Query().Get("path")
 

@@ -1,0 +1,2457 @@
+basePath: /api/v1
+definitions:
+  handler.IndexResponse:
+    properties:
+      summaries:
+        items:
+          $ref: '#/definitions/handler.IndexSummaryResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  handler.IndexSummaryResponse:
+    properties:
+      errors:
+        type: integer
+      media_items_created:
+        type: integer
+      registered:
+        type: integer
+      removed:
+        type: integer
+      storage_area_id:
+        type: string
+      storage_area_path:
+        type: string
+      updated:
+        type: integer
+    type: object
+  handler.bulkEnqueueRequest:
+    properties:
+      filter:
+        type: string
+    type: object
+  handler.createLibraryRequest:
+    properties:
+      media_type:
+        type: string
+      path:
+        type: string
+    type: object
+  handler.createUserRequest:
+    properties:
+      email:
+        type: string
+      is_admin:
+        type: boolean
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  handler.createWorkerRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  handler.heartbeatResponse:
+    properties:
+      hwaccel:
+        type: string
+      job:
+        $ref: '#/definitions/models.TranscodeJob'
+      threads:
+        type: integer
+    type: object
+  handler.loginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  handler.loginResponse:
+    properties:
+      access_token:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+    type: object
+  handler.nowPlayingResponse:
+    properties:
+      history:
+        $ref: '#/definitions/models.WatchHistory'
+      media:
+        $ref: '#/definitions/models.MediaItem'
+    type: object
+  handler.progressRequest:
+    properties:
+      error_msg:
+        type: string
+      progress:
+        type: number
+      status:
+        description: '"processing" or "failed"'
+        type: string
+    type: object
+  handler.setupRequest:
+    properties:
+      cast_receiver_app_id:
+        type: string
+      password:
+        type: string
+      segments_dir:
+        type: string
+      thumbs_dir:
+        type: string
+      tmdb_api_key:
+        type: string
+      username:
+        type: string
+    type: object
+  handler.storageAreaRequest:
+    properties:
+      enabled:
+        type: boolean
+      kind:
+        $ref: '#/definitions/models.StorageAreaKind'
+      path:
+        type: string
+    type: object
+  handler.storageAreaResponse:
+    properties:
+      eligible_segments:
+        type: boolean
+      enabled:
+        type: boolean
+      error:
+        type: string
+      free_bytes:
+        type: integer
+      id:
+        type: string
+      kind:
+        $ref: '#/definitions/models.StorageAreaKind'
+      path:
+        type: string
+      status:
+        type: string
+      total_bytes:
+        type: integer
+      used_bytes:
+        type: integer
+      utilization_pct:
+        type: number
+    type: object
+  handler.storageConfigRequest:
+    properties:
+      storage_min_free_bytes:
+        type: string
+    type: object
+  handler.storageListResponse:
+    properties:
+      areas:
+        items:
+          $ref: '#/definitions/handler.storageAreaResponse'
+        type: array
+      storage_min_free_bytes:
+        type: integer
+    type: object
+  handler.updateMeRequest:
+    properties:
+      email:
+        type: string
+      password:
+        description: optional; omit to keep current
+        type: string
+      username:
+        type: string
+    type: object
+  handler.updateWorkerRequest:
+    properties:
+      hwaccel:
+        type: string
+      threads:
+        type: integer
+    type: object
+  handler.upsertHistoryRequest:
+    properties:
+      completed:
+        type: boolean
+      position:
+        type: number
+    type: object
+  models.CastMember:
+    properties:
+      character:
+        type: string
+      name:
+        type: string
+      profile_path:
+        type: string
+    type: object
+  models.Library:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      media_type:
+        $ref: '#/definitions/models.MediaType'
+      path:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.MediaItem:
+    properties:
+      audio_codec:
+        type: string
+      backdrop_path:
+        type: string
+      bundle_status:
+        type: string
+      cast:
+        items:
+          $ref: '#/definitions/models.CastMember'
+        type: array
+      created_at:
+        type: string
+      director:
+        type: string
+      duration:
+        description: seconds
+        type: number
+      episode_number:
+        type: integer
+      extra_posters:
+        items:
+          type: string
+        type: array
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      height:
+        type: integer
+      id:
+        type: string
+      library_id:
+        type: string
+      media_type:
+        $ref: '#/definitions/models.MediaType'
+      mpd_path:
+        type: string
+      overview:
+        type: string
+      poster_path:
+        type: string
+      season_number:
+        type: integer
+      source_fingerprint:
+        type: string
+      source_status:
+        type: string
+      title:
+        type: string
+      tmdb_id:
+        description: Enriched metadata (nullable)
+        type: integer
+      transcode_progress:
+        type: number
+      transcode_status:
+        allOf:
+        - $ref: '#/definitions/models.TranscodeStatus'
+        description: Transcode
+      tv_season_id:
+        type: string
+      tv_show_id:
+        description: TV episode fields (nullable; populated only for MediaTypeEpisode
+          items)
+        type: string
+      tv_show_title:
+        type: string
+      updated_at:
+        type: string
+      video_codec:
+        type: string
+      width:
+        type: integer
+      year:
+        type: integer
+    type: object
+  models.MediaType:
+    enum:
+    - movie
+    - tvshow
+    - episode
+    - music
+    type: string
+    x-enum-varnames:
+    - MediaTypeMovie
+    - MediaTypeTVShow
+    - MediaTypeEpisode
+    - MediaTypeMusic
+  models.SearchResult:
+    properties:
+      cast:
+        items:
+          $ref: '#/definitions/models.CastMember'
+        type: array
+      director:
+        type: string
+      id:
+        type: string
+      media_type:
+        description: '"movie" or "tvshow"'
+        type: string
+      overview:
+        type: string
+      poster_path:
+        type: string
+      title:
+        type: string
+      year:
+        type: integer
+    type: object
+  models.StorageArea:
+    properties:
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      kind:
+        $ref: '#/definitions/models.StorageAreaKind'
+      path:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.StorageAreaKind:
+    enum:
+    - segments
+    type: string
+    x-enum-varnames:
+    - StorageAreaKindSegments
+  models.TVSeason:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      overview:
+        type: string
+      poster_path:
+        type: string
+      season_number:
+        type: integer
+      tmdb_id:
+        type: integer
+      tv_show_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.TVShow:
+    properties:
+      backdrop_path:
+        type: string
+      cast:
+        items:
+          $ref: '#/definitions/models.CastMember'
+        type: array
+      created_at:
+        type: string
+      director:
+        type: string
+      extra_posters:
+        items:
+          type: string
+        type: array
+      first_air_year:
+        type: integer
+      id:
+        type: string
+      library_id:
+        type: string
+      name:
+        type: string
+      overview:
+        type: string
+      poster_path:
+        type: string
+      tmdb_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.TranscodeJob:
+    properties:
+      created_at:
+        type: string
+      error_msg:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: string
+      media_item_id:
+        type: string
+      priority:
+        type: integer
+      progress:
+        description: 0-100
+        type: number
+      started_at:
+        type: string
+      status:
+        $ref: '#/definitions/models.TranscodeStatus'
+      worker_id:
+        type: string
+    type: object
+  models.TranscodeStatus:
+    enum:
+    - none
+    - pending
+    - processing
+    - done
+    - failed
+    type: string
+    x-enum-varnames:
+    - TranscodeStatusNone
+    - TranscodeStatusPending
+    - TranscodeStatusProcessing
+    - TranscodeStatusDone
+    - TranscodeStatusFailed
+  models.TranscodeWorker:
+    properties:
+      api_key:
+        type: string
+      created_at:
+        type: string
+      hwaccel:
+        type: string
+      id:
+        type: string
+      last_heartbeat:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+      threads:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      is_admin:
+        type: boolean
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  models.WatchHistory:
+    properties:
+      completed:
+        type: boolean
+      id:
+        type: string
+      media:
+        $ref: '#/definitions/models.MediaItem'
+      media_item_id:
+        type: string
+      position:
+        description: seconds
+        type: number
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: REST & WebSocket API specification for Prism, a self-hosted media server.
+  title: Prism Media Server API
+  version: "1.0"
+paths:
+  /admin/artifacts/index:
+    post:
+      description: Scan all enabled segment storage areas for artifact artifact.json
+        sidecar files to index them in the database.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.IndexResponse'
+        "409":
+          description: 'Conflict: Artifact schema not applied'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Index Artifacts
+      tags:
+      - Artifact Administration
+  /admin/artifacts/relink:
+    post:
+      description: Perform deterministic fingerprint-based matching to link indexed
+        transcode artifacts with existing media items in the database.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns link execution counts (linked, unmatched, ambiguous,
+            invalid, skipped)
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "409":
+          description: 'Conflict: Artifact schema not applied'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Relink Artifacts
+      tags:
+      - Artifact Administration
+  /admin/artifacts/status:
+    get:
+      description: Retrieve current health, unmatched, and ambiguous counts of indexed
+        transcode artifacts across all storage areas.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns active artifact statuses, counts, and health statistics
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: 'Conflict: Artifact schema not applied'
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Artifact Status
+      tags:
+      - Artifact Administration
+  /admin/artifacts/write-sidecars:
+    post:
+      description: Iterate through all transcode-completed media items and generate
+        artifact.json recovery sidecars on disk.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns write execution counts (written, skipped, errors)
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Write Sidecar Files
+      tags:
+      - Artifact Administration
+  /admin/metadata/refresh:
+    post:
+      description: Clear metadata across all media items, TV shows, and TV seasons,
+        and re-trigger bulk background TMDB metadata enrichment.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Returns status and count of cleared records
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Refresh All Metadata
+      tags:
+      - Metadata Administration
+  /admin/settings:
+    get:
+      description: Retrieve a dictionary of all editable server setting keys and values.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Map of server configurations
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Server Settings (Admin Only)
+      tags:
+      - Admin Configuration
+    put:
+      consumes:
+      - application/json
+      description: Update one or more server setting values. Unknown keys return a
+        bad request status.
+      parameters:
+      - description: Settings key-value pairs
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns {''status'': ''ok''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request body or unknown configuration key
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Server Settings (Admin Only)
+      tags:
+      - Admin Configuration
+  /admin/storage:
+    get:
+      description: Retrieve a list of all configured storage areas with path metrics
+        (total, free, used bytes and utilization percentage).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.storageListResponse'
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Storage Areas
+      tags:
+      - Storage Administration
+  /admin/storage/areas:
+    post:
+      consumes:
+      - application/json
+      description: Register a new storage area for segments.
+      parameters:
+      - description: Storage area parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.storageAreaRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.StorageArea'
+        "400":
+          description: Invalid input or kind
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Storage Area
+      tags:
+      - Storage Administration
+  /admin/storage/areas/{id}:
+    delete:
+      description: Remove a storage area from the database. Note that files on disk
+        are not deleted.
+      parameters:
+      - description: Storage Area ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Storage Area
+      tags:
+      - Storage Administration
+    put:
+      consumes:
+      - application/json
+      description: Update path or enabled status of an existing storage area.
+      parameters:
+      - description: Storage Area ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Storage area parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.storageAreaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.StorageArea'
+        "400":
+          description: Invalid ID or request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Storage area not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Storage Area
+      tags:
+      - Storage Administration
+  /admin/storage/config:
+    put:
+      consumes:
+      - application/json
+      description: Update global storage settings, such as minimum free bytes required
+        on disk.
+      parameters:
+      - description: Storage configuration parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.storageConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns {''status'': ''ok''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request body or parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Storage Configuration
+      tags:
+      - Storage Administration
+  /admin/workers:
+    get:
+      description: Retrieve a list of all registered remote transcode workers.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TranscodeWorker'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Transcode Workers
+      tags:
+      - Worker Administration
+    post:
+      consumes:
+      - application/json
+      description: Register a new remote transcode worker. Returns the created worker
+        metadata including its authentication secret key.
+      parameters:
+      - description: Worker parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createWorkerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.TranscodeWorker'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Register Transcode Worker
+      tags:
+      - Worker Administration
+  /admin/workers/{id}:
+    delete:
+      description: De-register a remote transcode worker and invalidate its API credentials.
+      parameters:
+      - description: Worker ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Worker not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Transcode Worker
+      tags:
+      - Worker Administration
+    put:
+      consumes:
+      - application/json
+      description: Update concurrency limits (threads) or hardware acceleration configuration
+        for a registered worker.
+      parameters:
+      - description: Worker ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Worker settings
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateWorkerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TranscodeWorker'
+        "400":
+          description: Invalid ID or request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Worker not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Transcode Worker Settings
+      tags:
+      - Worker Administration
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Validates user credentials, sets refresh token cookie, and returns
+        a JWT access token.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.loginResponse'
+        "400":
+          description: Invalid request body or missing fields
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid credentials
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: User Login
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      description: Revokes the active refresh token and clears the refresh token cookie.
+      responses:
+        "204":
+          description: Successfully logged out
+      summary: Logout User
+      tags:
+      - Authentication
+  /auth/refresh:
+    post:
+      description: Issues a new JWT access token using the refresh token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns new access_token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Missing or invalid refresh token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Refresh Access Token
+      tags:
+      - Authentication
+  /fs/browse:
+    get:
+      description: Browse immediate subdirectories matching a partial path for autocomplete
+        in the setup/admin panel.
+      parameters:
+      - description: Partial absolute path
+        in: query
+        name: path
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns list of matched absolute directory paths: {''dirs'':
+            [...]}'
+          schema:
+            additionalProperties:
+              items:
+                type: string
+              type: array
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Browse Directories
+      tags:
+      - Admin Configuration
+  /history:
+    get:
+      description: Retrieve a list of watch history records (in-progress items) for
+        the current user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.WatchHistory'
+            type: array
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get User Playback History
+      tags:
+      - Playback & History
+  /history/{mediaID}:
+    put:
+      consumes:
+      - application/json
+      description: Record active playback seconds and completion status for a media
+        item.
+      parameters:
+      - description: Media Item ID
+        format: uuid
+        in: path
+        name: mediaID
+        required: true
+        type: string
+      - description: Active position payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.upsertHistoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WatchHistory'
+        "400":
+          description: Invalid input or body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upsert Playback Position
+      tags:
+      - Playback & History
+  /history/now-playing:
+    get:
+      description: Returns the most recently updated in-progress item for the current
+        user, bundled with media metadata.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.nowPlayingResponse'
+        "204":
+          description: No currently playing item
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Currently Playing Item
+      tags:
+      - Playback & History
+  /jobs:
+    get:
+      description: Retrieve a list of all active/historical transcoding jobs.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TranscodeJob'
+            type: array
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Transcode Jobs (Admin Only)
+      tags:
+      - Transcoding Jobs
+  /jobs/{id}:
+    get:
+      description: Retrieve a single transcode job by ID.
+      parameters:
+      - description: Job ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TranscodeJob'
+        "400":
+          description: Invalid job ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Job not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Transcode Job Details (Admin Only)
+      tags:
+      - Transcoding Jobs
+  /jobs/{id}/prioritize:
+    post:
+      description: Move a pending job to the front of the transcoding queue.
+      parameters:
+      - description: Job ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns {''status'': ''ok''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid job ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Job not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Job is not pending (already processing or finished)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Prioritize Job (Admin Only)
+      tags:
+      - Transcoding Jobs
+  /jobs/bulk-enqueue:
+    post:
+      consumes:
+      - application/json
+      description: Add multiple media items to the queue based on a filter ("untranscoded"
+        or "failed").
+      parameters:
+      - description: Filter specification
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.bulkEnqueueRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns number of jobs enqueued: {''enqueued'': N}'
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "400":
+          description: Invalid request body or unknown filter
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Bulk Enqueue Jobs (Admin Only)
+      tags:
+      - Transcoding Jobs
+  /libraries:
+    get:
+      description: Retrieve a list of all libraries (movie, tvshow, etc.) indexed
+        by the server.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Library'
+            type: array
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Libraries
+      tags:
+      - Libraries
+    post:
+      consumes:
+      - application/json
+      description: Add a new media library pointing to a directory path.
+      parameters:
+      - description: Library creation properties
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createLibraryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Library'
+        "400":
+          description: Invalid request body or missing fields
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Library path already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Library (Admin Only)
+      tags:
+      - Libraries
+  /libraries/{id}:
+    delete:
+      parameters:
+      - description: Library ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Library deleted successfully
+        "400":
+          description: Invalid library ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Library not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Library (Admin Only)
+      tags:
+      - Libraries
+    get:
+      parameters:
+      - description: Library ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Library'
+        "400":
+          description: Invalid library ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Library not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Library Details
+      tags:
+      - Libraries
+  /libraries/{id}/scan:
+    post:
+      description: Triggers a directory scan to index new/updated files.
+      parameters:
+      - description: Library ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Library scan triggered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid library ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Library not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Scan Library (Admin Only)
+      tags:
+      - Libraries
+  /me:
+    get:
+      description: Returns profile details for the currently logged-in user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Current User Profile
+      tags:
+      - User Profile
+    put:
+      consumes:
+      - application/json
+      description: Allows the authenticated user to update their profile details (username,
+        email, password).
+      parameters:
+      - description: User update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Username or email already in use
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Current User Profile
+      tags:
+      - User Profile
+  /media:
+    get:
+      description: Lists media items (movies, episodes) with filtering/sorting capabilities.
+      parameters:
+      - description: Library ID
+        format: uuid
+        in: query
+        name: library_id
+        type: string
+      - description: Media Type
+        in: query
+        name: media_type
+        type: string
+      - description: Sort order
+        in: query
+        name: sort
+        type: string
+      - default: 20
+        description: Recent items count limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.MediaItem'
+            type: array
+        "400":
+          description: Invalid library ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Media Items
+      tags:
+      - Media Items
+  /media/{id}:
+    delete:
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Media item deleted successfully
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Media Item (Admin Only)
+      tags:
+      - Media Items
+    get:
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MediaItem'
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Media Item
+      tags:
+      - Media Items
+  /media/{id}/transcode:
+    post:
+      description: Adds a media item to the FFmpeg transcoding queue to produce adaptive
+        bitrate DASH stream formats.
+      parameters:
+      - description: Media Item ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Job enqueued
+          schema:
+            $ref: '#/definitions/models.TranscodeJob'
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Enqueue Transcode Job (Admin Only)
+      tags:
+      - Transcoding Jobs
+  /search:
+    get:
+      description: Searches library for shows and movies by title.
+      parameters:
+      - description: Search query string
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.SearchResult'
+            type: array
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Global Search
+      tags:
+      - Media Items
+  /setup:
+    post:
+      consumes:
+      - application/json
+      description: Configure the server for the first time by setting up the admin
+        account, TMDB API, Chromecast App ID, and storage paths.
+      parameters:
+      - description: First-run setup parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.setupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 'Returns {''status'': ''ok''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request body or missing required parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Setup is already completed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Complete Setup Wizard
+      tags:
+      - Admin Configuration
+  /stream/{id}/cast-token:
+    post:
+      description: Generates a short-lived token to authenticate Chromecast playback
+        URLs.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns {''token'': ''...''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Issue Cast Token
+      tags:
+      - Media Streaming
+  /stream/{id}/manifest.mpd:
+    get:
+      description: Retrieve the DASH master manifest file (.mpd) for a media item.
+        Consumable by video players.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Cast validation token
+        in: query
+        name: cast_token
+        type: string
+      produces:
+      - application/dash+xml
+      responses:
+        "200":
+          description: DASH Manifest XML file
+          schema:
+            type: file
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item not found or transcode pending
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Serve DASH Manifest
+      tags:
+      - Media Streaming
+  /stream/{id}/segments/{wildcard}:
+    get:
+      description: Retrieve a specific video/audio media segment file (.m4s, .mp4,
+        subtitles) for adaptive streaming.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Segment path wildcard
+        in: path
+        name: wildcard
+        required: true
+        type: string
+      - description: Cast validation token
+        in: query
+        name: cast_token
+        type: string
+      produces:
+      - video/mp4
+      - video/iso.segment
+      - text/vtt
+      - application/octet-stream
+      responses:
+        "200":
+          description: Raw media segment chunk
+          schema:
+            type: file
+        "400":
+          description: Invalid parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Segment not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Serve Media Segment
+      tags:
+      - Media Streaming
+  /tv/shows:
+    get:
+      description: Retrieve a list of all indexed TV shows with optional filtering
+        and sorting.
+      parameters:
+      - description: Library ID
+        format: uuid
+        in: query
+        name: library_id
+        type: string
+      - description: Sort order
+        in: query
+        name: sort
+        type: string
+      - default: 20
+        description: Recent items count limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TVShow'
+            type: array
+        "400":
+          description: Invalid library ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List TV Shows
+      tags:
+      - TV Shows
+  /tv/shows/{id}:
+    get:
+      parameters:
+      - description: TV Show ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TVShow'
+        "400":
+          description: Invalid TV Show ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: TV Show not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get TV Show Details
+      tags:
+      - TV Shows
+  /tv/shows/{id}/seasons:
+    get:
+      description: Retrieve all seasons belonging to a specific TV show.
+      parameters:
+      - description: TV Show ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TVSeason'
+            type: array
+        "400":
+          description: Invalid TV Show ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List TV Seasons
+      tags:
+      - TV Shows
+  /tv/shows/{id}/seasons/{number}/episodes:
+    get:
+      description: Retrieve all episodes (returned as MediaItems) for a specific season
+        of a show.
+      parameters:
+      - description: TV Show ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Season Number
+        in: path
+        name: number
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.MediaItem'
+            type: array
+        "400":
+          description: Invalid inputs
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Season not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Episodes
+      tags:
+      - TV Shows
+  /users:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account. If no users exist, this request is open
+        and makes the user an Admin. Otherwise, it requires Admin JWT.
+      parameters:
+      - description: User creation payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Invalid request body or missing fields
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Username or email already in use
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create User (First-run or Admin Only)
+      tags:
+      - User Profile
+  /worker/heartbeat:
+    post:
+      description: Submit worker status heartbeat. If the worker has capacity, claims
+        and returns the next pending transcode job.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.heartbeatResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - WorkerAuth: []
+      summary: Worker Heartbeat
+      tags:
+      - Worker Interface
+  /worker/jobs/{id}/bundle:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload completed MPEG-DASH output files as a ZIP bundle. The server
+        extracts the bundle, creates sidecar metadata, and updates job status to completed.
+      parameters:
+      - description: Job ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The ZIP bundle file containing transcode outputs (segments, manifest,
+          etc.)
+        in: formData
+        name: bundle
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns {''status'': ''ok''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid job ID or multipart form
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Job not assigned to this worker
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Job not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - WorkerAuth: []
+      summary: Upload Transcode Output Bundle
+      tags:
+      - Worker Interface
+  /worker/jobs/{id}/progress:
+    post:
+      consumes:
+      - application/json
+      description: Update progress (0-100) or report failures of the currently assigned
+        transcode job.
+      parameters:
+      - description: Job ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Progress update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.progressRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns {''status'': ''ok''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request body or job ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Job not assigned to this worker
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Job not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - WorkerAuth: []
+      summary: Update Job Progress
+      tags:
+      - Worker Interface
+  /worker/media/{id}/download:
+    get:
+      description: Download the original raw media source file for transcoding.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - video/mp4
+      - video/quicktime
+      - video/x-matroska
+      - application/octet-stream
+      responses:
+        "200":
+          description: Raw media source file
+          schema:
+            type: file
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - WorkerAuth: []
+      summary: Download Source Video
+      tags:
+      - Worker Interface
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer <your-token>" to authenticate.
+    in: header
+    name: Authorization
+    type: apiKey
+  WorkerAuth:
+    description: The secret API Key assigned to the transcode worker.
+    in: header
+    name: X-Worker-API-Key
+    type: apiKey
+swagger: "2.0"

@@ -34,6 +34,18 @@ type createUserRequest struct {
 // First-run rule: if no users exist the endpoint is open and the created
 // account is forced to admin. Once at least one user exists, a valid admin
 // JWT is required in the Authorization header.
+// @Summary Create User (First-run or Admin Only)
+// @Description Create a new user account. If no users exist, this request is open and makes the user an Admin. Otherwise, it requires Admin JWT.
+// @Tags User Profile
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body createUserRequest true "User creation payload"
+// @Success 201 {object} models.User
+// @Failure 400 {object} map[string]string "Invalid request body or missing fields"
+// @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
+// @Failure 409 {object} map[string]string "Username or email already in use"
+// @Router /users [post]
 func (h *UsersHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	count, err := sqlite.CountUsers(r.Context(), h.db)
 	if err != nil {
@@ -91,6 +103,15 @@ type updateMeRequest struct {
 }
 
 // GetMe returns the profile of the authenticated user.
+// @Summary Get Current User Profile
+// @Description Returns profile details for the currently logged-in user.
+// @Tags User Profile
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} models.User
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "User not found"
+// @Router /me [get]
 func (h *UsersHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -115,6 +136,19 @@ func (h *UsersHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateMe updates the authenticated user's profile fields.
+// @Summary Update Current User Profile
+// @Description Allows the authenticated user to update their profile details (username, email, password).
+// @Tags User Profile
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body updateMeRequest true "User update payload"
+// @Success 200 {object} models.User
+// @Failure 400 {object} map[string]string "Invalid request body"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "User not found"
+// @Failure 409 {object} map[string]string "Username or email already in use"
+// @Router /me [put]
 func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {

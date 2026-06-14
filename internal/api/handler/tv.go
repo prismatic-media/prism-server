@@ -27,6 +27,18 @@ func NewTVHandler(db *sql.DB) *TVHandler {
 // supplied, only shows for that library are returned. Otherwise, returns
 // all TV shows across all libraries.
 // GET /api/v1/tv/shows
+// @Summary List TV Shows
+// @Description Retrieve a list of all indexed TV shows with optional filtering and sorting.
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Param library_id query string false "Library ID" format(uuid)
+// @Param sort query string false "Sort order" enum(recent)
+// @Param limit query integer false "Recent items count limit" default(20)
+// @Success 200 {array} models.TVShow
+// @Failure 400 {object} map[string]string "Invalid library ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /tv/shows [get]
 func (h *TVHandler) ListShows(w http.ResponseWriter, r *http.Request) {
 	libIDStr := r.URL.Query().Get("library_id")
 	sortStr := r.URL.Query().Get("sort")
@@ -73,6 +85,16 @@ func (h *TVHandler) ListShows(w http.ResponseWriter, r *http.Request) {
 
 // GetShow returns a single TV show by ID.
 // GET /api/v1/tv/shows/{id}
+// @Summary Get TV Show Details
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "TV Show ID" format(uuid)
+// @Success 200 {object} models.TVShow
+// @Failure 400 {object} map[string]string "Invalid TV Show ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "TV Show not found"
+// @Router /tv/shows/{id} [get]
 func (h *TVHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -94,6 +116,16 @@ func (h *TVHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 
 // ListSeasons returns all seasons for a TV show.
 // GET /api/v1/tv/shows/{id}/seasons
+// @Summary List TV Seasons
+// @Description Retrieve all seasons belonging to a specific TV show.
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "TV Show ID" format(uuid)
+// @Success 200 {array} models.TVSeason
+// @Failure 400 {object} map[string]string "Invalid TV Show ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /tv/shows/{id}/seasons [get]
 func (h *TVHandler) ListSeasons(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -111,6 +143,18 @@ func (h *TVHandler) ListSeasons(w http.ResponseWriter, r *http.Request) {
 
 // ListEpisodes returns all episodes for a specific season.
 // GET /api/v1/tv/shows/{id}/seasons/{number}/episodes
+// @Summary List Episodes
+// @Description Retrieve all episodes (returned as MediaItems) for a specific season of a show.
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "TV Show ID" format(uuid)
+// @Param number path integer true "Season Number"
+// @Success 200 {array} models.MediaItem
+// @Failure 400 {object} map[string]string "Invalid inputs"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Season not found"
+// @Router /tv/shows/{id}/seasons/{number}/episodes [get]
 func (h *TVHandler) ListEpisodes(w http.ResponseWriter, r *http.Request) {
 	showID, err := uuidParam(r, "id")
 	if err != nil {

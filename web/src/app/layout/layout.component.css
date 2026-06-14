@@ -712,3 +712,31 @@
   }
 }
 
+/* Sidebar Footer Link */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 0 var(--spacing-gutter);
+}
+
+.docs-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--on-surface-variant);
+  text-decoration: none;
+  font-size: 13px;
+  opacity: 0.45;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+}
+
+.docs-link:hover {
+  opacity: 0.85;
+  color: var(--surface-tint);
+}
+
+.docs-link .material-symbols-outlined {
+  font-size: 18px !important;
+}
+

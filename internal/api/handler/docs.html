@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Prism API Documentation</title>
+    <!-- Swagger UI CSS (default theme) -->
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body style="margin: 0; background: #fafafa;">
+
+    <!-- Default Swagger UI styled topbar with inline pre-authorization fields -->
+    <div class="topbar" style="background-color: #1b1b1b; padding: 10px 0; border-bottom: 3px solid #49cc90;">
+        <div class="wrapper" style="max-width: 1460px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; box-sizing: border-box;">
+            <div class="topbar-wrapper" style="display: flex; align-items: center; width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <span style="color: #fff; font-size: 1.4em; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px;">
+                    Prism API Docs
+                </span>
+                <div style="display: flex; align-items: center; gap: 8px; font-family: sans-serif; font-size: 0.9em;">
+                    <input type="text" id="usernameInput" placeholder="Username" value="admin" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #333; background: #333; color: #fff; outline: none; font-size: 0.9em;">
+                    <input type="password" id="passwordInput" placeholder="Password" value="asdf" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #333; background: #333; color: #fff; outline: none; font-size: 0.9em;">
+                    <button id="authBtn" onclick="handleLogin()" style="padding: 6px 15px; border-radius: 4px; border: none; background-color: #49cc90; color: white; font-weight: bold; cursor: pointer; font-size: 0.9em; transition: background-color 0.2s;">Authorize</button>
+                    <span id="authStatus" style="margin-left: 8px; font-weight: bold; font-size: 0.95em;"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Swagger UI Render Target -->
+    <div id="swagger-ui"></div>
+
+    <!-- Swagger UI scripts -->
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" charset="UTF-8"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+    
+    <script>
+        let uiInstance = null;
+
+        window.onload = function() {
+            uiInstance = SwaggerUIBundle({
+                url: "/api/v1/swagger.yaml",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "BaseLayout",
+                persistAuthorization: true
+            });
+            window.ui = uiInstance;
+        };
+
+        // Handles authorization and auto-populates BearerAuth token inside Swagger UI
+        async function handleLogin() {
+            const uInput = document.getElementById('usernameInput');
+            const pInput = document.getElementById('passwordInput');
+            const btn = document.getElementById('authBtn');
+            const status = document.getElementById('authStatus');
+
+            status.innerText = "";
+            btn.disabled = true;
+            btn.innerText = "Authorizing...";
+
+            try {
+                const res = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: uInput.value,
+                        password: pInput.value
+                    })
+                });
+
+                let errMsg = "Invalid credentials";
+                if (!res.ok) {
+                    try {
+                        const errData = await res.json();
+                        errMsg = errData.error || errMsg;
+                    } catch (e) {}
+                    throw new Error(errMsg);
+                }
+
+                const data = await res.json();
+                const token = data.access_token;
+
+                if (!token) {
+                    throw new Error("No access token returned");
+                }
+
+                if (uiInstance) {
+                    uiInstance.preauthorizeApiKey("BearerAuth", "Bearer " + token);
+                    status.innerText = "Authorized ✓";
+                    status.style.color = "#49cc90";
+                    pInput.value = "";
+                } else {
+                    throw new Error("Swagger UI not initialized");
+                }
+            } catch (err) {
+                status.innerText = "Failed: " + err.message;
+                status.style.color = "#f93e3e";
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Authorize";
+            }
+        }
+    </script>
+</body>
+</html>

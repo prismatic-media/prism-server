@@ -24,6 +24,19 @@ func NewMediaHandler(db *sql.DB) *MediaHandler {
 
 // ListMedia returns all media items. If a library_id query parameter is
 // supplied, only items for that library are returned.
+// @Summary List Media Items
+// @Description Lists media items (movies, episodes) with filtering/sorting capabilities.
+// @Tags Media Items
+// @Security BearerAuth
+// @Produce json
+// @Param library_id query string false "Library ID" format(uuid)
+// @Param media_type query string false "Media Type" enum(movie,episode)
+// @Param sort query string false "Sort order" enum(recent)
+// @Param limit query integer false "Recent items count limit" default(20)
+// @Success 200 {array} models.MediaItem
+// @Failure 400 {object} map[string]string "Invalid library ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /media [get]
 func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 	sortStr := r.URL.Query().Get("sort")
 	if sortStr == "recent" {
@@ -80,6 +93,15 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 // Search queries media items and TV shows matching a search string.
+// @Summary Global Search
+// @Description Searches library for shows and movies by title.
+// @Tags Media Items
+// @Security BearerAuth
+// @Produce json
+// @Param q query string true "Search query string"
+// @Success 200 {array} models.SearchResult
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /search [get]
 func (h *MediaHandler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
@@ -97,6 +119,16 @@ func (h *MediaHandler) Search(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetMedia returns a single media item by ID.
+// @Summary Get Media Item
+// @Tags Media Items
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Media ID" format(uuid)
+// @Success 200 {object} models.MediaItem
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Media item not found"
+// @Router /media/{id} [get]
 func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -118,6 +150,16 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteMedia removes a media item (admin only).
+// @Summary Delete Media Item (Admin Only)
+// @Tags Media Items
+// @Security BearerAuth
+// @Param id path string true "Media ID" format(uuid)
+// @Success 204 "Media item deleted successfully"
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
+// @Failure 404 {object} map[string]string "Media item not found"
+// @Router /media/{id} [delete]
 func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {

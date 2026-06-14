@@ -31,6 +31,16 @@ type setupRequest struct {
 
 // CompleteSetup creates the initial admin account and marks setup as complete.
 // Returns 409 if setup has already been completed.
+// @Summary Complete Setup Wizard
+// @Description Configure the server for the first time by setting up the admin account, TMDB API, Chromecast App ID, and storage paths.
+// @Tags Admin Configuration
+// @Accept json
+// @Produce json
+// @Param body body setupRequest true "First-run setup parameters"
+// @Success 201 {object} map[string]string "Returns {'status': 'ok'}"
+// @Failure 400 {object} map[string]string "Invalid request body or missing required parameters"
+// @Failure 409 {object} map[string]string "Setup is already completed"
+// @Router /setup [post]
 func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 	// Guard: already set up?
 	done, err := sqlite.GetSetting(r.Context(), h.db, "setup_complete")

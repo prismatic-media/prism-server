@@ -36,6 +36,14 @@ type upsertHistoryRequest struct {
 
 // GetHistory handles GET /api/v1/history.
 // Returns in-progress (not completed) watch history for the authenticated user.
+// @Summary Get User Playback History
+// @Description Retrieve a list of watch history records (in-progress items) for the current user.
+// @Tags Playback & History
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {array} models.WatchHistory
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /history [get]
 func (h *HistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -64,6 +72,15 @@ func (h *HistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 // Returns the most recently updated in-progress item for the authenticated user,
 // bundled with its full media metadata. Responds with 204 No Content when
 // nothing is currently in progress.
+// @Summary Get Currently Playing Item
+// @Description Returns the most recently updated in-progress item for the current user, bundled with media metadata.
+// @Tags Playback & History
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} nowPlayingResponse
+// @Success 204 "No currently playing item"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /history/now-playing [get]
 func (h *HistoryHandler) GetNowPlaying(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -101,8 +118,22 @@ func (h *HistoryHandler) GetNowPlaying(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, &nowPlayingResponse{History: entry, Media: media})
 }
 
-// UpsertHistory handles PUT /api/v1/history/{mediaID}.// Creates or updates the watch position for the authenticated user and the
+// UpsertHistory handles PUT /api/v1/history/{mediaID}.
+// Creates or updates the watch position for the authenticated user and the
 // given media item. Clients should call this periodically (e.g. every 10 s).
+// @Summary Upsert Playback Position
+// @Description Record active playback seconds and completion status for a media item.
+// @Tags Playback & History
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param mediaID path string true "Media Item ID" format(uuid)
+// @Param body body upsertHistoryRequest true "Active position payload"
+// @Success 200 {object} models.WatchHistory
+// @Failure 400 {object} map[string]string "Invalid input or body"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Media item not found"
+// @Router /history/{mediaID} [put]
 func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {

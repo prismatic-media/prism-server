@@ -63,7 +63,21 @@ func (h *WorkerHandler) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// Heartbeat receives worker heartbeats and returns the next claimed job (if capacity allows).
+type heartbeatResponse struct {
+	Threads int                  `json:"threads"`
+	HWAccel string               `json:"hwaccel"`
+	Job     *models.TranscodeJob `json:"job"`
+}
+
+// @Summary Worker Heartbeat
+// @Description Submit worker status heartbeat. If the worker has capacity, claims and returns the next pending transcode job.
+// @Tags Worker Interface
+// @Security WorkerAuth
+// @Produce json
+// @Success 200 {object} heartbeatResponse
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /worker/heartbeat [post]
 func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {
@@ -122,12 +136,6 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	type heartbeatResponse struct {
-		Threads int                  `json:"threads"`
-		HWAccel string               `json:"hwaccel"`
-		Job     *models.TranscodeJob `json:"job"`
-	}
-
 	respondJSON(w, http.StatusOK, heartbeatResponse{
 		Threads: worker.Threads,
 		HWAccel: worker.HWAccel,
@@ -135,7 +143,18 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DownloadSource streams the source video file back to the worker.
+// @Summary Download Source Video
+// @Description Download the original raw media source file for transcoding.
+// @Tags Worker Interface
+// @Security WorkerAuth
+// @Produce video/mp4,video/quicktime,video/x-matroska,application/octet-stream
+// @Param id path string true "Media ID" format(uuid)
+// @Success 200 {file} file "Raw media source file"
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "Media item not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /worker/media/{id}/download [get]
 func (h *WorkerHandler) DownloadSource(w http.ResponseWriter, r *http.Request) {
 	if WorkerFromContext(r.Context()) == nil {
 		respondError(w, http.StatusUnauthorized, "unauthorized")
@@ -166,7 +185,21 @@ type progressRequest struct {
 	ErrorMsg string  `json:"error_msg"`
 }
 
-// UpdateProgress updates the transcode job progress and status reported by the worker.
+// @Summary Update Job Progress
+// @Description Update progress (0-100) or report failures of the currently assigned transcode job.
+// @Tags Worker Interface
+// @Security WorkerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Job ID" format(uuid)
+// @Param body body progressRequest true "Progress update payload"
+// @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
+// @Failure 400 {object} map[string]string "Invalid request body or job ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Job not assigned to this worker"
+// @Failure 404 {object} map[string]string "Job not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /worker/jobs/{id}/progress [post]
 func (h *WorkerHandler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {
@@ -252,7 +285,21 @@ func (h *WorkerHandler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// UploadBundle receives a ZIP file of the transcoding outputs and extracts them.
+// @Summary Upload Transcode Output Bundle
+// @Description Upload completed MPEG-DASH output files as a ZIP bundle. The server extracts the bundle, creates sidecar metadata, and updates job status to completed.
+// @Tags Worker Interface
+// @Security WorkerAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path string true "Job ID" format(uuid)
+// @Param bundle formData file true "The ZIP bundle file containing transcode outputs (segments, manifest, etc.)"
+// @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
+// @Failure 400 {object} map[string]string "Invalid job ID or multipart form"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Job not assigned to this worker"
+// @Failure 404 {object} map[string]string "Job not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /worker/jobs/{id}/bundle [post]
 func (h *WorkerHandler) UploadBundle(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {

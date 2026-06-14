@@ -20,6 +20,22 @@ import (
 	"github.com/prismatic-media/prism-server/pkg/events"
 )
 
+// @title Prism Media Server API
+// @version 1.0
+// @description REST & WebSocket API specification for Prism, a self-hosted media server.
+// @host localhost:8080
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer <your-token>" to authenticate.
+
+// @securityDefinitions.apikey WorkerAuth
+// @in header
+// @name X-Worker-API-Key
+// @description The secret API Key assigned to the transcode worker.
+
 // Main entry point for the Prism media server.
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{

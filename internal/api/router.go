@@ -52,6 +52,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 
 	storageH := handler.NewStorageHandler(db, artifactIndexer)
 	metadataH := handler.NewMetadataHandler(db, enricher)
+	docsH := handler.NewDocsHandler()
 
 	// Setup guard: redirects to /setup when setup is not yet complete.
 	r.Use(apimw.SetupGuard(db))
@@ -66,8 +67,14 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 	// Must be unauthenticated and publicly reachable.
 	r.Get("/cast-receiver", castH.ServeReceiver)
 
+	// API documentation (unauthenticated)
+	r.Get("/docs", docsH.ServeDocsHTML)
+
 	// API v1
 	r.Route("/api/v1", func(r chi.Router) {
+		// OpenAPI specification (unauthenticated)
+		r.Get("/swagger.yaml", docsH.ServeSwaggerYAML)
+
 		// Chromecast receiver (also served under /api so reverse proxies
 		// that only forward /api/* to the Go backend will pass it through).
 		r.Get("/cast-receiver", castH.ServeReceiver)

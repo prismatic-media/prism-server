@@ -21,6 +21,14 @@ type createWorkerRequest struct {
 	Name string `json:"name"`
 }
 
+// @Summary List Transcode Workers
+// @Description Retrieve a list of all registered remote transcode workers.
+// @Tags Worker Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {array} models.TranscodeWorker
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/workers [get]
 func (h *WorkerAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 	workers, err := sqlite.ListWorkers(r.Context(), h.db)
 	if err != nil {
@@ -30,6 +38,17 @@ func (h *WorkerAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, emptySlice(workers))
 }
 
+// @Summary Register Transcode Worker
+// @Description Register a new remote transcode worker. Returns the created worker metadata including its authentication secret key.
+// @Tags Worker Administration
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body createWorkerRequest true "Worker parameters"
+// @Success 201 {object} models.TranscodeWorker
+// @Failure 400 {object} map[string]string "Invalid request body"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/workers [post]
 func (h *WorkerAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createWorkerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -56,6 +75,19 @@ type updateWorkerRequest struct {
 	HWAccel string `json:"hwaccel"`
 }
 
+// @Summary Update Transcode Worker Settings
+// @Description Update concurrency limits (threads) or hardware acceleration configuration for a registered worker.
+// @Tags Worker Administration
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Worker ID" format(uuid)
+// @Param body body updateWorkerRequest true "Worker settings"
+// @Success 200 {object} models.TranscodeWorker
+// @Failure 400 {object} map[string]string "Invalid ID or request body"
+// @Failure 404 {object} map[string]string "Worker not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/workers/{id} [put]
 func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -93,6 +125,16 @@ func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, worker)
 }
 
+// @Summary Delete Transcode Worker
+// @Description De-register a remote transcode worker and invalidate its API credentials.
+// @Tags Worker Administration
+// @Security BearerAuth
+// @Param id path string true "Worker ID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 404 {object} map[string]string "Worker not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/workers/{id} [delete]
 func (h *WorkerAdminHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {

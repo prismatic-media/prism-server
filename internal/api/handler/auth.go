@@ -41,6 +41,16 @@ type loginResponse struct {
 
 // Login validates credentials, issues an access JWT in the response body and
 // a refresh token in an httpOnly cookie.
+// @Summary User Login
+// @Description Validates user credentials, sets refresh token cookie, and returns a JWT access token.
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param body body loginRequest true "Login credentials"
+// @Success 200 {object} loginResponse
+// @Failure 400 {object} map[string]string "Invalid request body or missing fields"
+// @Failure 401 {object} map[string]string "Invalid credentials"
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -89,6 +99,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Refresh issues a new access token given a valid refresh token cookie.
 // The refresh token itself is not rotated (stateless rotation can be added later).
+// @Summary Refresh Access Token
+// @Description Issues a new JWT access token using the refresh token cookie.
+// @Tags Authentication
+// @Produce json
+// @Success 200 {object} map[string]string "Returns new access_token"
+// @Failure 401 {object} map[string]string "Missing or invalid refresh token"
+// @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(refreshCookieName)
 	if err != nil {
@@ -123,6 +140,11 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // Logout revokes the refresh token cookie.
+// @Summary Logout User
+// @Description Revokes the active refresh token and clears the refresh token cookie.
+// @Tags Authentication
+// @Success 204 "Successfully logged out"
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(refreshCookieName)
 	if err != nil {

@@ -34,6 +34,18 @@ func NewStreamHandler(db *sql.DB, mpdCache *dash.Cache, jwtSecret string) *Strea
 // artifact_records table is NOT consulted during normal streaming — it is only
 // used by admin operations (indexing, relinking) to repair and maintain links
 // between artifacts and media items.
+// @Summary Serve DASH Manifest
+// @Description Retrieve the DASH master manifest file (.mpd) for a media item. Consumable by video players.
+// @Tags Media Streaming
+// @Security BearerAuth
+// @Produce application/dash+xml
+// @Param id path string true "Media ID" format(uuid)
+// @Param cast_token query string false "Cast validation token"
+// @Success 200 {file} file "DASH Manifest XML file"
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Media item not found or transcode pending"
+// @Router /stream/{id}/manifest.mpd [get]
 func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -87,6 +99,19 @@ func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 // ServeSegment handles GET /api/v1/stream/{id}/segments/*.
 // The wildcard path is resolved relative to the media item's output directory.
 // Segment files get long-lived cache headers; init segments get shorter ones.
+// @Summary Serve Media Segment
+// @Description Retrieve a specific video/audio media segment file (.m4s, .mp4, subtitles) for adaptive streaming.
+// @Tags Media Streaming
+// @Security BearerAuth
+// @Produce video/mp4,video/iso.segment,text/vtt,application/octet-stream
+// @Param id path string true "Media ID" format(uuid)
+// @Param wildcard path string true "Segment path wildcard"
+// @Param cast_token query string false "Cast validation token"
+// @Success 200 {file} file "Raw media segment chunk"
+// @Failure 400 {object} map[string]string "Invalid parameters"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Segment not found"
+// @Router /stream/{id}/segments/{wildcard} [get]
 func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -146,6 +171,16 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 // IssueCastToken handles POST /api/v1/stream/{id}/cast-token.
 // It issues a short-lived token that Chromecast devices can embed in the
 // manifest URL as ?cast_token=... to authenticate without custom headers.
+// @Summary Issue Cast Token
+// @Description Generates a short-lived token to authenticate Chromecast playback URLs.
+// @Tags Media Streaming
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Media ID" format(uuid)
+// @Success 200 {object} map[string]string "Returns {'token': '...'}"
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /stream/{id}/cast-token [post]
 func (h *StreamHandler) IssueCastToken(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {

@@ -31,6 +31,9 @@ run: build ## Build and run the server
 watch-server: ## Start Go server with a file watcher for automatic restarting
 	bash scripts/watch-go.sh
 
+swagger: ## Generate Swagger API specification from code annotations
+	go run github.com/swaggo/swag/cmd/swag@v1.16.3 init -g cmd/server/main.go -o internal/api/handler/docs
+
 test: ## Run all Go tests
 	go test ./...
 

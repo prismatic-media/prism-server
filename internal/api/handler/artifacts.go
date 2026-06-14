@@ -42,9 +42,15 @@ type IndexSummaryResponse struct {
 	MediaItemsCreated int    `json:"media_items_created"`
 }
 
-// HandleIndex handles POST /api/v1/admin/artifacts/index.
-// It scans all enabled segment storage areas for artifact sidecars and
-// returns a summary of changes.
+// @Summary Index Artifacts
+// @Description Scan all enabled segment storage areas for artifact artifact.json sidecar files to index them in the database.
+// @Tags Artifact Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} IndexResponse
+// @Failure 409 {object} map[string]string "Conflict: Artifact schema not applied"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/artifacts/index [post]
 func (h *ArtifactHandler) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -82,8 +88,15 @@ func (h *ArtifactHandler) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleStatus handles GET /api/v1/admin/artifacts/status.
-// It returns the current artifact health counts and unmatched artifact counts.
+// @Summary Get Artifact Status
+// @Description Retrieve current health, unmatched, and ambiguous counts of indexed transcode artifacts across all storage areas.
+// @Tags Artifact Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]any "Returns active artifact statuses, counts, and health statistics"
+// @Failure 409 {object} map[string]any "Conflict: Artifact schema not applied"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/artifacts/status [get]
 func (h *ArtifactHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -160,9 +173,15 @@ func (h *ArtifactHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleRelink handles POST /api/v1/admin/artifacts/relink.
-// It performs deterministic fingerprint-based relinking between indexed
-// artifacts and media items.
+// @Summary Relink Artifacts
+// @Description Perform deterministic fingerprint-based matching to link indexed transcode artifacts with existing media items in the database.
+// @Tags Artifact Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]int "Returns link execution counts (linked, unmatched, ambiguous, invalid, skipped)"
+// @Failure 409 {object} map[string]string "Conflict: Artifact schema not applied"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/artifacts/relink [post]
 func (h *ArtifactHandler) HandleRelink(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -187,8 +206,14 @@ func (h *ArtifactHandler) HandleRelink(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleWriteSidecars handles POST /api/v1/admin/artifacts/write-sidecars.
-// It iterates through all media items and writes sidecars for those that have a transcode bundle.
+// @Summary Write Sidecar Files
+// @Description Iterate through all transcode-completed media items and generate artifact.json recovery sidecars on disk.
+// @Tags Artifact Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]int "Returns write execution counts (written, skipped, errors)"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/artifacts/write-sidecars [post]
 func (h *ArtifactHandler) HandleWriteSidecars(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
