@@ -726,7 +726,9 @@
   text-decoration: none;
   font-size: 13px;
   opacity: 0.45;
-  transition: opacity 0.2s ease, color 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease;
   font-family: 'Inter', sans-serif;
   font-weight: 500;
 }
@@ -739,4 +741,3 @@
 .docs-link .material-symbols-outlined {
   font-size: 18px !important;
 }
-

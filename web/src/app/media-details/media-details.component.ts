@@ -383,7 +383,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       ...ep,
       tv_show_title: this.tvShow?.name,
       backdrop_path: this.tvShow?.backdrop_path,
-      media_type: 'episode'
+      media_type: 'episode',
     };
     this.castService.showPreview(previewItem);
   }

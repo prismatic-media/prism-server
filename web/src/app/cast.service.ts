@@ -71,8 +71,7 @@ export class CastService {
         if (!document.getElementById('cast-sender-script')) {
           const script = document.createElement('script');
           script.id = 'cast-sender-script';
-          script.src =
-            'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+          script.src = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
           document.head.appendChild(script);
         }
       },
@@ -113,14 +112,12 @@ export class CastService {
             const state = event.castState;
             this.isAvailable$.next(state !== cast.framework.CastState.NO_DEVICES_AVAILABLE);
           });
-        }
+        },
       );
 
       // Initialize remote player and controller
       this.remotePlayer = new cast.framework.RemotePlayer();
-      this.remotePlayerController = new cast.framework.RemotePlayerController(
-        this.remotePlayer
-      );
+      this.remotePlayerController = new cast.framework.RemotePlayerController(this.remotePlayer);
 
       this.setupControllerListeners();
       console.log('[Prism Cast] CastContext successfully initialized with App ID:', appId);
@@ -135,160 +132,139 @@ export class CastService {
     const events = cast.framework.RemotePlayerEventType;
 
     // Listen to connection changes
-    this.remotePlayerController.addEventListener(
-      events.IS_CONNECTED_CHANGED,
-      () => {
-        this.zone.run(() => {
-          const connected = this.remotePlayer.isConnected;
-          console.log('[Prism Cast] Connection state changed:', connected);
+    this.remotePlayerController.addEventListener(events.IS_CONNECTED_CHANGED, () => {
+      this.zone.run(() => {
+        const connected = this.remotePlayer.isConnected;
+        console.log('[Prism Cast] Connection state changed:', connected);
 
-          if (!connected) {
-            // Snapshot the current playback position before clearing state
-            // so the player component can resume local playback from here
-            if (this.currentTime$.value > 0) {
-              this.lastCastTime = this.currentTime$.value;
-            }
-            if (this.duration$.value > 0) {
-              this.lastCastDuration = this.duration$.value;
-            }
-            const media = this.currentMedia$.value;
-            if (media && media.id) {
-              this.lastCastMediaId = media.id;
-              this.lastCastMediaItem = media;
-            }
-            this.lastCastWasPlaying = this.isPlaying$.value;
-
-            // Save final history position before disconnect
-            this.saveHistory(true);
-
-            this.currentMedia$.next(null);
-            this.isPlaying$.next(false);
-            this.deviceName$.next('');
-            this.stopHistoryTimer();
-            this.stopProgressTimer();
-
-            // Emit connected change AFTER preserving state above
-            this.isConnected$.next(false);
-          } else {
-            this.isConnected$.next(true);
-            const session = this.castContext.getCurrentSession();
-            if (session) {
-              const device = session.getCastDevice();
-              this.deviceName$.next(device ? device.friendlyName : 'Chromecast');
-
-              // If connected and nothing is actively playing, push active preview
-              if (this.currentPreviewItem && !this.currentMedia$.value) {
-                this.showPreview(this.currentPreviewItem);
-              }
-            }
+        if (!connected) {
+          // Snapshot the current playback position before clearing state
+          // so the player component can resume local playback from here
+          if (this.currentTime$.value > 0) {
+            this.lastCastTime = this.currentTime$.value;
           }
-        });
-      }
-    );
-
-    // Listen to play/pause state
-    this.remotePlayerController.addEventListener(
-      events.PLAYER_STATE_CHANGED,
-      () => {
-        this.zone.run(() => {
-          const playerState = this.remotePlayer.playerState;
-          const isPlaying =
-            playerState === chrome.cast.media.PlayerState.PLAYING ||
-            playerState === chrome.cast.media.PlayerState.BUFFERING;
-          this.isPlaying$.next(isPlaying);
-          if (this.remotePlayer.isConnected) {
-            this.lastCastWasPlaying = isPlaying;
+          if (this.duration$.value > 0) {
+            this.lastCastDuration = this.duration$.value;
           }
-
-          if (isPlaying) {
-            this.startHistoryTimer();
-            this.startProgressTimer();
-          } else {
-            this.stopHistoryTimer();
-            this.stopProgressTimer();
+          const media = this.currentMedia$.value;
+          if (media && media.id) {
+            this.lastCastMediaId = media.id;
+            this.lastCastMediaItem = media;
           }
-        });
-      }
-    );
+          this.lastCastWasPlaying = this.isPlaying$.value;
 
-    // Listen to time updates
-    this.remotePlayerController.addEventListener(
-      events.CURRENT_TIME_CHANGED,
-      () => {
-        this.zone.run(() => {
-          const time = this.remotePlayer.currentTime;
-          this.currentTime$.next(time);
-          if (this.remotePlayer.isConnected && time > 0) {
-            this.lastCastTime = time;
-          }
-        });
-      }
-    );
+          // Save final history position before disconnect
+          this.saveHistory(true);
 
-    // Listen to duration updates
-    this.remotePlayerController.addEventListener(
-      events.DURATION_CHANGED,
-      () => {
-        this.zone.run(() => {
-          const duration = this.remotePlayer.duration;
-          this.duration$.next(duration);
-          if (this.remotePlayer.isConnected && duration > 0) {
-            this.lastCastDuration = duration;
-          }
-        });
-      }
-    );
+          this.currentMedia$.next(null);
+          this.isPlaying$.next(false);
+          this.deviceName$.next('');
+          this.stopHistoryTimer();
+          this.stopProgressTimer();
 
-    // Listen to volume changes
-    this.remotePlayerController.addEventListener(
-      events.VOLUME_LEVEL_CHANGED,
-      () => {
-        this.zone.run(() => {
-          this.volume$.next(Math.round(this.remotePlayer.volumeLevel * 100));
-        });
-      }
-    );
+          // Emit connected change AFTER preserving state above
+          this.isConnected$.next(false);
+        } else {
+          this.isConnected$.next(true);
+          const session = this.castContext.getCurrentSession();
+          if (session) {
+            const device = session.getCastDevice();
+            this.deviceName$.next(device ? device.friendlyName : 'Chromecast');
 
-    // Listen to mute changes
-    this.remotePlayerController.addEventListener(
-      events.IS_MUTED_CHANGED,
-      () => {
-        this.zone.run(() => {
-          this.isMuted$.next(this.remotePlayer.isMuted);
-        });
-      }
-    );
-
-    // Listen to media metadata changes (recovering state on connect/reload)
-    this.remotePlayerController.addEventListener(
-      events.MEDIA_INFO_CHANGED,
-      () => {
-        this.zone.run(() => {
-          const mediaInfo = this.remotePlayer.mediaInfo;
-          if (mediaInfo) {
-            if (mediaInfo.customData && mediaInfo.customData.mediaItem) {
-              const mediaItem = mediaInfo.customData.mediaItem;
-              this.currentMedia$.next(mediaItem);
-              this.lastCastMediaId = mediaItem.id;
-              this.lastCastMediaItem = mediaItem;
-            } else if (mediaInfo.metadata && mediaInfo.metadata.title) {
-              const metadata = mediaInfo.metadata;
-              this.currentMedia$.next({
-                id: '',
-                title: metadata.title,
-                media_type: 'movie',
-                duration: this.remotePlayer.duration || 0,
-              });
-            }
-          } else {
-            this.currentMedia$.next(null);
-            if (this.currentPreviewItem) {
+            // If connected and nothing is actively playing, push active preview
+            if (this.currentPreviewItem && !this.currentMedia$.value) {
               this.showPreview(this.currentPreviewItem);
             }
           }
-        });
-      }
-    );
+        }
+      });
+    });
+
+    // Listen to play/pause state
+    this.remotePlayerController.addEventListener(events.PLAYER_STATE_CHANGED, () => {
+      this.zone.run(() => {
+        const playerState = this.remotePlayer.playerState;
+        const isPlaying =
+          playerState === chrome.cast.media.PlayerState.PLAYING ||
+          playerState === chrome.cast.media.PlayerState.BUFFERING;
+        this.isPlaying$.next(isPlaying);
+        if (this.remotePlayer.isConnected) {
+          this.lastCastWasPlaying = isPlaying;
+        }
+
+        if (isPlaying) {
+          this.startHistoryTimer();
+          this.startProgressTimer();
+        } else {
+          this.stopHistoryTimer();
+          this.stopProgressTimer();
+        }
+      });
+    });
+
+    // Listen to time updates
+    this.remotePlayerController.addEventListener(events.CURRENT_TIME_CHANGED, () => {
+      this.zone.run(() => {
+        const time = this.remotePlayer.currentTime;
+        this.currentTime$.next(time);
+        if (this.remotePlayer.isConnected && time > 0) {
+          this.lastCastTime = time;
+        }
+      });
+    });
+
+    // Listen to duration updates
+    this.remotePlayerController.addEventListener(events.DURATION_CHANGED, () => {
+      this.zone.run(() => {
+        const duration = this.remotePlayer.duration;
+        this.duration$.next(duration);
+        if (this.remotePlayer.isConnected && duration > 0) {
+          this.lastCastDuration = duration;
+        }
+      });
+    });
+
+    // Listen to volume changes
+    this.remotePlayerController.addEventListener(events.VOLUME_LEVEL_CHANGED, () => {
+      this.zone.run(() => {
+        this.volume$.next(Math.round(this.remotePlayer.volumeLevel * 100));
+      });
+    });
+
+    // Listen to mute changes
+    this.remotePlayerController.addEventListener(events.IS_MUTED_CHANGED, () => {
+      this.zone.run(() => {
+        this.isMuted$.next(this.remotePlayer.isMuted);
+      });
+    });
+
+    // Listen to media metadata changes (recovering state on connect/reload)
+    this.remotePlayerController.addEventListener(events.MEDIA_INFO_CHANGED, () => {
+      this.zone.run(() => {
+        const mediaInfo = this.remotePlayer.mediaInfo;
+        if (mediaInfo) {
+          if (mediaInfo.customData && mediaInfo.customData.mediaItem) {
+            const mediaItem = mediaInfo.customData.mediaItem;
+            this.currentMedia$.next(mediaItem);
+            this.lastCastMediaId = mediaItem.id;
+            this.lastCastMediaItem = mediaItem;
+          } else if (mediaInfo.metadata && mediaInfo.metadata.title) {
+            const metadata = mediaInfo.metadata;
+            this.currentMedia$.next({
+              id: '',
+              title: metadata.title,
+              media_type: 'movie',
+              duration: this.remotePlayer.duration || 0,
+            });
+          }
+        } else {
+          this.currentMedia$.next(null);
+          if (this.currentPreviewItem) {
+            this.showPreview(this.currentPreviewItem);
+          }
+        }
+      });
+    });
 
     // If already connected when initializing, query current state
     const connected = this.remotePlayer.isConnected;
@@ -343,7 +319,7 @@ export class CastService {
       (err: any) => {
         console.warn('[Prism Cast] Session request cancelled or failed:', err);
         throw err;
-      }
+      },
     );
   }
 
@@ -355,7 +331,7 @@ export class CastService {
         },
         (err) => {
           console.error('[Prism Cast] Cannot start casting without a session:', err);
-        }
+        },
       );
     } else {
       this.loadMedia(mediaItem, resumePosition);
@@ -366,91 +342,86 @@ export class CastService {
     const cast = (window as any).cast;
     const chrome = (window as any).chrome;
 
-    this.http
-      .post<{ token: string }>(`/api/v1/stream/${mediaItem.id}/cast-token`, {})
-      .subscribe({
-        next: (res) => {
-          const token = res.token;
-          const manifestUrl = `${window.location.origin}/api/v1/stream/${mediaItem.id}/manifest.mpd?cast_token=${token}`;
+    this.http.post<{ token: string }>(`/api/v1/stream/${mediaItem.id}/cast-token`, {}).subscribe({
+      next: (res) => {
+        const token = res.token;
+        const manifestUrl = `${window.location.origin}/api/v1/stream/${mediaItem.id}/manifest.mpd?cast_token=${token}`;
 
-          const session = this.castContext.getCurrentSession();
-          if (!session) {
-            console.error('[Prism Cast] No active session found.');
-            return;
+        const session = this.castContext.getCurrentSession();
+        if (!session) {
+          console.error('[Prism Cast] No active session found.');
+          return;
+        }
+
+        const mediaInfo = new chrome.cast.media.MediaInfo(manifestUrl, 'application/dash+xml');
+
+        // Build metadata based on media type
+        let metadata;
+        if (mediaItem.media_type === 'episode') {
+          metadata = new chrome.cast.media.TvShowMediaMetadata();
+          metadata.metadataType = chrome.cast.media.MetadataType.TV_SHOW;
+          metadata.seriesTitle = mediaItem.tv_show_title || 'TV Show';
+          metadata.episodeTitle = mediaItem.title;
+          if (mediaItem.season_number) {
+            metadata.season = mediaItem.season_number;
           }
+          if (mediaItem.episode_number) {
+            metadata.episode = mediaItem.episode_number;
+          }
+        } else {
+          metadata = new chrome.cast.media.MovieMediaMetadata();
+          metadata.metadataType = chrome.cast.media.MetadataType.MOVIE;
+          metadata.title = mediaItem.title;
+          if (mediaItem.year) {
+            metadata.releaseDate = `${mediaItem.year}-01-01`;
+          }
+        }
 
-          const mediaInfo = new chrome.cast.media.MediaInfo(
-            manifestUrl,
-            'application/dash+xml'
-          );
-
-          // Build metadata based on media type
-          let metadata;
-          if (mediaItem.media_type === 'episode') {
-            metadata = new chrome.cast.media.TvShowMediaMetadata();
-            metadata.metadataType = chrome.cast.media.MetadataType.TV_SHOW;
-            metadata.seriesTitle = mediaItem.tv_show_title || 'TV Show';
-            metadata.episodeTitle = mediaItem.title;
-            if (mediaItem.season_number) {
-              metadata.season = mediaItem.season_number;
-            }
-            if (mediaItem.episode_number) {
-              metadata.episode = mediaItem.episode_number;
-            }
+        // Build poster image
+        let posterUrl = '';
+        if (mediaItem.poster_path) {
+          if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
+            posterUrl = `${window.location.origin}/api/v1/media/${mediaItem.id}/poster`;
           } else {
-            metadata = new chrome.cast.media.MovieMediaMetadata();
-            metadata.metadataType = chrome.cast.media.MetadataType.MOVIE;
-            metadata.title = mediaItem.title;
-            if (mediaItem.year) {
-              metadata.releaseDate = `${mediaItem.year}-01-01`;
-            }
+            posterUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/poster`;
           }
+        } else {
+          posterUrl =
+            'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+        }
+        metadata.images = [{ url: posterUrl }];
+        mediaInfo.metadata = metadata;
 
-          // Build poster image
-          let posterUrl = '';
-          if (mediaItem.poster_path) {
-            if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
-              posterUrl = `${window.location.origin}/api/v1/media/${mediaItem.id}/poster`;
-            } else {
-              posterUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/poster`;
-            }
-          } else {
-            posterUrl =
-              'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
-          }
-          metadata.images = [{ url: posterUrl }];
-          mediaInfo.metadata = metadata;
+        // Save exact mediaItem so we can recover it on reconnects
+        mediaInfo.customData = { mediaItem };
 
-          // Save exact mediaItem so we can recover it on reconnects
-          mediaInfo.customData = { mediaItem };
+        const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
+        loadRequest.currentTime = resumePosition;
+        loadRequest.autoplay = true;
 
-          const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
-          loadRequest.currentTime = resumePosition;
-          loadRequest.autoplay = true;
+        // Set initial cast tracking state in case we disconnect quickly
+        this.lastCastTime = resumePosition;
+        this.lastCastDuration = mediaItem.duration || 0;
+        this.lastCastMediaId = mediaItem.id;
+        this.lastCastMediaItem = mediaItem;
+        this.lastCastWasPlaying = true;
 
-          // Set initial cast tracking state in case we disconnect quickly
-          this.lastCastTime = resumePosition;
-          this.lastCastDuration = mediaItem.duration || 0;
-          this.lastCastMediaId = mediaItem.id;
-          this.lastCastMediaItem = mediaItem;
-          this.lastCastWasPlaying = true;
-
-          session.loadMedia(loadRequest).then(
-            () => {
-              console.log('[Prism Cast] Media successfully loaded on Chromecast');
-              this.currentMedia$.next(mediaItem);
-              this.lastCastMediaId = mediaItem.id;
-              this.lastCastMediaItem = mediaItem;
-            },
-            (err: any) => {
-              console.error('[Prism Cast] Error loading media on receiver:', err);
-            }
-          );
-        },
-        error: (err) => {
-          console.error('[Prism Cast] Error generating cast token:', err);
-        },
-      });
+        session.loadMedia(loadRequest).then(
+          () => {
+            console.log('[Prism Cast] Media successfully loaded on Chromecast');
+            this.currentMedia$.next(mediaItem);
+            this.lastCastMediaId = mediaItem.id;
+            this.lastCastMediaItem = mediaItem;
+          },
+          (err: any) => {
+            console.error('[Prism Cast] Error loading media on receiver:', err);
+          },
+        );
+      },
+      error: (err) => {
+        console.error('[Prism Cast] Error generating cast token:', err);
+      },
+    });
   }
 
   public play(): void {
@@ -496,7 +467,9 @@ export class CastService {
    * This allows the player component to resume local playback at the
    * correct position instead of starting from the beginning.
    */
-  public getLastCastPosition(mediaId: string): { time: number; duration: number; isPlaying: boolean } | null {
+  public getLastCastPosition(
+    mediaId: string,
+  ): { time: number; duration: number; isPlaying: boolean } | null {
     if (this.lastCastMediaId === mediaId && this.lastCastTime > 0) {
       const result = {
         time: this.lastCastTime,
@@ -602,7 +575,9 @@ export class CastService {
       let subtitle = '';
 
       if (mediaItem.media_type === 'episode') {
-        subtitle = mediaItem.tv_show_title ? `${mediaItem.tv_show_title} — S${mediaItem.season_number}E${mediaItem.episode_number}` : '';
+        subtitle = mediaItem.tv_show_title
+          ? `${mediaItem.tv_show_title} — S${mediaItem.season_number}E${mediaItem.episode_number}`
+          : '';
       } else if (mediaItem.media_type === 'movie' && mediaItem.year) {
         subtitle = `${mediaItem.year}`;
       } else if (mediaItem.first_air_year) {
@@ -617,7 +592,8 @@ export class CastService {
           posterUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/poster`;
         }
       } else {
-        posterUrl = 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+        posterUrl =
+          'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
       }
 
       let backdropUrl = '';
@@ -641,7 +617,7 @@ export class CastService {
 
       session.sendMessage('urn:x-cast:com.prism.metadata', message).then(
         () => console.log('[Prism Cast] Sent preview metadata to receiver:', message),
-        (err: any) => console.error('[Prism Cast] Failed to send preview metadata:', err)
+        (err: any) => console.error('[Prism Cast] Failed to send preview metadata:', err),
       );
     }
   }
@@ -655,7 +631,7 @@ export class CastService {
       const message = { type: 'CLEAR_PREVIEW' };
       session.sendMessage('urn:x-cast:com.prism.metadata', message).then(
         () => console.log('[Prism Cast] Sent clear preview to receiver'),
-        (err: any) => console.error('[Prism Cast] Failed to send clear preview:', err)
+        (err: any) => console.error('[Prism Cast] Failed to send clear preview:', err),
       );
     }
   }

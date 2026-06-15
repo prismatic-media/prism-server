@@ -333,7 +333,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   togglePlay(): void {
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
       if (this.isPlaying) {
         this.castService.pause();
       } else {
@@ -350,7 +353,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   replay10s(): void {
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
       const current = this.castService.currentTime$.value;
       this.castService.seek(Math.max(0, current - 10));
       return;
@@ -361,7 +367,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   forward30s(): void {
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
       const current = this.castService.currentTime$.value;
       const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
       this.castService.seek(Math.min(duration, current + 30));
@@ -391,7 +400,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     const percentage = Math.max(0, Math.min(1, x / width));
 
     let duration = 0;
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
       duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
     } else if (this.player) {
       duration = this.player.duration() || this.mediaItem?.duration || 0;
@@ -425,7 +437,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
   onMouseUp(): void {
     if (this.isDragging) {
-      if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+      if (
+        this.castService.isConnected$.value &&
+        this.castService.currentMedia$.value?.id === this.mediaId
+      ) {
         this.castService.seek(this.draggedTime);
       } else if (this.player) {
         this.player.seek(this.draggedTime);
@@ -436,7 +451,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   toggleMute(): void {
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
       this.castService.setMute(!this.isMuted);
       return;
     }
@@ -450,7 +468,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     const target = event.target as HTMLInputElement;
     const val = parseInt(target.value, 10);
     this.volume = val;
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
       this.castService.setVolume(val);
       return;
     }
@@ -639,7 +660,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private saveHistory(force = false): void {
-    if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
       return; // Handled by CastService background timer
     }
     if (!this.player || !this.mediaItem) return;
@@ -718,21 +742,27 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
           }
         }
         this.cdr.detectChanges();
-      })
+      }),
     );
 
     this.castSubs.push(
       this.castService.isPlaying$.subscribe((playing) => {
-        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+        if (
+          this.castService.isConnected$.value &&
+          this.castService.currentMedia$.value?.id === this.mediaId
+        ) {
           this.isPlaying = playing;
           this.cdr.detectChanges();
         }
-      })
+      }),
     );
 
     this.castSubs.push(
       this.castService.currentTime$.subscribe((time) => {
-        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+        if (
+          this.castService.isConnected$.value &&
+          this.castService.currentMedia$.value?.id === this.mediaId
+        ) {
           if (this.isDragging) return;
           this.currentTimeStr = this.formatTime(time);
           const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
@@ -742,37 +772,47 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
           }
           this.cdr.detectChanges();
         }
-      })
+      }),
     );
 
     this.castSubs.push(
       this.castService.duration$.subscribe((dur) => {
-        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId && dur > 0) {
+        if (
+          this.castService.isConnected$.value &&
+          this.castService.currentMedia$.value?.id === this.mediaId &&
+          dur > 0
+        ) {
           if (this.isDragging) return;
           this.totalTimeStr = this.formatTime(dur);
           const time = this.castService.currentTime$.value;
           this.progressPercent = (time / dur) * 100;
           this.cdr.detectChanges();
         }
-      })
+      }),
     );
 
     this.castSubs.push(
       this.castService.volume$.subscribe((vol) => {
-        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+        if (
+          this.castService.isConnected$.value &&
+          this.castService.currentMedia$.value?.id === this.mediaId
+        ) {
           this.volume = vol;
           this.cdr.detectChanges();
         }
-      })
+      }),
     );
 
     this.castSubs.push(
       this.castService.isMuted$.subscribe((muted) => {
-        if (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId) {
+        if (
+          this.castService.isConnected$.value &&
+          this.castService.currentMedia$.value?.id === this.mediaId
+        ) {
           this.isMuted = muted;
           this.cdr.detectChanges();
         }
-      })
+      }),
     );
   }
 
@@ -789,7 +829,8 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   toggleCast(): void {
     if (
       this.castPending ||
-      (this.castService.isConnected$.value && this.castService.currentMedia$.value?.id === this.mediaId)
+      (this.castService.isConnected$.value &&
+        this.castService.currentMedia$.value?.id === this.mediaId)
     ) {
       this.castPending = false;
       this.castService.disconnect();

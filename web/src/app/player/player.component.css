@@ -1097,7 +1097,8 @@ video::cue {
 }
 
 @keyframes castingPulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     border-color: rgba(255, 255, 255, 0.08);
   }
@@ -1108,7 +1109,8 @@ video::cue {
 }
 
 @keyframes castingGlow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.8;
     transform: scale(1);
   }
@@ -1122,4 +1124,3 @@ video::cue {
   color: var(--primary) !important;
   text-shadow: 0 0 8px rgba(0, 219, 233, 0.6);
 }
-

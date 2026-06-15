@@ -307,8 +307,8 @@
         </div>
 
         <div class="episodes-list-box" *ngIf="!episodesLoading && episodes.length > 0">
-          <div 
-            *ngFor="let ep of episodes; trackBy: trackByEpisodeId" 
+          <div
+            *ngFor="let ep of episodes; trackBy: trackByEpisodeId"
             class="episode-row"
             (mouseenter)="previewEpisode(ep)"
             (mouseleave)="restoreShowPreview()"
