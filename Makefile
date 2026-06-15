@@ -23,7 +23,7 @@ build-server: ## Build backend binary only (no frontend)
 	go build -o $(BINARY) $(CMD)
 
 worker: ## Build remote transcode worker binary
-	go build -o prism-worker ./cmd/worker
+	cd ../prism-worker && go build -o ../prism-server/prism-worker
 
 run: build ## Build and run the server
 	./$(BINARY)
