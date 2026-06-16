@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -297,6 +298,7 @@ func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request)
 	}
 
 	if item.TranscodeSizes != nil {
+		sortRenditions(item.TranscodeSizes.Renditions)
 		respondJSON(w, http.StatusOK, item.TranscodeSizes)
 		return
 	}
@@ -304,6 +306,7 @@ func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request)
 	outputDir := filepath.Dir(*item.MPDPath)
 	// Try reading from sidecar
 	if meta, err := artifact.ReadSidecar(outputDir); err == nil && meta != nil && meta.Sizes != nil {
+		sortRenditions(meta.Sizes.Renditions)
 		// Update DB with sidecar sizes
 		_ = sqlite.SetMediaTranscodeSizes(r.Context(), h.db, item.ID, meta.Sizes)
 		respondJSON(w, http.StatusOK, meta.Sizes)
@@ -312,6 +315,7 @@ func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request)
 
 	// Fallback to dynamic scanning
 	sizes := artifact.GetTranscodeSizesInfo(*item.MPDPath)
+	sortRenditions(sizes.Renditions)
 
 	// Cache to database
 	_ = sqlite.SetMediaTranscodeSizes(r.Context(), h.db, item.ID, &sizes)
@@ -325,7 +329,28 @@ func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, sizes)
 }
 
+func sortRenditions(renditions []models.RenditionSize) {
+	sort.Slice(renditions, func(i, j int) bool {
+		valI := parseResolution(renditions[i].Resolution)
+		valJ := parseResolution(renditions[j].Resolution)
+		return valI < valJ
+	})
+}
 
+func parseResolution(res string) int {
+	if len(res) == 0 {
+		return 0
+	}
+	digits := res
+	if res[len(res)-1] == 'p' {
+		digits = res[:len(res)-1]
+	}
+	val, err := strconv.Atoi(digits)
+	if err != nil {
+		return 0
+	}
+	return val
+}
 
 // emptySlice converts a nil slice to an empty interface slice for JSON
 // serialisation — ensures the response is [] rather than null.
