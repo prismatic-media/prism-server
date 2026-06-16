@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"time"
 
 	"github.com/prismatic-media/prism-server/internal/models"
@@ -181,6 +183,13 @@ func GetTranscodeSizesInfo(mpdPath string) models.TranscodeSizesInfo {
 			}
 		}
 	}
+
+	// Sort Renditions by numerical resolution size (e.g. 360p before 1080p)
+	sort.Slice(info.Renditions, func(i, j int) bool {
+		valI, _ := strconv.Atoi(info.Renditions[i].Resolution[:len(info.Renditions[i].Resolution)-1])
+		valJ, _ := strconv.Atoi(info.Renditions[j].Resolution[:len(info.Renditions[j].Resolution)-1])
+		return valI < valJ
+	})
 
 	// Ensure Renditions is never serialized to JSON as null
 	if info.Renditions == nil {

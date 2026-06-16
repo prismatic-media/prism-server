@@ -115,10 +115,11 @@ func TestGetTranscodeSizesInfo(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// 1. Create a dummy transcode output structure.
-	// We need resolution subdirectories, e.g. 360p and 480p.
+	// We need resolution subdirectories, e.g. 360p, 480p, and 1080p.
 	// Inside each, we write files with specific sizes to verify summation.
 	r360 := tmpDir + "/360p"
 	r480 := tmpDir + "/480p"
+	r1080 := tmpDir + "/1080p"
 	notRendition := tmpDir + "/temp" // directory that doesn't match rendition format
 
 	if err := os.MkdirAll(r360, 0755); err != nil {
@@ -126,6 +127,9 @@ func TestGetTranscodeSizesInfo(t *testing.T) {
 	}
 	if err := os.MkdirAll(r480, 0755); err != nil {
 		t.Fatalf("failed to create 480p dir: %v", err)
+	}
+	if err := os.MkdirAll(r1080, 0755); err != nil {
+		t.Fatalf("failed to create 1080p dir: %v", err)
 	}
 	if err := os.MkdirAll(notRendition, 0755); err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -139,6 +143,10 @@ func TestGetTranscodeSizesInfo(t *testing.T) {
 	_ = os.WriteFile(r480+"/init.mp4", make([]byte, 40), 0644)
 	_ = os.WriteFile(r480+"/seg_00001.m4s", make([]byte, 60), 0644)
 
+	// Write files to 1080p: total 200 bytes
+	_ = os.WriteFile(r1080+"/init.mp4", make([]byte, 50), 0644)
+	_ = os.WriteFile(r1080+"/seg_00001.m4s", make([]byte, 150), 0644)
+
 	// Write files to temp: should be ignored
 	_ = os.WriteFile(notRendition+"/ignored.mp4", make([]byte, 1000), 0644)
 
@@ -149,22 +157,25 @@ func TestGetTranscodeSizesInfo(t *testing.T) {
 
 	info := GetTranscodeSizesInfo(mpdPath)
 
-	if len(info.Renditions) != 2 {
-		t.Fatalf("expected 2 rendition sizes, got %d", len(info.Renditions))
+	if len(info.Renditions) != 3 {
+		t.Fatalf("expected 3 rendition sizes, got %d", len(info.Renditions))
 	}
 
-	// Order is not guaranteed since ReadDir sorts alphabetically.
-	// But "360p" and "480p" are sorted alphabetically, so info.Renditions[0] should be 360p, info.Renditions[1] should be 480p.
+	// Since we sort numerically, "360p" comes first, then "480p", then "1080p".
+	// (Otherwise, "1080p" would come first alphabetically).
 	if info.Renditions[0].Resolution != "360p" || info.Renditions[0].Size != 30 {
-		t.Errorf("expected 360p to have size 30, got %s size %d", info.Renditions[0].Resolution, info.Renditions[0].Size)
+		t.Errorf("expected 360p to have size 30 at index 0, got %s size %d", info.Renditions[0].Resolution, info.Renditions[0].Size)
 	}
 	if info.Renditions[1].Resolution != "480p" || info.Renditions[1].Size != 100 {
-		t.Errorf("expected 480p to have size 100, got %s size %d", info.Renditions[1].Resolution, info.Renditions[1].Size)
+		t.Errorf("expected 480p to have size 100 at index 1, got %s size %d", info.Renditions[1].Resolution, info.Renditions[1].Size)
+	}
+	if info.Renditions[2].Resolution != "1080p" || info.Renditions[2].Size != 200 {
+		t.Errorf("expected 1080p to have size 200 at index 2, got %s size %d", info.Renditions[2].Resolution, info.Renditions[2].Size)
 	}
 
-	// Total size: 30 (360p) + 100 (480p) + 5 (manifest.mpd) = 135 bytes
-	if info.TotalSize != 135 {
-		t.Errorf("expected total size 135, got %d", info.TotalSize)
+	// Total size: 30 (360p) + 100 (480p) + 200 (1080p) + 5 (manifest.mpd) = 335 bytes
+	if info.TotalSize != 335 {
+		t.Errorf("expected total size 335, got %d", info.TotalSize)
 	}
 }
 
