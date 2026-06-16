@@ -31,6 +31,11 @@ definitions:
       filter:
         type: string
     type: object
+  handler.createEphemeralTokenRequest:
+    properties:
+      name:
+        type: string
+    type: object
   handler.createLibraryRequest:
     properties:
       media_type:
@@ -92,6 +97,18 @@ definitions:
         type: number
       status:
         description: '"processing" or "failed"'
+        type: string
+    type: object
+  handler.registerWorkerRequest:
+    properties:
+      name:
+        type: string
+      token:
+        type: string
+    type: object
+  handler.registerWorkerResponse:
+    properties:
+      api_key:
         type: string
     type: object
   handler.setupRequest:
@@ -188,6 +205,17 @@ definitions:
       name:
         type: string
       profile_path:
+        type: string
+    type: object
+  models.EphemeralWorkerToken:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      token:
         type: string
     type: object
   models.Library:
@@ -435,6 +463,8 @@ definitions:
         type: string
       id:
         type: string
+      is_ephemeral:
+        type: boolean
       last_heartbeat:
         type: string
       name:
@@ -1005,6 +1035,100 @@ paths:
       security:
       - BearerAuth: []
       summary: Update Transcode Worker Settings
+      tags:
+      - Worker Administration
+  /admin/workers/ephemeral-tokens:
+    get:
+      description: Retrieve a list of all active ephemeral worker registration tokens.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.EphemeralWorkerToken'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Ephemeral Worker Tokens
+      tags:
+      - Worker Administration
+    post:
+      consumes:
+      - application/json
+      description: Create a new re-usable registration token for ephemeral workers.
+      parameters:
+      - description: Token parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createEphemeralTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.EphemeralWorkerToken'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Ephemeral Worker Token
+      tags:
+      - Worker Administration
+  /admin/workers/ephemeral-tokens/{id}:
+    delete:
+      description: Revoke/delete an ephemeral worker registration token.
+      parameters:
+      - description: Token ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Token not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Ephemeral Worker Token
       tags:
       - Worker Administration
   /auth/login:
@@ -2441,6 +2565,47 @@ paths:
       security:
       - WorkerAuth: []
       summary: Download Source Video
+      tags:
+      - Worker Interface
+  /worker/register:
+    post:
+      consumes:
+      - application/json
+      description: Register an ephemeral remote transcode worker using a registration
+        token.
+      parameters:
+      - description: Registration details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.registerWorkerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.registerWorkerResponse'
+        "400":
+          description: Invalid request or token name missing
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid registration token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register Ephemeral Transcode Worker
       tags:
       - Worker Interface
 securityDefinitions:

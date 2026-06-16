@@ -419,6 +419,7 @@
                     <div class="flex items-center gap-3">
                       <span class="material-symbols-outlined text-secondary text-base">dns</span>
                       <span class="font-bold text-sm">{{ w.name }}</span>
+                      <span *ngIf="w.is_ephemeral" class="text-[9px] font-bold tracking-wider font-mono px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 uppercase">Ephemeral</span>
                     </div>
                   </td>
                   <!-- Status -->
@@ -487,6 +488,90 @@
                       <button
                         class="btn-delete-worker p-1.5 hover:bg-error/10 rounded transition-colors group/del"
                         (click)="deleteWorker(w.id)"
+                      >
+                        <span
+                          class="material-symbols-outlined text-on-surface-variant group-hover/del:text-error text-sm"
+                          >delete</span
+                        >
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ephemeral Worker Tokens Configuration -->
+      <section class="w-full mt-8">
+        <div class="glass-card border-primary-container/10 overflow-hidden">
+          <div class="p-8 border-b border-white/10">
+            <div class="flex justify-between items-start mb-6">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-secondary">vpn_key</span>
+                <h2 class="font-headline-lg text-headline-lg tracking-tight">Ephemeral Worker Tokens</h2>
+              </div>
+              <button class="btn-register-node" (click)="openEphemeralTokenModal()">
+                <span class="material-symbols-outlined text-sm">add_circle</span>
+                Generate Token
+              </button>
+            </div>
+            <p class="text-xs text-on-surface-variant">
+              Re-usable registration tokens for dynamic, ephemeral compute workers.
+            </p>
+          </div>
+
+          <!-- Tokens Table -->
+          <div
+            *ngIf="ephemeralTokens.length === 0"
+            class="empty-state border-none rounded-none bg-transparent py-12"
+          >
+            <span class="material-symbols-outlined empty-state-icon">key</span>
+            <h3 class="empty-state-title">No ephemeral worker tokens created</h3>
+            <p class="empty-state-desc">
+              Generate a token to allow dynamic ephemeral workers to register using their hostname.
+            </p>
+          </div>
+
+          <div class="overflow-x-auto" *ngIf="ephemeralTokens.length > 0">
+            <table class="w-full text-left border-collapse">
+              <thead
+                class="bg-white/5 text-on-surface-variant font-label-md text-label-md uppercase tracking-widest text-[10px]"
+              >
+                <tr>
+                  <th class="px-8 py-3">Token Name</th>
+                  <th class="px-6 py-3">Token Value</th>
+                  <th class="px-6 py-3">Created At</th>
+                  <th class="px-8 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5">
+                <tr
+                  *ngFor="let t of ephemeralTokens"
+                  class="hover:bg-white/5 transition-colors group"
+                >
+                  <!-- Token Name -->
+                  <td class="px-8 py-5">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-secondary text-base">label</span>
+                      <span class="font-bold text-sm">{{ t.name }}</span>
+                    </div>
+                  </td>
+                  <!-- Token Value -->
+                  <td class="px-6 py-5">
+                    <code class="font-mono text-xs text-primary select-all">{{ t.token }}</code>
+                  </td>
+                  <!-- Created At -->
+                  <td class="px-6 py-5">
+                    <span class="text-xs text-on-surface-variant">{{ formatDateTime(t.created_at) }}</span>
+                  </td>
+                  <!-- Delete Action -->
+                  <td class="px-8 py-5 text-right">
+                    <div class="flex justify-end gap-2">
+                      <button
+                        class="btn-delete-worker p-1.5 hover:bg-error/10 rounded transition-colors group/del"
+                        (click)="deleteEphemeralToken(t.id)"
                       >
                         <span
                           class="material-symbols-outlined text-on-surface-variant group-hover/del:text-error text-sm"
@@ -609,6 +694,111 @@
             type="button"
           >
             Copy Config &amp; Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Ephemeral Worker Token -->
+  <div *ngIf="showEphemeralTokenModal" class="modal-overlay" (click)="closeEphemeralTokenModal()">
+    <div
+      class="glass-card w-full max-w-2xl p-8 relative animate-in fade-in zoom-in duration-300"
+      (click)="$event.stopPropagation()"
+    >
+      <button class="modal-close-btn" (click)="closeEphemeralTokenModal()" type="button">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+
+      <h2 class="font-headline-lg text-headline-lg mb-2">Generate Ephemeral Token</h2>
+      <p class="text-on-surface-variant mb-8">
+        Create a re-usable token for registering ephemeral workers.
+      </p>
+
+      <div class="space-y-6">
+        <!-- Step 1: Input Friendly Name (Only edit state) -->
+        <div class="space-y-2" *ngIf="!newEphemeralTokenCreated">
+          <label
+            class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+            >Token Name / Description</label
+          >
+          <input
+            class="w-full glass-input p-4 text-on-surface"
+            placeholder="e.g. Kubernetes Cluster Token"
+            type="text"
+            [(ngModel)]="newEphemeralTokenName"
+            (keyup.enter)="createEphemeralToken()"
+          />
+        </div>
+
+        <!-- Step 2: Show Token & Start Command (Only after creation success) -->
+        <div class="space-y-6 animate-in fade-in duration-300" *ngIf="newEphemeralTokenCreated">
+          <div class="space-y-2">
+            <label
+              class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+              >1. Registration Token</label
+            >
+            <div class="relative">
+              <code
+                class="block bg-black/40 p-6 rounded text-primary-fixed-dim font-mono text-sm break-all border border-white/5 pr-14 select-all"
+                >{{ generatedEphemeralToken }}</code>
+              <button
+                class="absolute top-4 right-4 p-2 hover:bg-white/10 rounded text-on-surface-variant transition-colors"
+                title="Copy Token"
+                (click)="copyEphemeralToken()"
+                type="button"
+              >
+                <span class="material-symbols-outlined text-sm">content_copy</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]"
+              >2. Run Command for Ephemeral Workers</label
+            >
+            <div class="relative">
+              <code
+                class="block bg-black/40 p-6 rounded text-primary-fixed-dim font-mono text-sm break-all border border-white/5 pr-14"
+                >./prism-worker --ephemeral --token {{ generatedEphemeralToken }} --server {{ getOrigin() }}</code>
+              <button
+                class="absolute top-4 right-4 p-2 hover:bg-white/10 rounded text-on-surface-variant transition-colors"
+                title="Copy Start Command"
+                (click)="copyEphemeralStartCommand()"
+                type="button"
+              >
+                <span class="material-symbols-outlined text-sm">content_copy</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4 pt-4">
+          <button
+            class="btn-modal-action glass-card font-bold hover:bg-white/10 transition-colors"
+            (click)="closeEphemeralTokenModal()"
+            type="button"
+          >
+            {{ newEphemeralTokenCreated ? 'Done' : 'Cancel' }}
+          </button>
+          <button
+            class="btn-modal-action primary-gradient rounded-lg font-bold text-on-primary-fixed hover:opacity-90 transition-opacity"
+            *ngIf="!newEphemeralTokenCreated"
+            (click)="createEphemeralToken()"
+            [disabled]="!newEphemeralTokenName.trim()"
+            type="button"
+          >
+            Generate Token
+          </button>
+          <button
+            class="btn-modal-action primary-gradient rounded-lg font-bold text-on-primary-fixed hover:opacity-90 transition-opacity"
+            *ngIf="newEphemeralTokenCreated"
+            (click)="copyEphemeralToken(); closeEphemeralTokenModal()"
+            type="button"
+          >
+            Copy Token &amp; Close
           </button>
         </div>
       </div>

@@ -481,3 +481,73 @@ func unzipFile(src string, dest string) error {
 	}
 	return nil
 }
+
+type registerWorkerRequest struct {
+	Name  string `json:"name"`
+	Token string `json:"token"`
+}
+
+type registerWorkerResponse struct {
+	APIKey string `json:"api_key"`
+}
+
+// @Summary Register Ephemeral Transcode Worker
+// @Description Register an ephemeral remote transcode worker using a registration token.
+// @Tags Worker Interface
+// @Accept json
+// @Produce json
+// @Param body body registerWorkerRequest true "Registration details"
+// @Success 200 {object} registerWorkerResponse
+// @Failure 400 {object} map[string]string "Invalid request or token name missing"
+// @Failure 401 {object} map[string]string "Invalid registration token"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /worker/register [post]
+func (h *WorkerHandler) RegisterWorker(w http.ResponseWriter, r *http.Request) {
+	var req registerWorkerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Name == "" {
+		respondError(w, http.StatusBadRequest, "worker name is required")
+		return
+	}
+	if req.Token == "" {
+		respondError(w, http.StatusBadRequest, "registration token is required")
+		return
+	}
+
+	// 1. Verify token
+	_, err := sqlite.GetEphemeralWorkerTokenByValue(r.Context(), h.db, req.Token)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusUnauthorized, "invalid registration token")
+		return
+	} else if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to validate registration token", err)
+		return
+	}
+
+	// 2. Check if a worker with the same name already exists. If yes, delete it (and requeue its jobs)
+	existing, err := sqlite.GetWorkerByName(r.Context(), h.db, req.Name)
+	if err == nil && existing != nil {
+		err = sqlite.DeleteWorker(r.Context(), h.db, existing.ID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to clean up existing duplicate worker", err)
+			return
+		}
+	} else if err != nil && !errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusInternalServerError, "failed to query duplicate workers", err)
+		return
+	}
+
+	// 3. Create the ephemeral worker record
+	worker, err := sqlite.CreateEphemeralWorker(r.Context(), h.db, req.Name)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to register ephemeral worker", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, registerWorkerResponse{APIKey: worker.APIKey})
+}
+

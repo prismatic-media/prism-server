@@ -144,9 +144,19 @@ type TranscodeWorker struct {
 	HWAccel       string     `db:"hwaccel" json:"hwaccel"`
 	Status        string     `db:"status" json:"status"`
 	LastHeartbeat *time.Time `db:"last_heartbeat" json:"last_heartbeat,omitempty"`
+	IsEphemeral   bool       `db:"is_ephemeral" json:"is_ephemeral"`
 	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
 }
+
+// EphemeralWorkerToken is a re-usable token used for registering ephemeral workers.
+type EphemeralWorkerToken struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	Token     string    `db:"token" json:"token"`
+	Name      string    `db:"name" json:"name"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
 
 // TranscodeJob tracks an FFmpeg transcoding job.
 type TranscodeJob struct {

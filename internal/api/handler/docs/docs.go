@@ -687,6 +687,154 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/workers/ephemeral-tokens": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all active ephemeral worker registration tokens.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "List Ephemeral Worker Tokens",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.EphemeralWorkerToken"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new re-usable registration token for ephemeral workers.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "Create Ephemeral Worker Token",
+                "parameters": [
+                    {
+                        "description": "Token parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createEphemeralTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.EphemeralWorkerToken"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/workers/ephemeral-tokens/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revoke/delete an ephemeral worker registration token.",
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "Delete Ephemeral Worker Token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Token ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Token not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/workers/{id}": {
             "put": {
                 "security": [
@@ -3008,6 +3156,67 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/worker/register": {
+            "post": {
+                "description": "Register an ephemeral remote transcode worker using a registration token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Interface"
+                ],
+                "summary": "Register Ephemeral Transcode Worker",
+                "parameters": [
+                    {
+                        "description": "Registration details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.registerWorkerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.registerWorkerResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or token name missing",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid registration token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -3055,6 +3264,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "filter": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createEphemeralTokenRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
                     "type": "string"
                 }
             }
@@ -3153,6 +3370,25 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "\"processing\" or \"failed\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.registerWorkerRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.registerWorkerResponse": {
+            "type": "object",
+            "properties": {
+                "api_key": {
                     "type": "string"
                 }
             }
@@ -3301,6 +3537,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "profile_path": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.EphemeralWorkerToken": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "token": {
                     "type": "string"
                 }
             }
@@ -3666,6 +3919,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "is_ephemeral": {
+                    "type": "boolean"
                 },
                 "last_heartbeat": {
                     "type": "string"

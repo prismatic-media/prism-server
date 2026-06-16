@@ -50,8 +50,16 @@ export interface TranscodeWorker {
   hwaccel: string;
   status: 'offline' | 'idle' | 'transcoding';
   last_heartbeat?: string;
+  is_ephemeral?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface EphemeralWorkerToken {
+  id: string;
+  token: string;
+  name: string;
+  created_at: string;
 }
 
 @Component({
@@ -101,6 +109,13 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   showRegisterModal = false;
   newWorkerRegistered = false;
   generatedApiKey = '';
+
+  // Ephemeral Token State
+  ephemeralTokens: EphemeralWorkerToken[] = [];
+  newEphemeralTokenName = '';
+  generatedEphemeralToken = '';
+  showEphemeralTokenModal = false;
+  newEphemeralTokenCreated = false;
 
   // Mapped MediaItems cache
   mediaMap = new Map<string, MediaItem>();
@@ -542,6 +557,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
             this.cdr.detectChanges();
           }, 0);
         });
+        this.fetchEphemeralTokens();
       },
       error: (err) => {
         this.zone.run(() => {
@@ -689,5 +705,100 @@ scratch_dir: /tmp/prism-scratch`;
     if (!isoString) return '';
     const date = new Date(isoString);
     return date.toLocaleString();
+  }
+
+  fetchEphemeralTokens(): void {
+    this.http.get<EphemeralWorkerToken[]>('/api/v1/admin/workers/ephemeral-tokens').subscribe({
+      next: (tokens) => {
+        this.zone.run(() => {
+          this.ephemeralTokens = tokens || [];
+          setTimeout(() => {
+            this.cdr.detectChanges();
+          }, 0);
+        });
+      },
+      error: (err) => {
+        console.error('Failed to load ephemeral worker tokens.', err);
+      }
+    });
+  }
+
+  createEphemeralToken(): void {
+    if (!this.newEphemeralTokenName.trim()) return;
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    this.http
+      .post<EphemeralWorkerToken>('/api/v1/admin/workers/ephemeral-tokens', { name: this.newEphemeralTokenName.trim() })
+      .subscribe({
+        next: (token) => {
+          this.zone.run(() => {
+            this.generatedEphemeralToken = token.token;
+            this.newEphemeralTokenCreated = true;
+            this.fetchEphemeralTokens();
+            setTimeout(() => {
+              this.cdr.detectChanges();
+            }, 0);
+          });
+        },
+        error: (err) => {
+          this.zone.run(() => {
+            alert(`Failed to create ephemeral token: ${err.error?.error || err.message}`);
+            setTimeout(() => {
+              this.cdr.detectChanges();
+            }, 0);
+          });
+        }
+      });
+  }
+
+  deleteEphemeralToken(id: string): void {
+    if (!confirm('Are you sure you want to revoke this registration token? Existing ephemeral workers registered with this token will continue working, but no new workers can register with it.')) {
+      return;
+    }
+    this.http.delete(`/api/v1/admin/workers/ephemeral-tokens/${id}`).subscribe({
+      next: () => {
+        this.fetchEphemeralTokens();
+      },
+      error: (err) => {
+        alert(`Failed to delete token: ${err.error?.error || err.message}`);
+      }
+    });
+  }
+
+  openEphemeralTokenModal(): void {
+    this.zone.run(() => {
+      this.newEphemeralTokenName = '';
+      this.generatedEphemeralToken = '';
+      this.newEphemeralTokenCreated = false;
+      this.showEphemeralTokenModal = true;
+      setTimeout(() => {
+        this.cdr.detectChanges();
+      }, 0);
+    });
+  }
+
+  closeEphemeralTokenModal(): void {
+    this.zone.run(() => {
+      this.showEphemeralTokenModal = false;
+      setTimeout(() => {
+        this.cdr.detectChanges();
+      }, 0);
+    });
+  }
+
+  copyEphemeralToken(): void {
+    navigator.clipboard.writeText(this.generatedEphemeralToken).then(() => {
+      // Copy success
+    });
+  }
+
+  copyEphemeralStartCommand(): void {
+    const command = `./prism-worker --ephemeral --token ${this.generatedEphemeralToken} --server ${window.location.origin}`;
+    navigator.clipboard.writeText(command).then(() => {
+      // Copy success
+    });
   }
 }

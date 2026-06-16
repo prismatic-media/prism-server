@@ -153,3 +153,86 @@ func (h *WorkerAdminHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+type createEphemeralTokenRequest struct {
+	Name string `json:"name"`
+}
+
+// @Summary List Ephemeral Worker Tokens
+// @Description Retrieve a list of all active ephemeral worker registration tokens.
+// @Tags Worker Administration
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {array} models.EphemeralWorkerToken
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/workers/ephemeral-tokens [get]
+func (h *WorkerAdminHandler) ListEphemeralTokens(w http.ResponseWriter, r *http.Request) {
+	tokens, err := sqlite.ListEphemeralWorkerTokens(r.Context(), h.db)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list ephemeral tokens", err)
+		return
+	}
+	respondJSON(w, http.StatusOK, emptySlice(tokens))
+}
+
+// @Summary Create Ephemeral Worker Token
+// @Description Create a new re-usable registration token for ephemeral workers.
+// @Tags Worker Administration
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body createEphemeralTokenRequest true "Token parameters"
+// @Success 201 {object} models.EphemeralWorkerToken
+// @Failure 400 {object} map[string]string "Invalid request body"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/workers/ephemeral-tokens [post]
+func (h *WorkerAdminHandler) CreateEphemeralToken(w http.ResponseWriter, r *http.Request) {
+	var req createEphemeralTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Name == "" {
+		respondError(w, http.StatusBadRequest, "token name is required")
+		return
+	}
+
+	token, err := sqlite.CreateEphemeralWorkerToken(r.Context(), h.db, req.Name)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to create ephemeral token", err)
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, token)
+}
+
+// @Summary Delete Ephemeral Worker Token
+// @Description Revoke/delete an ephemeral worker registration token.
+// @Tags Worker Administration
+// @Security BearerAuth
+// @Param id path string true "Token ID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 404 {object} map[string]string "Token not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /admin/workers/ephemeral-tokens/{id} [delete]
+func (h *WorkerAdminHandler) DeleteEphemeralToken(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid token id")
+		return
+	}
+
+	err = sqlite.DeleteEphemeralWorkerToken(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "token not found")
+		return
+	} else if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete token", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+

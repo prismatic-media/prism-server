@@ -306,3 +306,114 @@ func TestRecoverFailedWorkers(t *testing.T) {
 		t.Errorf("requeued job info mismatch: %+v", requeued[0])
 	}
 }
+
+func TestEphemeralWorkersAndTokens(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Test Token creation and retrieval
+	token, err := sqlite.CreateEphemeralWorkerToken(ctx, db, "TestToken")
+	if err != nil {
+		t.Fatalf("unexpected error creating token: %v", err)
+	}
+	if token.Name != "TestToken" {
+		t.Errorf("expected token name 'TestToken', got %q", token.Name)
+	}
+	if token.Token == "" {
+		t.Error("expected token string to be non-empty")
+	}
+
+	gotToken, err := sqlite.GetEphemeralWorkerTokenByValue(ctx, db, token.Token)
+	if err != nil {
+		t.Fatalf("unexpected error getting token: %v", err)
+	}
+	if gotToken.ID != token.ID || gotToken.Name != "TestToken" {
+		t.Errorf("token mismatch: %+v", gotToken)
+	}
+
+	// Test List tokens
+	tokens, err := sqlite.ListEphemeralWorkerTokens(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tokens) != 1 || tokens[0].ID != token.ID {
+		t.Errorf("expected 1 token, got %d", len(tokens))
+	}
+
+	// Test Create Ephemeral Worker
+	w, err := sqlite.CreateEphemeralWorker(ctx, db, "ephemeral-1")
+	if err != nil {
+		t.Fatalf("unexpected error creating worker: %v", err)
+	}
+	if !w.IsEphemeral {
+		t.Error("expected IsEphemeral to be true")
+	}
+	if w.Status != "idle" {
+		t.Errorf("expected status 'idle', got %q", w.Status)
+	}
+
+	// Test Get Worker By Name
+	gotWorker, err := sqlite.GetWorkerByName(ctx, db, "ephemeral-1")
+	if err != nil {
+		t.Fatalf("unexpected error getting worker: %v", err)
+	}
+	if gotWorker.ID != w.ID || !gotWorker.IsEphemeral {
+		t.Errorf("worker mismatch: %+v", gotWorker)
+	}
+
+	// Test Delete Token
+	err = sqlite.DeleteEphemeralWorkerToken(ctx, db, token.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = sqlite.GetEphemeralWorkerTokenByValue(ctx, db, token.Token)
+	if !errors.Is(err, sqlite.ErrNotFound) {
+		t.Errorf("expected ErrNotFound after delete, got %v", err)
+	}
+}
+
+func TestRecoverFailedWorkers_DeletesEphemeral(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Create an ephemeral worker and standard worker
+	ew, err := sqlite.CreateEphemeralWorker(ctx, db, "ephemeral-failed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sw, err := sqlite.CreateWorker(ctx, db, "standard-failed")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set their heartbeats to 1 minute ago
+	pastTime := time.Now().UTC().Add(-1 * time.Minute).Format(time.RFC3339)
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET last_heartbeat = ?, status = 'idle' WHERE id = ?", pastTime, ew.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET last_heartbeat = ?, status = 'idle' WHERE id = ?", pastTime, sw.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run RecoverFailedWorkers
+	_, err = sqlite.RecoverFailedWorkers(ctx, db, 30*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Standard worker should be offline
+	swGot, err := sqlite.GetWorkerByID(ctx, db, sw.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if swGot.Status != "offline" {
+		t.Errorf("expected standard worker status 'offline', got %q", swGot.Status)
+	}
+
+	// Ephemeral worker should be completely deleted
+	_, err = sqlite.GetWorkerByID(ctx, db, ew.ID)
+	if !errors.Is(err, sqlite.ErrNotFound) {
+		t.Errorf("expected ephemeral worker to be deleted, got err = %v", err)
+	}
+}
+

@@ -111,6 +111,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 		r.With(apimw.AuthenticateStream(rs.JWTSecret)).Get("/stream/{id}/segments/*", streamH.ServeSegment)
 
 		// Remote transcoding worker endpoints
+		r.Post("/worker/register", workerH.RegisterWorker)
 		r.Route("/worker", func(r chi.Router) {
 			r.Use(workerH.Authenticate)
 			r.Post("/heartbeat", workerH.Heartbeat)
@@ -186,6 +187,9 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Post("/admin/workers", workerAdminH.Create)
 			r.With(apimw.RequireAdmin).Put("/admin/workers/{id}", workerAdminH.Update)
 			r.With(apimw.RequireAdmin).Delete("/admin/workers/{id}", workerAdminH.Delete)
+			r.With(apimw.RequireAdmin).Get("/admin/workers/ephemeral-tokens", workerAdminH.ListEphemeralTokens)
+			r.With(apimw.RequireAdmin).Post("/admin/workers/ephemeral-tokens", workerAdminH.CreateEphemeralToken)
+			r.With(apimw.RequireAdmin).Delete("/admin/workers/ephemeral-tokens/{id}", workerAdminH.DeleteEphemeralToken)
 
 			// Artifact indexing and relinking (admin only).
 			r.With(apimw.RequireAdmin).Get("/admin/artifacts/status", artifactH.HandleStatus)
