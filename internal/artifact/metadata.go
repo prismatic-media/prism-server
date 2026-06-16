@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/prismatic-media/prism-server/internal/models"
 )
 
 // SidecarMetadata describes a transcode artifact bundle for persistence.
@@ -30,6 +32,8 @@ type SidecarMetadata struct {
 	Profiles []RenditionInfo `json:"profiles"`
 	// Duration is the source duration in seconds.
 	Duration float64 `json:"duration"`
+	// Sizes holds the sizes of each rendition and the total size on disk.
+	Sizes *models.TranscodeSizesInfo `json:"sizes,omitempty"`
 	// WrittenAt is when the sidecar was written.
 	WrittenAt time.Time `json:"written_at"`
 }
@@ -132,22 +136,10 @@ func (v *BundleValidation) IsBundleHealthy() bool {
 	return v.MPDExists && v.SegmentsExist && v.SidecarExists
 }
 
-// RenditionSize describes a transcode rendition name and its combined size on disk.
-type RenditionSize struct {
-	Resolution string `json:"resolution"` // e.g., "360p", "480p", etc.
-	Size       int64  `json:"size"`       // Total size of all files in the rendition directory in bytes
-}
-
-// TranscodeSizesInfo holds details about the transcode bundle resolution sizes and total size.
-type TranscodeSizesInfo struct {
-	Renditions []RenditionSize `json:"renditions"`
-	TotalSize  int64           `json:"total_size"`
-}
-
 // GetTranscodeSizesInfo scans the transcode output directory (parent of MPD manifest) and sums up the file sizes
 // in each resolution subdirectory as well as files in the output directory root to compute the total size.
-func GetTranscodeSizesInfo(mpdPath string) TranscodeSizesInfo {
-	var info TranscodeSizesInfo
+func GetTranscodeSizesInfo(mpdPath string) models.TranscodeSizesInfo {
+	var info models.TranscodeSizesInfo
 	if mpdPath == "" {
 		return info
 	}
@@ -173,7 +165,7 @@ func GetTranscodeSizesInfo(mpdPath string) TranscodeSizesInfo {
 				if isRendition {
 					size, err := dirSize(path)
 					if err == nil {
-						info.Renditions = append(info.Renditions, RenditionSize{
+						info.Renditions = append(info.Renditions, models.RenditionSize{
 							Resolution: name,
 							Size:       size,
 						})
@@ -192,7 +184,7 @@ func GetTranscodeSizesInfo(mpdPath string) TranscodeSizesInfo {
 
 	// Ensure Renditions is never serialized to JSON as null
 	if info.Renditions == nil {
-		info.Renditions = []RenditionSize{}
+		info.Renditions = []models.RenditionSize{}
 	}
 
 	return info

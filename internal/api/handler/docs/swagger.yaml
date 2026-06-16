@@ -1,23 +1,5 @@
 basePath: /api/v1
 definitions:
-  artifact.RenditionSize:
-    properties:
-      resolution:
-        description: e.g., "360p", "480p", etc.
-        type: string
-      size:
-        description: Total size of all files in the rendition directory in bytes
-        type: integer
-    type: object
-  artifact.TranscodeSizesInfo:
-    properties:
-      renditions:
-        items:
-          $ref: '#/definitions/artifact.RenditionSize'
-        type: array
-      total_size:
-        type: integer
-    type: object
   handler.IndexResponse:
     properties:
       summaries:
@@ -305,6 +287,8 @@ definitions:
         type: integer
       transcode_progress:
         type: number
+      transcode_sizes:
+        $ref: '#/definitions/models.TranscodeSizesInfo'
       transcode_status:
         allOf:
         - $ref: '#/definitions/models.TranscodeStatus'
@@ -338,6 +322,15 @@ definitions:
     - MediaTypeTVShow
     - MediaTypeEpisode
     - MediaTypeMusic
+  models.RenditionSize:
+    properties:
+      resolution:
+        description: e.g., "360p", "480p", etc.
+        type: string
+      size:
+        description: Total size of all files in the rendition directory in bytes
+        type: integer
+    type: object
   models.SearchResult:
     properties:
       cast:
@@ -456,6 +449,15 @@ definitions:
         $ref: '#/definitions/models.TranscodeStatus'
       worker_id:
         type: string
+    type: object
+  models.TranscodeSizesInfo:
+    properties:
+      renditions:
+        items:
+          $ref: '#/definitions/models.RenditionSize'
+        type: array
+      total_size:
+        type: integer
     type: object
   models.TranscodeStatus:
     enum:
@@ -1987,7 +1989,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/artifact.TranscodeSizesInfo'
+            $ref: '#/definitions/models.TranscodeSizesInfo'
         "400":
           description: Invalid media ID
           schema:

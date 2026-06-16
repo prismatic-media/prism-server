@@ -85,7 +85,7 @@ func ListSeasonEpisodes(ctx context.Context, db *sql.DB, seasonID uuid.UUID) ([]
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items
 		WHERE tv_season_id = ?
 		ORDER BY episode_number`, seasonID.String())

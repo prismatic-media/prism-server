@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -268,7 +269,7 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 // @Security BearerAuth
 // @Produce json
 // @Param id path string true "Media ID" format(uuid)
-// @Success 200 {object} artifact.TranscodeSizesInfo
+// @Success 200 {object} models.TranscodeSizesInfo
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Media item not found"
@@ -291,11 +292,36 @@ func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request)
 	}
 
 	if item.MPDPath == nil || *item.MPDPath == "" {
-		respondJSON(w, http.StatusOK, artifact.TranscodeSizesInfo{Renditions: []artifact.RenditionSize{}})
+		respondJSON(w, http.StatusOK, models.TranscodeSizesInfo{Renditions: []models.RenditionSize{}})
 		return
 	}
 
+	if item.TranscodeSizes != nil {
+		respondJSON(w, http.StatusOK, item.TranscodeSizes)
+		return
+	}
+
+	outputDir := filepath.Dir(*item.MPDPath)
+	// Try reading from sidecar
+	if meta, err := artifact.ReadSidecar(outputDir); err == nil && meta != nil && meta.Sizes != nil {
+		// Update DB with sidecar sizes
+		_ = sqlite.SetMediaTranscodeSizes(r.Context(), h.db, item.ID, meta.Sizes)
+		respondJSON(w, http.StatusOK, meta.Sizes)
+		return
+	}
+
+	// Fallback to dynamic scanning
 	sizes := artifact.GetTranscodeSizesInfo(*item.MPDPath)
+
+	// Cache to database
+	_ = sqlite.SetMediaTranscodeSizes(r.Context(), h.db, item.ID, &sizes)
+
+	// Cache to sidecar if sidecar exists
+	if meta, err := artifact.ReadSidecar(outputDir); err == nil && meta != nil {
+		meta.Sizes = &sizes
+		_ = artifact.WriteSidecar(outputDir, meta)
+	}
+
 	respondJSON(w, http.StatusOK, sizes)
 }
 

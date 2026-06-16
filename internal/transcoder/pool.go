@@ -682,6 +682,9 @@ func writeArtifactSidecar(ctx context.Context, db *sql.DB, item *models.MediaIte
 		})
 	}
 
+	mpdPath := filepath.Join(outputDir, "manifest.mpd")
+	sizes := artifact.GetTranscodeSizesInfo(mpdPath)
+
 	meta := &artifact.SidecarMetadata{
 		MediaItemID:       item.ID.String(),
 		SourcePath:        sourcePath,
@@ -690,6 +693,7 @@ func writeArtifactSidecar(ctx context.Context, db *sql.DB, item *models.MediaIte
 		MPDPath:           "manifest.mpd",
 		Profiles:          profilesInfo,
 		Duration:          duration,
+		Sizes:             &sizes,
 	}
 
 	slog.Info("writeArtifactSidecar: writing sidecar metadata file", "outputDir", outputDir)
@@ -698,6 +702,14 @@ func writeArtifactSidecar(ctx context.Context, db *sql.DB, item *models.MediaIte
 		return fmt.Errorf("writing artifact sidecar: %w", err)
 	}
 	slog.Info("writeArtifactSidecar: sidecar metadata file written successfully")
+
+	// Update transcode sizes in the database
+	if err := sqlite.SetMediaTranscodeSizes(ctx, db, item.ID, &sizes); err != nil {
+		slog.Error("writeArtifactSidecar: updating transcode sizes in database failed", "error", err)
+	} else {
+		slog.Info("writeArtifactSidecar: transcode sizes updated in database successfully")
+		item.TranscodeSizes = &sizes
+	}
 	return nil
 }
 

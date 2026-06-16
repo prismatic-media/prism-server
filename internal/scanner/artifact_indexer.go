@@ -159,6 +159,9 @@ func (i *Indexer) IndexStorageArea(ctx context.Context, area *models.StorageArea
 
 						absMPD := filepath.Join(outputDir, sidecar.MPDPath)
 						existingMedia.MPDPath = &absMPD
+						if sidecar.Sizes != nil {
+							existingMedia.TranscodeSizes = sidecar.Sizes
+						}
 
 						if err := sqlite.UpsertMediaItem(ctx, i.db, existingMedia); err != nil {
 							i.log.Warn("failed to link existing media item to bundle during indexing", "path", sidecar.SourcePath, "error", err)

@@ -125,14 +125,15 @@ type MediaItem struct {
 	EpisodeNumber *int       `db:"episode_number" json:"episode_number,omitempty"`
 	TVShowTitle   *string    `json:"tv_show_title,omitempty"`
 	// Transcode
-	TranscodeStatus   TranscodeStatus `db:"transcode_status" json:"transcode_status"`
-	TranscodeProgress *float64        `json:"transcode_progress,omitempty"`
-	MPDPath           *string         `db:"mpd_path" json:"mpd_path,omitempty"`
-	SourceFingerprint *string         `db:"source_fingerprint" json:"source_fingerprint,omitempty"`
-	SourceStatus      string          `db:"source_status" json:"source_status"`
-	BundleStatus      string          `db:"bundle_status" json:"bundle_status"`
-	CreatedAt         time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	TranscodeStatus   TranscodeStatus     `db:"transcode_status" json:"transcode_status"`
+	TranscodeProgress *float64            `json:"transcode_progress,omitempty"`
+	MPDPath           *string             `db:"mpd_path" json:"mpd_path,omitempty"`
+	SourceFingerprint *string             `db:"source_fingerprint" json:"source_fingerprint,omitempty"`
+	SourceStatus      string              `db:"source_status" json:"source_status"`
+	BundleStatus      string              `db:"bundle_status" json:"bundle_status"`
+	TranscodeSizes    *TranscodeSizesInfo `db:"transcode_sizes" json:"transcode_sizes,omitempty"`
+	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
 }
 
 // TranscodeWorker represents a remote transcode worker.
@@ -294,4 +295,17 @@ type SearchResult struct {
 	Director     *string      `json:"director,omitempty"`
 	Cast         []CastMember `json:"cast,omitempty"`
 }
+
+// RenditionSize describes a transcode rendition name and its combined size on disk.
+type RenditionSize struct {
+	Resolution string `json:"resolution"` // e.g., "360p", "480p", etc.
+	Size       int64  `json:"size"`       // Total size of all files in the rendition directory in bytes
+}
+
+// TranscodeSizesInfo holds details about the transcode bundle resolution sizes and total size.
+type TranscodeSizesInfo struct {
+	Renditions []RenditionSize `json:"renditions"`
+	TotalSize  int64           `json:"total_size"`
+}
+
 

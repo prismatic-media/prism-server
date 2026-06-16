@@ -2255,7 +2255,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/artifact.TranscodeSizesInfo"
+                            "$ref": "#/definitions/models.TranscodeSizesInfo"
                         }
                     },
                     "400": {
@@ -3282,33 +3282,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "artifact.RenditionSize": {
-            "type": "object",
-            "properties": {
-                "resolution": {
-                    "description": "e.g., \"360p\", \"480p\", etc.",
-                    "type": "string"
-                },
-                "size": {
-                    "description": "Total size of all files in the rendition directory in bytes",
-                    "type": "integer"
-                }
-            }
-        },
-        "artifact.TranscodeSizesInfo": {
-            "type": "object",
-            "properties": {
-                "renditions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/artifact.RenditionSize"
-                    }
-                },
-                "total_size": {
-                    "type": "integer"
-                }
-            }
-        },
         "handler.IndexResponse": {
             "type": "object",
             "properties": {
@@ -3750,6 +3723,9 @@ const docTemplate = `{
                 "transcode_progress": {
                     "type": "number"
                 },
+                "transcode_sizes": {
+                    "$ref": "#/definitions/models.TranscodeSizesInfo"
+                },
                 "transcode_status": {
                     "description": "Transcode",
                     "allOf": [
@@ -3796,6 +3772,19 @@ const docTemplate = `{
                 "MediaTypeEpisode",
                 "MediaTypeMusic"
             ]
+        },
+        "models.RenditionSize": {
+            "type": "object",
+            "properties": {
+                "resolution": {
+                    "description": "e.g., \"360p\", \"480p\", etc.",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Total size of all files in the rendition directory in bytes",
+                    "type": "integer"
+                }
+            }
         },
         "models.SearchResult": {
             "type": "object",
@@ -3974,6 +3963,20 @@ const docTemplate = `{
                 },
                 "worker_id": {
                     "type": "string"
+                }
+            }
+        },
+        "models.TranscodeSizesInfo": {
+            "type": "object",
+            "properties": {
+                "renditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RenditionSize"
+                    }
+                },
+                "total_size": {
+                    "type": "integer"
                 }
             }
         },

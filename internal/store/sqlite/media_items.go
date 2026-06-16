@@ -46,6 +46,12 @@ func UpsertMediaItem(ctx context.Context, db *sql.DB, m *models.MediaItem) error
 			extraPostersStr = sql.NullString{String: string(b), Valid: true}
 		}
 	}
+	var sizesStr sql.NullString
+	if m.TranscodeSizes != nil {
+		if b, err := json.Marshal(m.TranscodeSizes); err == nil {
+			sizesStr = sql.NullString{String: string(b), Valid: true}
+		}
+	}
 
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO media_items
@@ -53,8 +59,8 @@ func UpsertMediaItem(ctx context.Context, db *sql.DB, m *models.MediaItem) error
 			 duration, width, height, video_codec, audio_codec,
 			 tv_show_id, tv_season_id, season_number, episode_number,
 			 transcode_status, source_fingerprint, source_status, bundle_status,
-			 tmdb_id, year, overview, poster_path, mpd_path, director, cast_members, backdrop_path, extra_posters, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 tmdb_id, year, overview, poster_path, mpd_path, director, cast_members, backdrop_path, extra_posters, transcode_sizes, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(file_path) DO UPDATE SET
 			title            = excluded.title,
 			file_size        = excluded.file_size,
@@ -80,6 +86,7 @@ func UpsertMediaItem(ctx context.Context, db *sql.DB, m *models.MediaItem) error
 			cast_members     = COALESCE(excluded.cast_members, media_items.cast_members),
 			backdrop_path    = COALESCE(excluded.backdrop_path, media_items.backdrop_path),
 			extra_posters    = COALESCE(excluded.extra_posters, media_items.extra_posters),
+			transcode_sizes  = COALESCE(excluded.transcode_sizes, media_items.transcode_sizes),
 			updated_at       = excluded.updated_at`,
 		m.ID.String(), m.LibraryID.String(), m.Title,
 		string(m.MediaType), m.FilePath, m.FileSize,
@@ -91,6 +98,7 @@ func UpsertMediaItem(ctx context.Context, db *sql.DB, m *models.MediaItem) error
 		nullStringPtr(m.SourceFingerprint), m.SourceStatus, m.BundleStatus,
 		nullIntPtr(m.TMDBId), nullIntPtr(m.Year), nullStringPtr(m.Overview), nullStringPtr(m.PosterPath), nullStringPtr(m.MPDPath),
 		nullStringPtr(m.Director), castStr, nullStringPtr(m.BackdropPath), extraPostersStr,
+		sizesStr,
 		m.CreatedAt.Format(time.RFC3339),
 		m.UpdatedAt.Format(time.RFC3339),
 	)
@@ -107,7 +115,7 @@ func GetMediaItemByID(ctx context.Context, db *sql.DB, id uuid.UUID) (*models.Me
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE id = ?`, id.String())
 	item, err := scanMediaItem(row)
 	if err != nil {
@@ -133,7 +141,7 @@ func GetMediaItemByPath(ctx context.Context, db *sql.DB, path string) (*models.M
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE file_path = ?`, path)
 	return scanMediaItem(row)
 }
@@ -146,7 +154,7 @@ func ListMediaItems(ctx context.Context, db *sql.DB, libraryID uuid.UUID) ([]*mo
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE library_id = ? AND media_type != 'episode' ORDER BY CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE`, libraryID.String())
 	if err != nil {
 		return nil, fmt.Errorf("listing media items: %w", err)
@@ -171,7 +179,7 @@ func ListMediaItemsAll(ctx context.Context, db *sql.DB, libraryID uuid.UUID) ([]
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE library_id = ? ORDER BY CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE`, libraryID.String())
 	if err != nil {
 		return nil, fmt.Errorf("listing all media items for library: %w", err)
@@ -196,7 +204,7 @@ func ListAllMediaItems(ctx context.Context, db *sql.DB) ([]*models.MediaItem, er
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE media_type != 'episode' ORDER BY CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE`)
 	if err != nil {
 		return nil, fmt.Errorf("listing all media items: %w", err)
@@ -221,7 +229,7 @@ func ListRecentMediaItems(ctx context.Context, db *sql.DB, limit int) ([]*models
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE media_type != 'episode' ORDER BY created_at DESC, CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE ASC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("listing recent media items: %w", err)
@@ -260,7 +268,7 @@ func GetMediaItemByFingerprint(ctx context.Context, db *sql.DB, libraryID uuid.U
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items
 		WHERE library_id = ? AND source_fingerprint = ? LIMIT 1`, libraryID.String(), fingerprint)
 	return scanMediaItem(row)
@@ -438,7 +446,7 @@ func ListAllMediaItemsAll(ctx context.Context, db *sql.DB) ([]*models.MediaItem,
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
 		FROM media_items ORDER BY CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE`)
 	if err != nil {
 		return nil, fmt.Errorf("listing all media items (all types): %w", err)
@@ -478,14 +486,14 @@ func scanMediaItem(row *sql.Row) (*models.MediaItem, error) {
 	var tmdbID, year, width, height, seasonNumber, episodeNumber sql.NullInt64
 	var overview, posterPath, mpdPath, tvShowID, tvSeasonID, sourceFingerprint sql.NullString
 	var duration sql.NullFloat64
-	var director, castStr, backdropPath, extraPostersStr sql.NullString
+	var director, castStr, backdropPath, extraPostersStr, transcodeSizesStr sql.NullString
 
 	err := row.Scan(
 		&id, &libraryID, &m.Title, &mediaType, &m.FilePath, &m.FileSize,
 		&duration, &width, &height, &m.VideoCodec, &m.AudioCodec,
 		&tmdbID, &year, &overview, &posterPath, &director, &castStr, &backdropPath, &extraPostersStr,
 		&tvShowID, &tvSeasonID, &seasonNumber, &episodeNumber,
-		&transcodeStatus, &mpdPath, &sourceFingerprint, &sourceStatus, &bundleStatus, &createdAt, &updatedAt,
+		&transcodeStatus, &mpdPath, &sourceFingerprint, &sourceStatus, &bundleStatus, &transcodeSizesStr, &createdAt, &updatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -496,7 +504,7 @@ func scanMediaItem(row *sql.Row) (*models.MediaItem, error) {
 	return populateMediaItem(&m, id, libraryID, mediaType, transcodeStatus,
 		createdAt, updatedAt, tmdbID, year, width, height, seasonNumber, episodeNumber,
 		duration, overview, posterPath, mpdPath, tvShowID, tvSeasonID,
-		sourceFingerprint, sourceStatus, bundleStatus, director, castStr, backdropPath, extraPostersStr), nil
+		sourceFingerprint, sourceStatus, bundleStatus, director, castStr, backdropPath, extraPostersStr, transcodeSizesStr), nil
 }
 
 // scanMediaItemRow scans a *sql.Rows into a MediaItem.
@@ -506,14 +514,14 @@ func scanMediaItemRow(rows *sql.Rows) (*models.MediaItem, error) {
 	var tmdbID, year, width, height, seasonNumber, episodeNumber sql.NullInt64
 	var overview, posterPath, mpdPath, tvShowID, tvSeasonID, sourceFingerprint sql.NullString
 	var duration sql.NullFloat64
-	var director, castStr, backdropPath, extraPostersStr sql.NullString
+	var director, castStr, backdropPath, extraPostersStr, transcodeSizesStr sql.NullString
 
 	err := rows.Scan(
 		&id, &libraryID, &m.Title, &mediaType, &m.FilePath, &m.FileSize,
 		&duration, &width, &height, &m.VideoCodec, &m.AudioCodec,
 		&tmdbID, &year, &overview, &posterPath, &director, &castStr, &backdropPath, &extraPostersStr,
 		&tvShowID, &tvSeasonID, &seasonNumber, &episodeNumber,
-		&transcodeStatus, &mpdPath, &sourceFingerprint, &sourceStatus, &bundleStatus, &createdAt, &updatedAt,
+		&transcodeStatus, &mpdPath, &sourceFingerprint, &sourceStatus, &bundleStatus, &transcodeSizesStr, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scanning media item row: %w", err)
@@ -521,7 +529,7 @@ func scanMediaItemRow(rows *sql.Rows) (*models.MediaItem, error) {
 	return populateMediaItem(&m, id, libraryID, mediaType, transcodeStatus,
 		createdAt, updatedAt, tmdbID, year, width, height, seasonNumber, episodeNumber,
 		duration, overview, posterPath, mpdPath, tvShowID, tvSeasonID,
-		sourceFingerprint, sourceStatus, bundleStatus, director, castStr, backdropPath, extraPostersStr), nil
+		sourceFingerprint, sourceStatus, bundleStatus, director, castStr, backdropPath, extraPostersStr, transcodeSizesStr), nil
 }
 
 func populateMediaItem(
@@ -531,7 +539,7 @@ func populateMediaItem(
 	duration sql.NullFloat64,
 	overview, posterPath, mpdPath, tvShowID, tvSeasonID sql.NullString,
 	sourceFingerprint sql.NullString, sourceStatus, bundleStatus string,
-	director, castStr, backdropPath, extraPostersStr sql.NullString,
+	director, castStr, backdropPath, extraPostersStr, transcodeSizesStr sql.NullString,
 ) *models.MediaItem {
 	m.ID, _ = uuid.Parse(id)
 	m.LibraryID, _ = uuid.Parse(libraryID)
@@ -604,6 +612,12 @@ func populateMediaItem(
 	}
 	m.SourceStatus = sourceStatus
 	m.BundleStatus = bundleStatus
+	if transcodeSizesStr.Valid && transcodeSizesStr.String != "" {
+		var t models.TranscodeSizesInfo
+		if err := json.Unmarshal([]byte(transcodeSizesStr.String), &t); err == nil {
+			m.TranscodeSizes = &t
+		}
+	}
 	return m
 }
 
@@ -691,5 +705,23 @@ func SearchMedia(ctx context.Context, db *sql.DB, query string) ([]*models.Searc
 
 	return results, rows.Err()
 }
+
+// SetMediaTranscodeSizes updates the transcode sizes of a media item in the database.
+func SetMediaTranscodeSizes(ctx context.Context, db *sql.DB, itemID uuid.UUID, sizes *models.TranscodeSizesInfo) error {
+	var sizesStr sql.NullString
+	if sizes != nil {
+		if b, err := json.Marshal(sizes); err == nil {
+			sizesStr = sql.NullString{String: string(b), Valid: true}
+		}
+	}
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+		UPDATE media_items
+		SET transcode_sizes = ?, updated_at = ?
+		WHERE id = ?`,
+		sizesStr, now.Format(time.RFC3339), itemID.String())
+	return err
+}
+
 
 
