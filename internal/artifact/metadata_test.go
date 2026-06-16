@@ -110,3 +110,61 @@ func TestSidecarV1Compatibility(t *testing.T) {
 		t.Errorf("expected MediaItemID test-v1-uuid, got %s", meta.MediaItemID)
 	}
 }
+
+func TestGetTranscodeSizesInfo(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Create a dummy transcode output structure.
+	// We need resolution subdirectories, e.g. 360p and 480p.
+	// Inside each, we write files with specific sizes to verify summation.
+	r360 := tmpDir + "/360p"
+	r480 := tmpDir + "/480p"
+	notRendition := tmpDir + "/temp" // directory that doesn't match rendition format
+
+	if err := os.MkdirAll(r360, 0755); err != nil {
+		t.Fatalf("failed to create 360p dir: %v", err)
+	}
+	if err := os.MkdirAll(r480, 0755); err != nil {
+		t.Fatalf("failed to create 480p dir: %v", err)
+	}
+	if err := os.MkdirAll(notRendition, 0755); err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+
+	// Write files to 360p: total 30 bytes
+	_ = os.WriteFile(r360+"/init.mp4", make([]byte, 10), 0644)
+	_ = os.WriteFile(r360+"/seg_00001.m4s", make([]byte, 20), 0644)
+
+	// Write files to 480p: total 100 bytes
+	_ = os.WriteFile(r480+"/init.mp4", make([]byte, 40), 0644)
+	_ = os.WriteFile(r480+"/seg_00001.m4s", make([]byte, 60), 0644)
+
+	// Write files to temp: should be ignored
+	_ = os.WriteFile(notRendition+"/ignored.mp4", make([]byte, 1000), 0644)
+
+	// Write a file directly to outputDir: 5 bytes
+	_ = os.WriteFile(tmpDir+"/manifest.mpd", make([]byte, 5), 0644)
+
+	mpdPath := tmpDir + "/manifest.mpd"
+
+	info := GetTranscodeSizesInfo(mpdPath)
+
+	if len(info.Renditions) != 2 {
+		t.Fatalf("expected 2 rendition sizes, got %d", len(info.Renditions))
+	}
+
+	// Order is not guaranteed since ReadDir sorts alphabetically.
+	// But "360p" and "480p" are sorted alphabetically, so info.Renditions[0] should be 360p, info.Renditions[1] should be 480p.
+	if info.Renditions[0].Resolution != "360p" || info.Renditions[0].Size != 30 {
+		t.Errorf("expected 360p to have size 30, got %s size %d", info.Renditions[0].Resolution, info.Renditions[0].Size)
+	}
+	if info.Renditions[1].Resolution != "480p" || info.Renditions[1].Size != 100 {
+		t.Errorf("expected 480p to have size 100, got %s size %d", info.Renditions[1].Resolution, info.Renditions[1].Size)
+	}
+
+	// Total size: 30 (360p) + 100 (480p) + 5 (manifest.mpd) = 135 bytes
+	if info.TotalSize != 135 {
+		t.Errorf("expected total size 135, got %d", info.TotalSize)
+	}
+}
+

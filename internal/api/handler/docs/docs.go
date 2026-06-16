@@ -2226,6 +2226,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/media/{id}/transcode-sizes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the size of each resolution subdirectory and the total size in the media item's transcode bundle.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media Items"
+                ],
+                "summary": "Get Media Transcode Sizes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/artifact.TranscodeSizesInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid media ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Media item not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/search": {
             "get": {
                 "security": [
@@ -3220,6 +3282,33 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "artifact.RenditionSize": {
+            "type": "object",
+            "properties": {
+                "resolution": {
+                    "description": "e.g., \"360p\", \"480p\", etc.",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Total size of all files in the rendition directory in bytes",
+                    "type": "integer"
+                }
+            }
+        },
+        "artifact.TranscodeSizesInfo": {
+            "type": "object",
+            "properties": {
+                "renditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/artifact.RenditionSize"
+                    }
+                },
+                "total_size": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.IndexResponse": {
             "type": "object",
             "properties": {

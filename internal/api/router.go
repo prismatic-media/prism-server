@@ -139,6 +139,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.Get("/media", mediaH.ListMedia)
 			r.Get("/search", mediaH.Search)
 			r.Get("/media/{id}", mediaH.GetMedia)
+			r.Get("/media/{id}/transcode-sizes", mediaH.GetTranscodeSizes)
 			r.With(apimw.RequireAdmin).Delete("/media/{id}", mediaH.DeleteMedia)
 			r.With(apimw.RequireAdmin).Post("/media/{id}/transcode", jobsH.EnqueueTranscode)
 

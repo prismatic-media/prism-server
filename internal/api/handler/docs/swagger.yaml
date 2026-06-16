@@ -1,5 +1,23 @@
 basePath: /api/v1
 definitions:
+  artifact.RenditionSize:
+    properties:
+      resolution:
+        description: e.g., "360p", "480p", etc.
+        type: string
+      size:
+        description: Total size of all files in the rendition directory in bytes
+        type: integer
+    type: object
+  artifact.TranscodeSizesInfo:
+    properties:
+      renditions:
+        items:
+          $ref: '#/definitions/artifact.RenditionSize'
+        type: array
+      total_size:
+        type: integer
+    type: object
   handler.IndexResponse:
     properties:
       summaries:
@@ -1952,6 +1970,47 @@ paths:
       summary: Enqueue Transcode Job (Admin Only)
       tags:
       - Transcoding Jobs
+  /media/{id}/transcode-sizes:
+    get:
+      description: Returns the size of each resolution subdirectory and the total
+        size in the media item's transcode bundle.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/artifact.TranscodeSizesInfo'
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Media Transcode Sizes
+      tags:
+      - Media Items
   /search:
     get:
       description: Searches library for shows and movies by title.

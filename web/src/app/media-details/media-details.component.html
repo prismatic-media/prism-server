@@ -220,6 +220,7 @@
         <div class="bento-card frosted-glass specs-card">
           <h3 class="card-title">Technical Specs</h3>
           <div class="specs-table">
+            <h4 class="specs-section-title">Original File</h4>
             <div class="specs-row">
               <span class="specs-label">Resolution</span>
               <span class="specs-value val-highlight">{{ movie.width }}x{{ movie.height }}</span>
@@ -235,6 +236,54 @@
             <div class="specs-row">
               <span class="specs-label">File Size</span>
               <span class="specs-value">{{ formatSize(movie.file_size) }}</span>
+            </div>
+
+            <h4 class="specs-section-title">Transcode Bundle</h4>
+            
+            <!-- Done: list sizes -->
+            <ng-container *ngIf="movie.transcode_status === 'done' && transcodeSizes && transcodeSizes.renditions.length > 0">
+              <div class="specs-row" *ngFor="let item of transcodeSizes.renditions">
+                <span class="specs-label">{{ item.resolution }}</span>
+                <span class="specs-value">{{ formatSize(item.size) }}</span>
+              </div>
+              <div class="specs-row specs-total-row">
+                <span class="specs-label font-semibold">Total Size</span>
+                <span class="specs-value val-highlight">{{ formatSize(transcodeSizes.total_size) }}</span>
+              </div>
+            </ng-container>
+
+            <!-- Done but no sizes found -->
+            <div class="specs-status-text" *ngIf="movie.transcode_status === 'done' && (!transcodeSizes || transcodeSizes.renditions.length === 0) && !transcodeSizesLoading">
+              No transcode sizes available
+            </div>
+
+            <!-- Pending -->
+            <div class="specs-status-text" *ngIf="movie.transcode_status === 'pending'">
+              <span class="spinner-small" style="margin-right: 6px;"></span>
+              Optimization enqueued
+            </div>
+
+            <!-- Processing -->
+            <div class="specs-status-text" *ngIf="movie.transcode_status === 'processing'">
+              <span class="spinner-small" style="margin-right: 6px;"></span>
+              Optimizing ({{ Math.round(movie.transcode_progress || 0) }}%)
+            </div>
+
+            <!-- Failed -->
+            <div class="specs-status-text error-text" *ngIf="movie.transcode_status === 'failed'">
+              <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 6px;">error</span>
+              Optimization failed
+            </div>
+
+            <!-- None -->
+            <div class="specs-status-text" *ngIf="movie.transcode_status === 'none'">
+              Stream not optimized
+            </div>
+
+            <!-- Loading sizes -->
+            <div class="specs-status-text" *ngIf="transcodeSizesLoading && movie.transcode_status === 'done'">
+              <span class="spinner-small" style="margin-right: 6px;"></span>
+              Loading sizes...
             </div>
           </div>
         </div>

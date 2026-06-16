@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/prismatic-media/prism-server/internal/artifact"
 	"github.com/prismatic-media/prism-server/internal/models"
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
@@ -259,6 +260,45 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 	}
 	http.ServeFile(w, r, item.ExtraPosters[index])
 }
+
+// GetTranscodeSizes returns the size of each resolution and the total size in the transcode bundle.
+// @Summary Get Media Transcode Sizes
+// @Description Returns the size of each resolution subdirectory and the total size in the media item's transcode bundle.
+// @Tags Media Items
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Media ID" format(uuid)
+// @Success 200 {object} artifact.TranscodeSizesInfo
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Media item not found"
+// @Router /media/{id}/transcode-sizes [get]
+func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id")
+		return
+	}
+
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "media item not found")
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+		return
+	}
+
+	if item.MPDPath == nil || *item.MPDPath == "" {
+		respondJSON(w, http.StatusOK, artifact.TranscodeSizesInfo{Renditions: []artifact.RenditionSize{}})
+		return
+	}
+
+	sizes := artifact.GetTranscodeSizesInfo(*item.MPDPath)
+	respondJSON(w, http.StatusOK, sizes)
+}
+
 
 
 // emptySlice converts a nil slice to an empty interface slice for JSON

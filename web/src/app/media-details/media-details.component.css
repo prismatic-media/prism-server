@@ -393,6 +393,43 @@
   padding-bottom: 0;
 }
 
+.specs-section-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--surface-tint);
+  letter-spacing: 0.1em;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(220, 228, 229, 0.1);
+  padding-bottom: 6px;
+}
+
+.specs-section-title:first-of-type {
+  margin-top: 0;
+}
+
+.specs-status-text {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.specs-status-text.error-text {
+  color: var(--error);
+}
+
+.specs-total-row {
+  border-top: 1px solid rgba(220, 228, 229, 0.15);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+
+
 .specs-label {
   font-size: 13px;
   color: var(--on-surface-variant);

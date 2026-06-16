@@ -92,6 +92,16 @@ export interface WatchHistory {
   updated_at: string;
 }
 
+export interface RenditionSize {
+  resolution: string;
+  size: number;
+}
+
+export interface TranscodeSizesInfo {
+  renditions: RenditionSize[];
+  total_size: number;
+}
+
 @Component({
   selector: 'app-media-details',
   standalone: true,
@@ -118,6 +128,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
 
   // Movie Data
   movie: Movie | null = null;
+
+  // Transcode Sizes
+  transcodeSizes: TranscodeSizesInfo | null = null;
+  transcodeSizesLoading = false;
+  transcodeSizesError = '';
 
   // TV Show Data
   tvShow: TVShow | null = null;
@@ -214,6 +229,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       this.seasons = [];
       this.selectedSeason = null;
       this.episodes = [];
+      this.transcodeSizes = null;
     }
 
     this.http.get<WatchHistory[]>('/api/v1/history').subscribe({
@@ -230,6 +246,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
           this.loading = false;
           this.cdr.detectChanges();
           this.castService.showPreview(data);
+          this.loadTranscodeSizes(this.id);
         },
         error: (err) => {
           if (!silent) {
@@ -323,6 +340,23 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         },
       });
+  }
+
+  loadTranscodeSizes(mediaId: string): void {
+    this.transcodeSizesLoading = true;
+    this.transcodeSizesError = '';
+    this.http.get<TranscodeSizesInfo>(`/api/v1/media/${mediaId}/transcode-sizes`).subscribe({
+      next: (info) => {
+        this.transcodeSizes = info;
+        this.transcodeSizesLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.transcodeSizesError = 'Failed to load transcode sizes';
+        this.transcodeSizesLoading = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   getPosterUrl(): string {
@@ -487,6 +521,9 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     let changed = false;
     if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
       this.movie.transcode_status = payload.transcode_status;
+      if (payload.transcode_status === 'done') {
+        this.loadTranscodeSizes(this.movie.id);
+      }
       changed = true;
     } else if (this.mediaType === 'tvshow' && this.episodes) {
       const ep = this.episodes.find((e) => e.id === payload.media_item_id);
