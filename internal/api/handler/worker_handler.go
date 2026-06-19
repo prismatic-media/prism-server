@@ -63,10 +63,16 @@ func (h *WorkerHandler) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
+type WorkerJob struct {
+	ID          uuid.UUID                 `json:"id"`
+	MediaItemID uuid.UUID                 `json:"media_item_id"`
+	Profiles    []models.TranscodeProfile `json:"profiles"`
+}
+
 type heartbeatResponse struct {
-	Threads int                  `json:"threads"`
-	HWAccel string               `json:"hwaccel"`
-	Job     *models.TranscodeJob `json:"job"`
+	Threads int        `json:"threads"`
+	HWAccel string     `json:"hwaccel"`
+	Job     *WorkerJob `json:"job"`
 }
 
 // @Summary Worker Heartbeat
@@ -136,10 +142,28 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var wJob *WorkerJob
+	if claimedJob != nil {
+		dbProfiles, err := sqlite.ListTranscodeProfiles(r.Context(), h.db, true)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to load transcode profiles", err)
+			return
+		}
+		var wProfiles []models.TranscodeProfile
+		for _, dp := range dbProfiles {
+			wProfiles = append(wProfiles, *dp)
+		}
+		wJob = &WorkerJob{
+			ID:          claimedJob.ID,
+			MediaItemID: claimedJob.MediaItemID,
+			Profiles:    wProfiles,
+		}
+	}
+
 	respondJSON(w, http.StatusOK, heartbeatResponse{
 		Threads: worker.Threads,
 		HWAccel: worker.HWAccel,
-		Job:     claimedJob,
+		Job:     wJob,
 	})
 }
 

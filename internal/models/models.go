@@ -308,4 +308,19 @@ type TranscodeSizesInfo struct {
 	TotalSize  int64           `json:"total_size"`
 }
 
+// TranscodeProfile represents a user-configurable rendition profile.
+type TranscodeProfile struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	Name          string    `db:"name" json:"name"`
+	Width         int       `db:"width" json:"width"`
+	Height        int       `db:"height" json:"height"`
+	VideoBitrateK int       `db:"video_bitrate_k" json:"video_bitrate_k"`
+	AudioBitrateK int       `db:"audio_bitrate_k" json:"audio_bitrate_k"`
+	Codec         string    `db:"codec" json:"codec"`
+	IsActive      bool      `db:"is_active" json:"is_active"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
+
 

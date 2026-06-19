@@ -420,7 +420,26 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeJob) {
 	}
 	mpdPath := filepath.Join(outputDir, "manifest.mpd")
 
-	profiles := ffmpeg.DefaultProfiles()
+	dbProfiles, err := sqlite.ListTranscodeProfiles(ctx, p.db, true)
+	if err != nil {
+		p.fail(ctx, j, fmt.Sprintf("fetching transcode profiles: %v", err))
+		return
+	}
+
+	var profiles []ffmpeg.RenditionProfile
+	for _, dp := range dbProfiles {
+		profiles = append(profiles, ffmpeg.RenditionProfile{
+			Name:          dp.Name,
+			Height:        dp.Height,
+			Width:         dp.Width,
+			VideoBitrateK: dp.VideoBitrateK,
+			AudioBitrateK: dp.AudioBitrateK,
+			Codec:         dp.Codec,
+		})
+	}
+	if len(profiles) == 0 {
+		profiles = ffmpeg.DefaultProfiles()
+	}
 	// Filter out profiles that would require upscaling. A profile is kept when:
 	//   a) the source height is >= the profile height (standard check), OR
 	//   b) the source width is >= the profile's reference width — this allows
@@ -492,6 +511,7 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeJob) {
 			Height:        prof.Height,
 			VideoBitrateK: prof.VideoBitrateK,
 			AudioBitrateK: prof.AudioBitrateK,
+			Codec:         prof.Codec,
 		}
 	}
 
@@ -741,9 +761,23 @@ func WriteSidecarForMediaItem(ctx context.Context, db *sql.DB, itemID uuid.UUID)
 		}
 	}
 
-	// If no existing sidecar was found or profiles list is empty, derive from default profiles
+	// If no existing sidecar was found or profiles list is empty, derive from active profiles in DB
 	if len(profiles) == 0 {
-		profiles = ffmpeg.DefaultProfiles()
+		if dbProfiles, err := sqlite.ListTranscodeProfiles(ctx, db, true); err == nil && len(dbProfiles) > 0 {
+			for _, dp := range dbProfiles {
+				profiles = append(profiles, ffmpeg.RenditionProfile{
+					Name:          dp.Name,
+					Height:        dp.Height,
+					Width:         dp.Width,
+					VideoBitrateK: dp.VideoBitrateK,
+					AudioBitrateK: dp.AudioBitrateK,
+					Codec:         dp.Codec,
+				})
+			}
+		} else {
+			profiles = ffmpeg.DefaultProfiles()
+		}
+
 		if item.Height > 0 && item.Width > 0 {
 			var filtered []ffmpeg.RenditionProfile
 			for _, prof := range profiles {

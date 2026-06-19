@@ -44,6 +44,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 	castH := handler.NewCastHandler(db)
 	setupH := handler.NewSetupHandler(db)
 	settingsH := handler.NewSettingsHandler(db)
+	profilesH := handler.NewProfilesHandler(db)
 	workerH := handler.NewWorkerHandler(db, pool, bus)
 	workerAdminH := handler.NewWorkerAdminHandler(db)
 	// Artifact admin handler for indexing and relinking.
@@ -182,6 +183,12 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Put("/admin/storage/areas/{id}", storageH.UpdateStorageArea)
 			r.With(apimw.RequireAdmin).Delete("/admin/storage/areas/{id}", storageH.DeleteStorageArea)
 			r.With(apimw.RequireAdmin).Put("/admin/storage/config", storageH.UpdateStorageConfig)
+
+			// Admin transcode-profiles
+			r.With(apimw.RequireAdmin).Get("/admin/transcode-profiles", profilesH.List)
+			r.With(apimw.RequireAdmin).Post("/admin/transcode-profiles", profilesH.Create)
+			r.With(apimw.RequireAdmin).Put("/admin/transcode-profiles/{id}", profilesH.Update)
+			r.With(apimw.RequireAdmin).Delete("/admin/transcode-profiles/{id}", profilesH.Delete)
 
 			// Admin workers
 			r.With(apimw.RequireAdmin).Get("/admin/workers", workerAdminH.List)

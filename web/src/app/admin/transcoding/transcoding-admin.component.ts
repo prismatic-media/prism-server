@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, NgZone } from 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, Subscription, of, timer } from 'rxjs';
 import { debounce, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from '../../auth.service';
@@ -62,6 +62,17 @@ export interface EphemeralWorkerToken {
   created_at: string;
 }
 
+export interface TranscodeProfile {
+  id?: string;
+  name: string;
+  width: number;
+  height: number;
+  video_bitrate_k: number;
+  audio_bitrate_k: number;
+  codec: 'h264' | 'hevc' | 'av1';
+  is_active: boolean;
+}
+
 @Component({
   selector: 'app-transcoding-admin',
   standalone: true,
@@ -73,6 +84,8 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private zone = inject(NgZone);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   protected authService = inject(AuthService);
   protected readonly Math = Math;
 
@@ -87,6 +100,10 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   activeJobs: TranscodeJob[] = [];
   completedJobs: TranscodeJob[] = [];
   workers: TranscodeWorker[] = [];
+  profiles: TranscodeProfile[] = [];
+  showProfileModal = false;
+  currentProfile: TranscodeProfile = this.getEmptyProfile();
+  isEditingProfile = false;
 
   // Transcode settings state
   ffmpegHwaccel = 'none';
@@ -102,6 +119,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   private saveSubject = new Subject<{ immediate: boolean }>();
   private saveSubscription?: Subscription;
   private clearStatusTimeout: any = null;
+  private queryParamsSub?: Subscription;
 
   // Add Worker State
   newWorkerName = '';
@@ -125,6 +143,16 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   private etaIntervalId: any;
 
   ngOnInit(): void {
+    this.queryParamsSub = this.route.queryParams.subscribe((params) => {
+      const tab = params['tab'];
+      if (tab === 'active' || tab === 'completed' || tab === 'settings') {
+        this.activeTab = tab;
+      } else {
+        this.activeTab = 'active';
+      }
+      this.cdr.detectChanges();
+    });
+
     this.fetchData();
     this.fetchSettings();
     this.initAutoSave();
@@ -168,6 +196,9 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.queryParamsSub) {
+      this.queryParamsSub.unsubscribe();
+    }
     if (this.eventSub) {
       this.eventSub.unsubscribe();
     }
@@ -180,6 +211,14 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     if (this.clearStatusTimeout) {
       clearTimeout(this.clearStatusTimeout);
     }
+  }
+
+  selectTab(tab: 'active' | 'completed' | 'settings'): void {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab },
+      queryParamsHandling: 'merge',
+    });
   }
 
   fetchData(): void {
@@ -198,6 +237,8 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
         // Fetch workers
         this.fetchWorkers();
+        // Fetch profiles
+        this.fetchProfiles();
         // Now fetch jobs
         this.fetchJobs();
       },
@@ -800,5 +841,116 @@ scratch_dir: /tmp/prism-scratch`;
     navigator.clipboard.writeText(command).then(() => {
       // Copy success
     });
+  }
+
+  fetchProfiles(): void {
+    this.http.get<TranscodeProfile[]>('/api/v1/admin/transcode-profiles').subscribe({
+      next: (profiles) => {
+        this.profiles = profiles || [];
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to load transcode profiles', err);
+      }
+    });
+  }
+
+  getEmptyProfile(): TranscodeProfile {
+    return {
+      name: '',
+      width: 1920,
+      height: 1080,
+      video_bitrate_k: 8000,
+      audio_bitrate_k: 192,
+      codec: 'h264',
+      is_active: true
+    };
+  }
+
+  openProfileModal(profile?: TranscodeProfile): void {
+    this.zone.run(() => {
+      if (profile) {
+        this.currentProfile = { ...profile };
+        this.isEditingProfile = true;
+      } else {
+        this.currentProfile = this.getEmptyProfile();
+        this.isEditingProfile = false;
+      }
+      this.showProfileModal = true;
+      setTimeout(() => {
+        this.cdr.detectChanges();
+      }, 0);
+    });
+  }
+
+  closeProfileModal(): void {
+    this.zone.run(() => {
+      this.showProfileModal = false;
+      setTimeout(() => {
+        this.cdr.detectChanges();
+      }, 0);
+    });
+  }
+
+  saveProfile(): void {
+    const p = this.currentProfile;
+    if (!p.name.trim() || p.width <= 0 || p.height <= 0 || p.video_bitrate_k <= 0 || p.audio_bitrate_k <= 0) {
+      alert('Please fill out all fields with valid positive numbers.');
+      return;
+    }
+
+    if (this.isEditingProfile && p.id) {
+      this.http.put<TranscodeProfile>(`/api/v1/admin/transcode-profiles/${p.id}`, p).subscribe({
+        next: () => {
+          this.fetchProfiles();
+          this.closeProfileModal();
+        },
+        error: (err) => {
+          alert(`Failed to update profile: ${err.error?.error || err.message}`);
+        }
+      });
+    } else {
+      this.http.post<TranscodeProfile>('/api/v1/admin/transcode-profiles', p).subscribe({
+        next: () => {
+          this.fetchProfiles();
+          this.closeProfileModal();
+        },
+        error: (err) => {
+          alert(`Failed to create profile: ${err.error?.error || err.message}`);
+        }
+      });
+    }
+  }
+
+  deleteProfile(id: string): void {
+    if (!confirm('Are you sure you want to delete this transcode profile?')) return;
+
+    this.http.delete(`/api/v1/admin/transcode-profiles/${id}`).subscribe({
+      next: () => {
+        this.fetchProfiles();
+      },
+      error: (err) => {
+        alert(`Failed to delete profile: ${err.error?.error || err.message}`);
+      }
+    });
+  }
+
+  toggleProfileActive(profile: TranscodeProfile): void {
+    const originalState = profile.is_active;
+    profile.is_active = !profile.is_active;
+    this.http.put<TranscodeProfile>(`/api/v1/admin/transcode-profiles/${profile.id}`, profile).subscribe({
+      next: () => {
+        this.fetchProfiles();
+      },
+      error: (err) => {
+        profile.is_active = originalState; // rollback
+        alert(`Failed to update profile: ${err.error?.error || err.message}`);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  trackById(index: number, item: any): string | number {
+    return item?.id || index;
   }
 }

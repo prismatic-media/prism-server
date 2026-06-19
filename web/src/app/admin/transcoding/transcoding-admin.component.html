@@ -6,7 +6,7 @@
       <button
         class="tab-btn transition-all"
         [class.active]="activeTab === 'active'"
-        (click)="activeTab = 'active'"
+        (click)="selectTab('active')"
       >
         Queue
         <span class="badge-count" *ngIf="activeJobs.length > 0">{{ activeJobs.length }}</span>
@@ -14,7 +14,7 @@
       <button
         class="tab-btn transition-all"
         [class.active]="activeTab === 'completed'"
-        (click)="activeTab = 'completed'"
+        (click)="selectTab('completed')"
       >
         History
         <span class="badge-count" *ngIf="completedJobs.length > 0">{{ completedJobs.length }}</span>
@@ -22,7 +22,7 @@
       <button
         class="tab-btn transition-all"
         [class.active]="activeTab === 'settings'"
-        (click)="activeTab = 'settings'"
+        (click)="selectTab('settings')"
       >
         Settings
         <span class="badge-count" *ngIf="workers.length > 0">{{ workers.length }}</span>
@@ -80,7 +80,7 @@
 
       <!-- Active Job Cards -->
       <div class="jobs-list" *ngIf="activeJobs.length > 0">
-        <div *ngFor="let job of activeJobs" class="job-card crystalline-edge">
+        <div *ngFor="let job of activeJobs; trackBy: trackById" class="job-card crystalline-edge">
           <div class="job-card-content">
             <!-- Thumbnail -->
             <div class="thumbnail-wrapper">
@@ -163,7 +163,7 @@
       <!-- Completed Job Cards -->
       <div class="jobs-list" *ngIf="completedJobs.length > 0">
         <div
-          *ngFor="let job of completedJobs"
+          *ngFor="let job of completedJobs; trackBy: trackById"
           class="job-card crystalline-edge"
           [class.border-error-subtle]="job.status === 'failed'"
           [class.border-success-subtle]="job.status === 'done'"
@@ -410,7 +410,7 @@
               </thead>
               <tbody class="divide-y divide-white/5">
                 <tr
-                  *ngFor="let w of workers"
+                  *ngFor="let w of workers; trackBy: trackById"
                   class="hover:bg-white/5 transition-colors group"
                   [class.opacity-50]="w.status === 'offline'"
                 >
@@ -548,7 +548,7 @@
               </thead>
               <tbody class="divide-y divide-white/5">
                 <tr
-                  *ngFor="let t of ephemeralTokens"
+                  *ngFor="let t of ephemeralTokens; trackBy: trackById"
                   class="hover:bg-white/5 transition-colors group"
                 >
                   <!-- Token Name -->
@@ -577,6 +577,92 @@
                           class="material-symbols-outlined text-on-surface-variant group-hover/del:text-error text-sm"
                           >delete</span
                         >
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Transcode Profiles Configuration -->
+      <section class="w-full mt-8">
+        <div class="glass-card border-primary-container/10 overflow-hidden">
+          <div class="p-8 border-b border-white/10">
+            <div class="flex justify-between items-start mb-6">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-secondary">tune</span>
+                <h2 class="font-headline-lg text-headline-lg tracking-tight">Transcode Profiles</h2>
+              </div>
+              <button class="btn-register-node" (click)="openProfileModal()">
+                <span class="material-symbols-outlined text-sm">add_circle</span>
+                Add Profile
+              </button>
+            </div>
+            <p class="text-xs text-on-surface-variant">
+              Configure target video resolutions, bitrates, and codecs for adaptive bitrate streaming.
+            </p>
+          </div>
+
+          <!-- Profiles Table -->
+          <div *ngIf="profiles.length === 0" class="empty-state border-none rounded-none bg-transparent py-12">
+            <span class="material-symbols-outlined empty-state-icon">tune</span>
+            <h3 class="empty-state-title">No transcode profiles defined</h3>
+            <p class="empty-state-desc">Create a profile to define a custom resolution and codec target.</p>
+          </div>
+
+          <div class="overflow-x-auto" *ngIf="profiles.length > 0">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-white/5 text-on-surface-variant font-label-md text-label-md uppercase tracking-widest text-[10px]">
+                <tr>
+                  <th class="px-8 py-3">Profile Name</th>
+                  <th class="px-6 py-3">Resolution</th>
+                  <th class="px-6 py-3">Video Codec</th>
+                  <th class="px-6 py-3">Video Bitrate</th>
+                  <th class="px-6 py-3">Audio Bitrate</th>
+                  <th class="px-6 py-3">Status</th>
+                  <th class="px-8 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5">
+                <tr *ngFor="let p of profiles; trackBy: trackById" class="hover:bg-white/5 transition-colors group" [class.opacity-50]="!p.is_active">
+                  <!-- Name -->
+                  <td class="px-8 py-5">
+                    <span class="font-bold text-sm">{{ p.name }}</span>
+                  </td>
+                  <!-- Resolution -->
+                  <td class="px-6 py-5">
+                    <span class="text-xs">{{ p.width }} × {{ p.height }}</span>
+                  </td>
+                  <!-- Codec -->
+                  <td class="px-6 py-5">
+                    <span class="text-xs font-mono uppercase text-primary">{{ p.codec }}</span>
+                  </td>
+                  <!-- Video Bitrate -->
+                  <td class="px-6 py-5">
+                    <span class="text-xs">{{ p.video_bitrate_k }} kbps</span>
+                  </td>
+                  <!-- Audio Bitrate -->
+                  <td class="px-6 py-5">
+                    <span class="text-xs">{{ p.audio_bitrate_k }} kbps</span>
+                  </td>
+                  <!-- Active status toggle -->
+                  <td class="px-6 py-5">
+                    <label class="switch-container">
+                      <input type="checkbox" [checked]="p.is_active" (change)="toggleProfileActive(p)" />
+                      <span class="switch-slider"></span>
+                    </label>
+                  </td>
+                  <!-- Actions -->
+                  <td class="px-8 py-5 text-right">
+                    <div class="flex justify-end gap-2">
+                      <button class="btn-delete-worker p-1.5 hover:bg-white/10 rounded transition-colors" (click)="openProfileModal(p)" title="Edit Profile">
+                        <span class="material-symbols-outlined text-on-surface-variant text-sm">edit</span>
+                      </button>
+                      <button class="btn-delete-worker p-1.5 hover:bg-error/10 rounded transition-colors group/del" (click)="deleteProfile(p.id!)" title="Delete Profile">
+                        <span class="material-symbols-outlined text-on-surface-variant group-hover/del:text-error text-sm">delete</span>
                       </button>
                     </div>
                   </td>
@@ -800,6 +886,85 @@
           >
             Copy Token &amp; Close
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Profile Add/Edit -->
+  <div *ngIf="showProfileModal" class="modal-overlay" (click)="closeProfileModal()">
+    <div class="glass-card w-full max-w-2xl p-8 relative animate-in fade-in zoom-in duration-300" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" (click)="closeProfileModal()" type="button">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+
+      <h2 class="font-headline-lg text-headline-lg mb-2">{{ isEditingProfile ? 'Edit' : 'Add' }} Transcode Profile</h2>
+      <p class="text-on-surface-variant mb-8">
+        Configure the target quality metrics for this transcode profile.
+      </p>
+
+      <div class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Name -->
+          <div class="space-y-2">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Profile Name</label>
+            <input class="w-full glass-input p-4 text-on-surface" placeholder="e.g. 1080p_hevc" type="text" [(ngModel)]="currentProfile.name" />
+          </div>
+
+          <!-- Video Codec -->
+          <div class="space-y-2">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Video Codec</label>
+            <div class="relative">
+              <select class="w-full glass-input p-4 rounded text-primary-fixed-dim font-medium appearance-none cursor-pointer" [(ngModel)]="currentProfile.codec">
+                <option value="h264">H.264 (Default)</option>
+                <option value="hevc">HEVC (H.265)</option>
+                <option value="av1">AV1</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">expand_more</span>
+            </div>
+          </div>
+
+          <!-- Width -->
+          <div class="space-y-2">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Width (pixels)</label>
+            <input class="w-full glass-input p-4 text-on-surface" type="number" [(ngModel)]="currentProfile.width" />
+          </div>
+
+          <!-- Height -->
+          <div class="space-y-2">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Height (pixels)</label>
+            <input class="w-full glass-input p-4 text-on-surface" type="number" [(ngModel)]="currentProfile.height" />
+          </div>
+
+          <!-- Video Bitrate -->
+          <div class="space-y-2">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Video Bitrate (kbps)</label>
+            <input class="w-full glass-input p-4 text-on-surface" type="number" [(ngModel)]="currentProfile.video_bitrate_k" />
+          </div>
+
+          <!-- Audio Bitrate -->
+          <div class="space-y-2">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest text-[11px]">Audio Bitrate (kbps)</label>
+            <input class="w-full glass-input p-4 text-on-surface" type="number" [(ngModel)]="currentProfile.audio_bitrate_k" />
+          </div>
+        </div>
+
+        <!-- Toggle Active -->
+        <div class="flex items-center justify-between p-4 bg-white/5 rounded border border-white/5 group hover:border-primary-container/20 transition-all">
+          <div>
+            <h4 class="font-bold text-sm">Active Profile</h4>
+            <p class="text-[11px] text-on-surface-variant">Enable this profile for upcoming transcoding jobs</p>
+          </div>
+          <label class="switch-container">
+            <input type="checkbox" [(ngModel)]="currentProfile.is_active" />
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4 pt-4">
+          <button class="btn-modal-action glass-card font-bold hover:bg-white/10 transition-colors" (click)="closeProfileModal()" type="button">Cancel</button>
+          <button class="btn-modal-action primary-gradient rounded-lg font-bold text-on-primary-fixed hover:opacity-90 transition-opacity" (click)="saveProfile()" type="button">Save Profile</button>
         </div>
       </div>
     </div>
