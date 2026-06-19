@@ -160,6 +160,14 @@
   inset: 0;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
+}
+
+/* Enable pointer events on active controls when visible */
+.controls-overlay:not(.controls-hidden) header,
+.controls-overlay:not(.controls-hidden) footer,
+.controls-overlay:not(.controls-hidden) .telemetry-overlay,
+.controls-overlay:not(.controls-hidden) .audio-panel-stitch {
   pointer-events: auto;
 }
 
@@ -282,6 +290,18 @@ header h1 {
 .timeline-slider {
   position: relative;
   transition: height 0.1s ease;
+}
+
+.timeline-slider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  height: 32px;
+  background: transparent;
+  cursor: pointer;
 }
 
 .timeline-slider:hover {

@@ -7,6 +7,7 @@ import {
   ViewChild,
   inject,
   ChangeDetectorRef,
+  HostListener,
 } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -380,6 +381,46 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     const current = this.player.time();
     const duration = this.player.duration();
     this.player.seek(Math.min(duration, current + 30));
+  }
+
+  seekRelative(seconds: number): void {
+    this.resetControlsTimer();
+    if (
+      this.castService.isConnected$.value &&
+      this.castService.currentMedia$.value?.id === this.mediaId
+    ) {
+      const current = this.castService.currentTime$.value;
+      const duration = this.castService.duration$.value || this.mediaItem?.duration || 0;
+      const target = Math.max(0, Math.min(duration, current + seconds));
+      this.castService.seek(target);
+      return;
+    }
+    if (!this.player) return;
+    const current = this.player.time();
+    const duration = this.player.duration() || this.mediaItem?.duration || 0;
+    const target = Math.max(0, Math.min(duration, current + seconds));
+    this.player.seek(target);
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyDown(event: KeyboardEvent): void {
+    const activeEl = document.activeElement;
+    if (
+      activeEl &&
+      (activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        (activeEl as HTMLElement).isContentEditable)
+    ) {
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      this.seekRelative(-5);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      this.seekRelative(5);
+    }
   }
 
   updateSliderProgress(event: MouseEvent): void {

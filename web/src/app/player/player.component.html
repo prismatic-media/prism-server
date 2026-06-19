@@ -44,6 +44,7 @@
     [class.mode-fit]="aspectRatioMode === 'fit'"
     [class.mode-fill]="aspectRatioMode === 'fill'"
     [class.mode-stretch]="aspectRatioMode === 'stretch'"
+    (click)="togglePlay()"
   >
     <video #videoPlayer playsinline class="video-element"></video>
   </div>
@@ -58,8 +59,9 @@
         (castService.currentMedia$ | async)?.id === mediaId) ||
         castPending)
     "
+    (click)="togglePlay()"
   >
-    <div class="casting-details text-center">
+    <div class="casting-details text-center" (click)="$event.stopPropagation()">
       <span class="material-symbols-outlined casting-icon-large">cast</span>
       <h2 class="font-headline-lg text-primary mt-6">Playing on Chromecast</h2>
       <p class="text-on-surface-variant mt-2">Streaming to {{ castService.deviceName$ | async }}</p>
@@ -319,7 +321,7 @@
 
     <!-- Audio Panel -->
     <div
-      class="absolute top-24 right-20 w-64 glass-panel rounded-xl p-4 z-50 border-white/20"
+      class="absolute top-24 right-20 w-64 glass-panel rounded-xl p-4 z-50 border-white/20 audio-panel-stitch"
       *ngIf="showAudioPanel"
       (click)="$event.stopPropagation()"
     >
