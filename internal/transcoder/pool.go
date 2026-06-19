@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -161,12 +162,12 @@ func (p *Pool) Stop() {
 }
 
 // Enqueue creates a new transcode job for mediaItemID, or resets/reuses an existing one.
-func (p *Pool) Enqueue(ctx context.Context, mediaItemID uuid.UUID) (*models.TranscodeJob, error) {
+func (p *Pool) Enqueue(ctx context.Context, mediaItemID uuid.UUID, force bool) (*models.TranscodeJob, error) {
 	item, err := sqlite.GetMediaItemByID(ctx, p.db, mediaItemID)
 	if err != nil {
 		return nil, err
 	}
-	if item.BundleStatus == models.BundleStatusAvailable && item.TranscodeStatus == models.TranscodeStatusDone {
+	if !force && item.BundleStatus == models.BundleStatusAvailable && item.TranscodeStatus == models.TranscodeStatusDone {
 		return nil, fmt.Errorf("media item already transcoded and has bundle available")
 	}
 
@@ -330,7 +331,7 @@ func (p *Pool) runAutoEnqueueListener(ctx context.Context) {
 				continue
 			}
 
-			if _, err := p.Enqueue(ctx, payload.MediaItemID); err != nil {
+			if _, err := p.Enqueue(ctx, payload.MediaItemID, false); err != nil {
 				slog.Warn("auto-enqueue on discovery failed", "media_item_id", payload.MediaItemID, "error", err)
 			}
 		}
@@ -394,6 +395,20 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeJob) {
 		return
 	}
 
+	// Clean up old transcode files if a bundle is currently available.
+	if item.BundleStatus == models.BundleStatusAvailable {
+		outputDir, err := p.SelectSegmentsOutputDir(ctx, j.MediaItemID)
+		if err == nil && outputDir != "" {
+			log.Info("cleaning up old transcode bundle directory before local processing", "path", outputDir)
+			if err := os.RemoveAll(outputDir); err != nil {
+				log.Warn("failed to delete old transcode directory", "error", err)
+			}
+		}
+		if err := sqlite.SetMediaBundleStatus(ctx, p.db, j.MediaItemID, models.BundleStatusNone); err != nil {
+			log.Warn("failed to update bundle status to none", "error", err)
+		}
+	}
+
 	if p.eventBus != nil {
 		p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
 			MediaItemID:     j.MediaItemID,
@@ -402,14 +417,24 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeJob) {
 		})
 	}
 
-	// Probe to get duration for progress estimation.
+	// Probe to get duration, subtitle streams, and HDR info.
 	ffmpegPath := "ffmpeg"
 	ffprobePath := "ffprobe"
 
 	var duration float64
+	var subtitleStreams []ffmpeg.SubtitleStream
+	var isHDR bool
+	var pixFmt, colorSpace, colorTransfer, colorPrimaries string
+
 	if ffprobePath != "" {
 		if probe, err := ffmpeg.Probe(ctx, ffprobePath, item.FilePath); err == nil {
 			duration = probe.Duration
+			subtitleStreams = probe.SubtitleStreams
+			isHDR = probe.IsHDR()
+			pixFmt = probe.PixFmt
+			colorSpace = probe.ColorSpace
+			colorTransfer = probe.ColorTransfer
+			colorPrimaries = probe.ColorPrimaries
 		}
 	}
 
@@ -473,29 +498,26 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeJob) {
 		}
 	}
 
-	// Probe for subtitle streams.
-	var subtitleStreams []ffmpeg.SubtitleStream
-	if ffprobePath != "" {
-		if probe, err := ffmpeg.Probe(ctx, ffprobePath, item.FilePath); err == nil {
-			subtitleStreams = probe.SubtitleStreams
-		}
-	}
-
 	hwaccel, err := sqlite.GetSetting(ctx, p.db, "ffmpeg_hwaccel")
 	if err != nil {
 		hwaccel = "none"
 	}
 
 	opts := ffmpeg.TranscodeOptions{
-		InputPath:       item.FilePath,
-		OutputDir:       outputDir,
-		Profiles:        profiles,
-		Duration:        duration,
-		SourceWidth:     item.Width,
-		SourceHeight:    item.Height,
-		SubtitleStreams: subtitleStreams,
-		ProgressFn:      progressFn,
-		HWAccelType:     hwaccel,
+		InputPath:            item.FilePath,
+		OutputDir:            outputDir,
+		Profiles:             profiles,
+		Duration:             duration,
+		SourceWidth:          item.Width,
+		SourceHeight:         item.Height,
+		SubtitleStreams:      subtitleStreams,
+		ProgressFn:           progressFn,
+		HWAccelType:          hwaccel,
+		SourceIsHDR:          isHDR,
+		SourcePixFmt:         pixFmt,
+		SourceColorSpace:     colorSpace,
+		SourceColorTransfer:  colorTransfer,
+		SourceColorPrimaries: colorPrimaries,
 	}
 
 	if err := ffmpeg.TranscodeDASH(ctx, ffmpegPath, opts); err != nil {

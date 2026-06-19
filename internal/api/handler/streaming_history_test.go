@@ -375,6 +375,57 @@ func TestServeSegment_NotFound(t *testing.T) {
 	}
 }
 
+func TestServeSegment_URLEncodedPath(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := &models.Library{Path: "/l-seg-encoded", MediaType: models.MediaTypeMovie}
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Film", FilePath: "/l-seg-encoded/f.mkv",
+		MediaType: models.MediaTypeMovie, TranscodeStatus: models.TranscodeStatusDone,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	segDir := t.TempDir()
+	segFile := filepath.Join(segDir, "480p (AV1)", "init.mp4")
+	if err := os.MkdirAll(filepath.Dir(segFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(segFile, []byte("encoded-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mpdPath := filepath.Join(segDir, "manifest.mpd")
+	if err := os.WriteFile(mpdPath, []byte("<MPD/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.SetMediaMPDPath(ctx, db, m.ID, mpdPath); err != nil {
+		t.Fatal(err)
+	}
+
+	cache := &dash.Cache{}
+	h := handler.NewStreamHandler(db, cache, testSecret)
+	r := newStreamRouter(t, h)
+
+	u := createUser(t, db, "user-encoded", "encoded@x.com", "pass", false)
+	tok := bearerToken(t, u.ID, false)
+
+	// Fetch with URL-encoded space (%20)
+	rec := do(t, r, http.MethodGet,
+		"/api/v1/stream/"+m.ID.String()+"/segments/480p%20(AV1)/init.mp4",
+		nil, map[string]string{"Authorization": "Bearer " + tok})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != "encoded-data" {
+		t.Errorf("body = %q, want %q", rec.Body.String(), "encoded-data")
+	}
+}
+
 // Ensure newStreamRouter/newHistoryRouter are not flagged as unused.
 var _ = routerWithStream
 var _ = newStreamRouter

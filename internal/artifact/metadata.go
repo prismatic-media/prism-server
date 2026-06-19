@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prismatic-media/prism-server/internal/models"
@@ -138,6 +139,51 @@ func (v *BundleValidation) IsBundleHealthy() bool {
 	return v.MPDExists && v.SegmentsExist && v.SidecarExists
 }
 
+func isRenditionDir(name string) bool {
+	nameLower := strings.ToLower(name)
+	if strings.HasPrefix(nameLower, "4k") || strings.HasPrefix(nameLower, "8k") {
+		return true
+	}
+	var digits strings.Builder
+	for _, ch := range nameLower {
+		if ch >= '0' && ch <= '9' {
+			digits.WriteRune(ch)
+		} else {
+			break
+		}
+	}
+	if digits.Len() > 0 {
+		rest := nameLower[digits.Len():]
+		if len(rest) > 0 && rest[0] == 'p' {
+			return true
+		}
+	}
+	return false
+}
+
+func parseResolution(res string) int {
+	resLower := strings.ToLower(res)
+	if strings.HasPrefix(resLower, "4k") {
+		return 2160
+	}
+	if strings.HasPrefix(resLower, "8k") {
+		return 4320
+	}
+	var digits strings.Builder
+	for _, ch := range res {
+		if ch >= '0' && ch <= '9' {
+			digits.WriteRune(ch)
+		} else {
+			break
+		}
+	}
+	if digits.Len() > 0 {
+		val, _ := strconv.Atoi(digits.String())
+		return val
+	}
+	return 0
+}
+
 // GetTranscodeSizesInfo scans the transcode output directory (parent of MPD manifest) and sums up the file sizes
 // in each resolution subdirectory as well as files in the output directory root to compute the total size.
 func GetTranscodeSizesInfo(mpdPath string) models.TranscodeSizesInfo {
@@ -155,24 +201,14 @@ func GetTranscodeSizesInfo(mpdPath string) models.TranscodeSizesInfo {
 		path := filepath.Join(outputDir, entry.Name())
 		if entry.IsDir() {
 			name := entry.Name()
-			// Check if directory matches a rendition name format (ends with 'p', other characters are digits)
-			if len(name) > 1 && name[len(name)-1] == 'p' {
-				isRendition := true
-				for i := 0; i < len(name)-1; i++ {
-					if name[i] < '0' || name[i] > '9' {
-						isRendition = false
-						break
-					}
-				}
-				if isRendition {
-					size, err := dirSize(path)
-					if err == nil {
-						info.Renditions = append(info.Renditions, models.RenditionSize{
-							Resolution: name,
-							Size:       size,
-						})
-						info.TotalSize += size
-					}
+			if isRenditionDir(name) {
+				size, err := dirSize(path)
+				if err == nil {
+					info.Renditions = append(info.Renditions, models.RenditionSize{
+						Resolution: name,
+						Size:       size,
+					})
+					info.TotalSize += size
 				}
 			}
 		} else {
@@ -186,8 +222,8 @@ func GetTranscodeSizesInfo(mpdPath string) models.TranscodeSizesInfo {
 
 	// Sort Renditions by numerical resolution size (e.g. 360p before 1080p)
 	sort.Slice(info.Renditions, func(i, j int) bool {
-		valI, _ := strconv.Atoi(info.Renditions[i].Resolution[:len(info.Renditions[i].Resolution)-1])
-		valJ, _ := strconv.Atoi(info.Renditions[j].Resolution[:len(info.Renditions[j].Resolution)-1])
+		valI := parseResolution(info.Renditions[i].Resolution)
+		valJ := parseResolution(info.Renditions[j].Resolution)
 		return valI < valJ
 	})
 

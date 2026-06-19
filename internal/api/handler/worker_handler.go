@@ -131,6 +131,16 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 			item, err := sqlite.GetMediaItemByID(r.Context(), h.db, claimedJob.MediaItemID)
 			if err == nil {
 				_ = sqlite.SetMediaTranscodeStatus(r.Context(), h.db, claimedJob.MediaItemID, models.TranscodeStatusProcessing)
+
+				// Clean up old transcode files if a bundle is currently available.
+				if item.BundleStatus == models.BundleStatusAvailable {
+					outputDir, err := h.pool.SelectSegmentsOutputDir(r.Context(), claimedJob.MediaItemID)
+					if err == nil && outputDir != "" {
+						_ = os.RemoveAll(outputDir)
+					}
+					_ = sqlite.SetMediaBundleStatus(r.Context(), h.db, claimedJob.MediaItemID, models.BundleStatusNone)
+				}
+
 				if h.bus != nil {
 					h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
 						MediaItemID:     claimedJob.MediaItemID,

@@ -682,7 +682,7 @@ scratch_dir: /tmp/prism-scratch`;
   }
 
   // Actions
-  bulkEnqueue(filter: 'untranscoded' | 'failed'): void {
+  bulkEnqueue(filter: 'untranscoded' | 'failed' | 'completed'): void {
     this.http.post<any>('/api/v1/jobs/bulk-enqueue', { filter }).subscribe({
       next: (res) => {
         const count = res.enqueued || 0;
@@ -709,7 +709,7 @@ scratch_dir: /tmp/prism-scratch`;
 
   retranscodeMedia(mediaId: string, event: MouseEvent): void {
     event.stopPropagation();
-    this.http.post<any>(`/api/v1/media/${mediaId}/transcode`, {}).subscribe({
+    this.http.post<any>(`/api/v1/media/${mediaId}/transcode?force=true`, {}).subscribe({
       next: () => {
         this.fetchJobs();
       },

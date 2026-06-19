@@ -517,3 +517,64 @@ func TestUniqueTranscodeJobConstraint(t *testing.T) {
 	}
 }
 
+
+func TestBulkEnqueueCompleted(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	mDone := newMovieItem(lib.ID, "D", "/l/done.mkv")
+	mFailed := newMovieItem(lib.ID, "F", "/l/failed.mkv")
+	for _, m := range []*models.MediaItem{mDone, mFailed} {
+		if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	jDone := &models.TranscodeJob{MediaItemID: mDone.ID}
+	jFailed := &models.TranscodeJob{MediaItemID: mFailed.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, jDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpdateJobStatus(ctx, db, jDone.ID, models.TranscodeStatusDone, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.CreateTranscodeJob(ctx, db, jFailed); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpdateJobStatus(ctx, db, jFailed.ID, models.TranscodeStatusFailed, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := sqlite.BulkEnqueueCompleted(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("enqueued = %d, want 1", n)
+	}
+
+	// Verify job is pending
+	j, err := sqlite.GetTranscodeJobByID(ctx, db, jDone.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Status != models.TranscodeStatusPending {
+		t.Errorf("status = %s, want pending", j.Status)
+	}
+
+	// Verify media_item status is pending
+	item, err := sqlite.GetMediaItemByID(ctx, db, mDone.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.TranscodeStatus != models.TranscodeStatusPending {
+		t.Errorf("media item transcode status = %s, want pending", item.TranscodeStatus)
+	}
+}
+
+

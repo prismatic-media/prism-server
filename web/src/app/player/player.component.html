@@ -160,6 +160,18 @@
               >audiotrack</span
             >
           </button>
+          <!-- Quality Toggle -->
+          <button
+            class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors group"
+            [class.active-track]="!isAutoQuality"
+            (click)="toggleQualityMenu($event)"
+            title="Video Quality"
+          >
+            <span
+              class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors"
+              >tune</span
+            >
+          </button>
           <!-- Cast Toggle -->
           <button
             *ngIf="castService.isAvailable$ | async"
@@ -339,6 +351,55 @@
           <span
             class="material-symbols-outlined text-[18px]"
             *ngIf="activeAudioTrack?.index === track.index"
+            >check</span
+          >
+        </button>
+      </div>
+    </div>
+
+    <!-- Quality Panel -->
+    <div
+      class="absolute top-24 right-20 w-64 glass-panel rounded-xl p-4 z-50 border-white/20 quality-panel-stitch"
+      *ngIf="showQualityPanel"
+      (click)="$event.stopPropagation()"
+    >
+      <h3 class="font-label-md text-on-surface-variant uppercase mb-4 tracking-widest text-[12px]">
+        Video Quality
+      </h3>
+      <div class="space-y-1 max-h-60 overflow-y-auto">
+        <!-- Auto Option -->
+        <button
+          class="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-on-surface-variant"
+          [class.track-selected]="isAutoQuality"
+          (click)="selectQuality('auto')"
+        >
+          <div class="flex flex-col items-start">
+            <span class="font-label-md">Auto</span>
+            <span class="text-[10px] text-on-surface-variant/70 font-mono" *ngIf="isAutoQuality && activeQualityIndex !== -1">Currently: {{ getActiveQualityResolution() }}</span>
+          </div>
+          <span
+            class="material-symbols-outlined text-[18px]"
+            *ngIf="isAutoQuality"
+            >check</span
+          >
+        </button>
+
+        <div style="height: 1px; background-color: rgba(255, 255, 255, 0.1); margin: 6px 0;"></div>
+
+        <!-- Manual Quality Options -->
+        <button
+          *ngFor="let quality of videoQualities"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-on-surface-variant"
+          [class.track-selected]="!isAutoQuality && activeQualityIndex === quality.index"
+          (click)="selectQuality(quality.index)"
+        >
+          <div class="flex flex-col items-start">
+            <span class="font-label-md">{{ quality.label }}</span>
+            <span class="text-[10px] text-on-surface-variant/70 font-mono">{{ quality.friendlyBitrate }}</span>
+          </div>
+          <span
+            class="material-symbols-outlined text-[18px]"
+            *ngIf="!isAutoQuality && activeQualityIndex === quality.index"
             >check</span
           >
         </button>

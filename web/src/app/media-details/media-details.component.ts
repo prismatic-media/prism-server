@@ -432,7 +432,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     if (event) {
       event.stopPropagation();
     }
-    this.http.post(`/api/v1/media/${item.id}/transcode`, {}).subscribe({
+    let url = `/api/v1/media/${item.id}/transcode`;
+    if (item.transcode_status === 'done') {
+      url += '?force=true';
+    }
+    this.http.post(url, {}).subscribe({
       next: () => {
         item.transcode_status = 'pending';
         this.cdr.detectChanges();

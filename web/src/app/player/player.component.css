@@ -163,11 +163,11 @@
   pointer-events: none;
 }
 
-/* Enable pointer events on active controls when visible */
 .controls-overlay:not(.controls-hidden) header,
 .controls-overlay:not(.controls-hidden) footer,
 .controls-overlay:not(.controls-hidden) .telemetry-overlay,
-.controls-overlay:not(.controls-hidden) .audio-panel-stitch {
+.controls-overlay:not(.controls-hidden) .audio-panel-stitch,
+.controls-overlay:not(.controls-hidden) .quality-panel-stitch {
   pointer-events: auto;
 }
 
@@ -1144,3 +1144,21 @@ video::cue {
   color: var(--primary) !important;
   text-shadow: 0 0 8px rgba(0, 219, 233, 0.6);
 }
+
+/* Quality & Audio Panel Positioning */
+.audio-panel-stitch {
+  position: absolute !important;
+  top: 88px !important;
+  right: 220px !important;
+  width: 256px !important;
+  z-index: 50 !important;
+}
+
+.quality-panel-stitch {
+  position: absolute !important;
+  top: 88px !important;
+  right: 160px !important;
+  width: 280px !important;
+  z-index: 50 !important;
+}
+

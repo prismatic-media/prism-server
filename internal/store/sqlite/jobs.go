@@ -385,6 +385,70 @@ func BulkEnqueueFailed(ctx context.Context, db *sql.DB) (int, error) {
 }
 
 
+// BulkEnqueueCompleted resets existing completed (done) jobs to pending.
+func BulkEnqueueCompleted(ctx context.Context, db *sql.DB) (int, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Get all media_item_ids for completed jobs so we can update media_items.transcode_status
+	rows, err := tx.QueryContext(ctx, `SELECT media_item_id FROM transcode_jobs WHERE status = 'done'`)
+	if err != nil {
+		return 0, fmt.Errorf("querying completed jobs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var mediaIDs []string
+	for rows.Next() {
+		var mediaID string
+		if err := rows.Scan(&mediaID); err != nil {
+			return 0, fmt.Errorf("scanning media id: %w", err)
+		}
+		mediaIDs = append(mediaIDs, mediaID)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	if len(mediaIDs) == 0 {
+		return 0, nil
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := tx.ExecContext(ctx, `
+		UPDATE transcode_jobs
+		SET status = 'pending', progress = 0, worker_id = NULL, error_msg = NULL,
+		    started_at = NULL, finished_at = NULL, created_at = ?
+		WHERE status = 'done'`,
+		now,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("updating completed jobs: %w", err)
+	}
+
+	for _, mediaID := range mediaIDs {
+		_, err = tx.ExecContext(ctx, `
+			UPDATE media_items
+			SET transcode_status = 'pending', updated_at = ?
+			WHERE id = ?`, now, mediaID)
+		if err != nil {
+			return 0, fmt.Errorf("updating media status: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+
+
+
 // SetMediaMPDPath writes the mpd_path and sets transcode_status=done on the
 // media_items row for the given item ID.
 func SetMediaMPDPath(ctx context.Context, db *sql.DB, itemID uuid.UUID, mpdPath string) error {

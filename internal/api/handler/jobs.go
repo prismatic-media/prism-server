@@ -60,7 +60,8 @@ func (h *JobsHandler) EnqueueTranscode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := h.pool.Enqueue(r.Context(), mediaID)
+	force := r.URL.Query().Get("force") == "true"
+	job, err := h.pool.Enqueue(r.Context(), mediaID, force)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not enqueue transcode job", err)
 		return
@@ -155,6 +156,13 @@ func (h *JobsHandler) BulkEnqueueJobs(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
 	case "failed":
 		n, err := sqlite.BulkEnqueueFailed(r.Context(), h.db)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
+	case "completed":
+		n, err := sqlite.BulkEnqueueCompleted(r.Context(), h.db)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
 			return

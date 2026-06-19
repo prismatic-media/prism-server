@@ -122,6 +122,15 @@
               <span>Optimize Stream</span>
             </button>
 
+            <button
+              class="btn-glass btn-large"
+              *ngIf="movie.transcode_status === 'done'"
+              (click)="triggerTranscode(movie)"
+            >
+              <span class="material-symbols-outlined">sync</span>
+              <span>Re-optimize Stream</span>
+            </button>
+
             <!-- Movie watch progress indicator -->
             <div class="movie-progress-box frosted-glass" *ngIf="getMovieHistory() as hist">
               <div class="progress-details">
@@ -430,6 +439,14 @@
                 title="Optimize Episode"
               >
                 <span class="material-symbols-outlined">settings_input_component</span>
+              </button>
+              <button
+                class="ep-action-btn transcode"
+                *ngIf="ep.transcode_status === 'done'"
+                (click)="triggerTranscode(ep, $event)"
+                title="Re-optimize Episode"
+              >
+                <span class="material-symbols-outlined">sync</span>
               </button>
               <div
                 class="ep-spinner-box"

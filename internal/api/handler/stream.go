@@ -5,6 +5,7 @@ import (
 	"errors"
 	"mime"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -145,12 +146,17 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 
 	// The wildcard captures everything after .../segments/
 	wildcardPath := chi.URLParam(r, "*")
-	if strings.Contains(wildcardPath, "..") {
+	unescapedPath, err := url.PathUnescape(wildcardPath)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid segment path encoding")
+		return
+	}
+	if strings.Contains(unescapedPath, "..") {
 		respondError(w, http.StatusBadRequest, "invalid segment path")
 		return
 	}
 
-	segPath := filepath.Join(outputDir, filepath.FromSlash(wildcardPath))
+	segPath := filepath.Join(outputDir, filepath.FromSlash(unescapedPath))
 
 	// Set content type based on extension.
 	ext := strings.ToLower(filepath.Ext(segPath))

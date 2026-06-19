@@ -115,21 +115,24 @@ func TestGetTranscodeSizesInfo(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// 1. Create a dummy transcode output structure.
-	// We need resolution subdirectories, e.g. 360p, 480p, and 1080p.
-	// Inside each, we write files with specific sizes to verify summation.
+	// We need resolution subdirectories, including AV1 and 4K formats.
 	r360 := tmpDir + "/360p"
-	r480 := tmpDir + "/480p"
+	r480AV1 := tmpDir + "/480p (AV1)"
 	r1080 := tmpDir + "/1080p"
+	r4kAV1 := tmpDir + "/4k (AV1)"
 	notRendition := tmpDir + "/temp" // directory that doesn't match rendition format
 
 	if err := os.MkdirAll(r360, 0755); err != nil {
 		t.Fatalf("failed to create 360p dir: %v", err)
 	}
-	if err := os.MkdirAll(r480, 0755); err != nil {
-		t.Fatalf("failed to create 480p dir: %v", err)
+	if err := os.MkdirAll(r480AV1, 0755); err != nil {
+		t.Fatalf("failed to create 480p (AV1) dir: %v", err)
 	}
 	if err := os.MkdirAll(r1080, 0755); err != nil {
 		t.Fatalf("failed to create 1080p dir: %v", err)
+	}
+	if err := os.MkdirAll(r4kAV1, 0755); err != nil {
+		t.Fatalf("failed to create 4k (AV1) dir: %v", err)
 	}
 	if err := os.MkdirAll(notRendition, 0755); err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -139,13 +142,17 @@ func TestGetTranscodeSizesInfo(t *testing.T) {
 	_ = os.WriteFile(r360+"/init.mp4", make([]byte, 10), 0644)
 	_ = os.WriteFile(r360+"/seg_00001.m4s", make([]byte, 20), 0644)
 
-	// Write files to 480p: total 100 bytes
-	_ = os.WriteFile(r480+"/init.mp4", make([]byte, 40), 0644)
-	_ = os.WriteFile(r480+"/seg_00001.m4s", make([]byte, 60), 0644)
+	// Write files to 480p (AV1): total 100 bytes
+	_ = os.WriteFile(r480AV1+"/init.mp4", make([]byte, 40), 0644)
+	_ = os.WriteFile(r480AV1+"/seg_00001.m4s", make([]byte, 60), 0644)
 
 	// Write files to 1080p: total 200 bytes
 	_ = os.WriteFile(r1080+"/init.mp4", make([]byte, 50), 0644)
 	_ = os.WriteFile(r1080+"/seg_00001.m4s", make([]byte, 150), 0644)
+
+	// Write files to 4k (AV1): total 500 bytes
+	_ = os.WriteFile(r4kAV1+"/init.mp4", make([]byte, 200), 0644)
+	_ = os.WriteFile(r4kAV1+"/seg_00001.m4s", make([]byte, 300), 0644)
 
 	// Write files to temp: should be ignored
 	_ = os.WriteFile(notRendition+"/ignored.mp4", make([]byte, 1000), 0644)
@@ -157,25 +164,27 @@ func TestGetTranscodeSizesInfo(t *testing.T) {
 
 	info := GetTranscodeSizesInfo(mpdPath)
 
-	if len(info.Renditions) != 3 {
-		t.Fatalf("expected 3 rendition sizes, got %d", len(info.Renditions))
+	if len(info.Renditions) != 4 {
+		t.Fatalf("expected 4 rendition sizes, got %d", len(info.Renditions))
 	}
 
-	// Since we sort numerically, "360p" comes first, then "480p", then "1080p".
-	// (Otherwise, "1080p" would come first alphabetically).
+	// Since we sort numerically, "360p" comes first, then "480p (AV1)", then "1080p", then "4k (AV1)".
 	if info.Renditions[0].Resolution != "360p" || info.Renditions[0].Size != 30 {
 		t.Errorf("expected 360p to have size 30 at index 0, got %s size %d", info.Renditions[0].Resolution, info.Renditions[0].Size)
 	}
-	if info.Renditions[1].Resolution != "480p" || info.Renditions[1].Size != 100 {
-		t.Errorf("expected 480p to have size 100 at index 1, got %s size %d", info.Renditions[1].Resolution, info.Renditions[1].Size)
+	if info.Renditions[1].Resolution != "480p (AV1)" || info.Renditions[1].Size != 100 {
+		t.Errorf("expected 480p (AV1) to have size 100 at index 1, got %s size %d", info.Renditions[1].Resolution, info.Renditions[1].Size)
 	}
 	if info.Renditions[2].Resolution != "1080p" || info.Renditions[2].Size != 200 {
 		t.Errorf("expected 1080p to have size 200 at index 2, got %s size %d", info.Renditions[2].Resolution, info.Renditions[2].Size)
 	}
+	if info.Renditions[3].Resolution != "4k (AV1)" || info.Renditions[3].Size != 500 {
+		t.Errorf("expected 4k (AV1) to have size 500 at index 3, got %s size %d", info.Renditions[3].Resolution, info.Renditions[3].Size)
+	}
 
-	// Total size: 30 (360p) + 100 (480p) + 200 (1080p) + 5 (manifest.mpd) = 335 bytes
-	if info.TotalSize != 335 {
-		t.Errorf("expected total size 335, got %d", info.TotalSize)
+	// Total size: 30 (360p) + 100 (480p (AV1)) + 200 (1080p) + 500 (4k (AV1)) + 5 (manifest.mpd) = 835 bytes
+	if info.TotalSize != 835 {
+		t.Errorf("expected total size 835, got %d", info.TotalSize)
 	}
 }
 

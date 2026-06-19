@@ -66,6 +66,13 @@
             <span class="material-symbols-outlined text-sm">replay</span>
             Retry Failed
           </button>
+          <button
+            class="btn-glass px-4 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold"
+            (click)="bulkEnqueue('completed')"
+          >
+            <span class="material-symbols-outlined text-sm">sync</span>
+            Re-transcode All Completed
+          </button>
         </div>
       </div>
 

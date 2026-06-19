@@ -277,7 +277,7 @@ func TestPoolEnqueue_UpdatesMediaStatusPending(t *testing.T) {
 	}
 
 	pool := NewPool(db, 0, &dash.Cache{}, events.NewBus())
-	if _, err := pool.Enqueue(ctx, m.ID); err != nil {
+	if _, err := pool.Enqueue(ctx, m.ID, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -507,7 +507,7 @@ func TestPoolEnqueue_ReuseAndResetJob(t *testing.T) {
 	}
 
 	pool := NewPool(db, 0, &dash.Cache{}, events.NewBus())
-	reusedJob, err := pool.Enqueue(ctx, m.ID)
+	reusedJob, err := pool.Enqueue(ctx, m.ID, false)
 	if err != nil {
 		t.Fatalf("Enqueue failed: %v", err)
 	}
@@ -546,7 +546,7 @@ func TestPoolEnqueue_ActiveJobReturnsAsIs(t *testing.T) {
 	}
 
 	pool := NewPool(db, 0, &dash.Cache{}, events.NewBus())
-	reusedJob, err := pool.Enqueue(ctx, m.ID)
+	reusedJob, err := pool.Enqueue(ctx, m.ID, false)
 	if err != nil {
 		t.Fatalf("Enqueue failed: %v", err)
 	}

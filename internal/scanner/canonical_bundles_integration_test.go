@@ -319,7 +319,7 @@ func TestIntegration_AutoEnqueueGuard(t *testing.T) {
 	bus := events.NewBus()
 	pool := transcoder.NewPool(db, 1, cache, bus)
 
-	_, err := pool.Enqueue(ctx, m.ID)
+	_, err := pool.Enqueue(ctx, m.ID, false)
 	if err == nil {
 		t.Error("expected error when enqueuing already transcoded item with available bundle")
 	}

@@ -29,6 +29,7 @@ interface MediaItem {
   video_codec: string;
   audio_codec: string;
   transcode_status: string;
+  bundle_status: string;
   mpd_path?: string;
   backdrop_path?: string;
   season_number?: number;
@@ -89,6 +90,13 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   audioTracks: any[] = [];
   activeAudioTrack: any = null;
   showAudioPanel = false;
+
+  // Quality settings
+  videoQualities: any[] = [];
+  isAutoQuality = true;
+  activeQualityIndex = -1;
+  currentQualityLabel = 'Auto';
+  showQualityPanel = false;
 
   // Telemetry info
   showTelemetry = false;
@@ -164,7 +172,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
       next: (item) => {
         this.mediaItem = item;
 
-        if (item.transcode_status !== 'done') {
+        if (item.bundle_status !== 'available') {
           this.error =
             'This media item has not been optimized for streaming yet. Please initiate optimization from the details page.';
           this.loading = false;
@@ -191,7 +199,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.videoElement || !this.mediaItem) return;
 
     const videoEl = this.videoElement.nativeElement;
-    const manifestUrl = `/api/v1/stream/${this.mediaId}/manifest.mpd`;
+    const manifestUrl = `${window.location.origin}/api/v1/stream/${this.mediaId}/manifest.mpd`;
 
     // Create dash.js player
     this.player = dashjs.MediaPlayer().create();
@@ -280,10 +288,26 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     this.player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
       this.isStreamInitialized = true;
       this.loadTracks();
+      this.loadQualities();
       if (this.resumePosition !== null && this.resumePosition > 0) {
         this.player?.seek(this.resumePosition);
         this.lastSavedPosition = this.resumePosition;
         this.resumePosition = null;
+      }
+    });
+
+    // Listen to quality changes to update the active quality index
+    this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_REQUESTED, (e: any) => {
+      if (e.mediaType === 'video') {
+        this.activeQualityIndex = e.newQuality;
+        this.updateCurrentQualityLabel();
+      }
+    });
+
+    this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, (e: any) => {
+      if (e.mediaType === 'video') {
+        this.activeQualityIndex = e.newQuality;
+        this.updateCurrentQualityLabel();
       }
     });
   }
@@ -317,6 +341,91 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
       : null;
 
     this.cdr.detectChanges();
+  }
+
+  loadQualities(): void {
+    if (!this.player) return;
+
+    const bitrateInfoList = (this.player as any).getBitrateInfoListFor('video') || [];
+    this.videoQualities = bitrateInfoList
+      .map((info: any) => ({
+        index: info.qualityIndex,
+        width: info.width,
+        height: info.height,
+        bitrate: info.bitrate,
+        label: `${info.height}p`,
+        friendlyBitrate: this.getFriendlyBitrate(info.bitrate),
+      }))
+      .sort((a: any, b: any) => b.height - a.height); // descending (highest first)
+
+    this.isAutoQuality = (this.player as any).getAutoSwitchQualityFor('video');
+    this.activeQualityIndex = (this.player as any).getQualityFor('video');
+    this.updateCurrentQualityLabel();
+    this.cdr.detectChanges();
+  }
+
+  getFriendlyBitrate(bitrate: number): string {
+    const mbps = bitrate / 1000000;
+    if (mbps >= 1) {
+      return `${mbps.toFixed(1)} Mbps`;
+    }
+    const kbps = bitrate / 1000;
+    return `${Math.round(kbps)} Kbps`;
+  }
+
+  selectQuality(qualityIndex: number | 'auto'): void {
+    if (!this.player) return;
+
+    if (qualityIndex === 'auto') {
+      (this.player as any).setAutoSwitchQualityFor('video', true);
+    } else {
+      (this.player as any).setAutoSwitchQualityFor('video', false);
+      (this.player as any).setQualityFor('video', qualityIndex);
+    }
+
+    this.updateCurrentQualityLabel();
+    this.showQualityPanel = false;
+    this.cdr.detectChanges();
+  }
+
+  updateCurrentQualityLabel(): void {
+    if (!this.player) return;
+
+    this.isAutoQuality = (this.player as any).getAutoSwitchQualityFor('video');
+    this.activeQualityIndex = (this.player as any).getQualityFor('video');
+
+    const bitrateInfoList = (this.player as any).getBitrateInfoListFor('video') || [];
+    const activeInfo = bitrateInfoList.find((info: any) => info.qualityIndex === this.activeQualityIndex);
+
+    if (this.isAutoQuality) {
+      if (activeInfo) {
+        this.currentQualityLabel = `Auto (${activeInfo.height}p)`;
+      } else {
+        this.currentQualityLabel = 'Auto';
+      }
+    } else {
+      if (activeInfo) {
+        this.currentQualityLabel = `${activeInfo.height}p`;
+      } else {
+        this.currentQualityLabel = 'Manual';
+      }
+    }
+    this.cdr.detectChanges();
+  }
+
+  getActiveQualityResolution(): string {
+    if (!this.player) return '';
+    const index = (this.player as any).getQualityFor('video');
+    const bitrateInfoList = (this.player as any).getBitrateInfoListFor('video') || [];
+    const activeInfo = bitrateInfoList.find((info: any) => info.qualityIndex === index);
+    return activeInfo ? `${activeInfo.height}p` : '';
+  }
+
+  toggleQualityMenu(event: MouseEvent): void {
+    event.stopPropagation();
+    this.showQualityPanel = !this.showQualityPanel;
+    this.showSubtitlePanel = false;
+    this.showAudioPanel = false;
   }
 
   getFriendlyLanguageName(code: string): string {
@@ -676,6 +785,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
         this.controlsVisible = false;
         this.showSubtitlePanel = false;
         this.showAudioPanel = false;
+        this.showQualityPanel = false;
         this.cdr.detectChanges();
       }
     }, 4000);
@@ -884,6 +994,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   closeMenus(): void {
     this.showSubtitlePanel = false;
     this.showAudioPanel = false;
+    this.showQualityPanel = false;
   }
 
   onSubtitleSettingsClick(): void {

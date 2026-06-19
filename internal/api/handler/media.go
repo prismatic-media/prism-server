@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -297,7 +298,7 @@ func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if item.TranscodeSizes != nil {
+	if item.TranscodeSizes != nil && len(item.TranscodeSizes.Renditions) > 0 {
 		sortRenditions(item.TranscodeSizes.Renditions)
 		respondJSON(w, http.StatusOK, item.TranscodeSizes)
 		return
@@ -305,7 +306,7 @@ func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request)
 
 	outputDir := filepath.Dir(*item.MPDPath)
 	// Try reading from sidecar
-	if meta, err := artifact.ReadSidecar(outputDir); err == nil && meta != nil && meta.Sizes != nil {
+	if meta, err := artifact.ReadSidecar(outputDir); err == nil && meta != nil && meta.Sizes != nil && len(meta.Sizes.Renditions) > 0 {
 		sortRenditions(meta.Sizes.Renditions)
 		// Update DB with sidecar sizes
 		_ = sqlite.SetMediaTranscodeSizes(r.Context(), h.db, item.ID, meta.Sizes)
@@ -338,18 +339,26 @@ func sortRenditions(renditions []models.RenditionSize) {
 }
 
 func parseResolution(res string) int {
-	if len(res) == 0 {
-		return 0
+	resLower := strings.ToLower(res)
+	if strings.HasPrefix(resLower, "4k") {
+		return 2160
 	}
-	digits := res
-	if res[len(res)-1] == 'p' {
-		digits = res[:len(res)-1]
+	if strings.HasPrefix(resLower, "8k") {
+		return 4320
 	}
-	val, err := strconv.Atoi(digits)
-	if err != nil {
-		return 0
+	var digits strings.Builder
+	for _, ch := range res {
+		if ch >= '0' && ch <= '9' {
+			digits.WriteRune(ch)
+		} else {
+			break
+		}
 	}
-	return val
+	if digits.Len() > 0 {
+		val, _ := strconv.Atoi(digits.String())
+		return val
+	}
+	return 0
 }
 
 // emptySlice converts a nil slice to an empty interface slice for JSON
