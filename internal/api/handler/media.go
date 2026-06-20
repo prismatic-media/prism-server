@@ -75,7 +75,7 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 			items, err = sqlite.ListMediaItems(r.Context(), h.db, libID)
 		}
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, "could not list media items")
+			respondError(w, http.StatusInternalServerError, "could not list media items", err)
 			return
 		}
 		respondJSON(w, http.StatusOK, emptySlice(items))
@@ -90,7 +90,7 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 		items, err = sqlite.ListAllMediaItems(r.Context(), h.db)
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not list media items")
+		respondError(w, http.StatusInternalServerError, "could not list media items", err)
 		return
 	}
 	respondJSON(w, http.StatusOK, emptySlice(items))
@@ -146,7 +146,7 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item")
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
 		return
 	}
 
@@ -175,7 +175,7 @@ func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "media item not found")
 		return
 	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not delete media item")
+		respondError(w, http.StatusInternalServerError, "could not delete media item", err)
 		return
 	}
 
@@ -196,7 +196,7 @@ func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item")
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
 		return
 	}
 
@@ -221,7 +221,7 @@ func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item")
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
 		return
 	}
 
@@ -253,7 +253,7 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item")
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
 		return
 	}
 
