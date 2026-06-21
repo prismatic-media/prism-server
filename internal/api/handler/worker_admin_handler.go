@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
@@ -52,7 +53,7 @@ func (h *WorkerAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *WorkerAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createWorkerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -75,6 +76,40 @@ type updateWorkerRequest struct {
 	HWAccel string `json:"hwaccel"`
 }
 
+func (req *updateWorkerRequest) UnmarshalJSON(data []byte) error {
+	type Alias updateWorkerRequest
+	aux := &struct {
+		Threads json.RawMessage `json:"threads"`
+		*Alias
+	}{
+		Alias: (*Alias)(req),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if len(aux.Threads) > 0 {
+		var threadsInt int
+		if err := json.Unmarshal(aux.Threads, &threadsInt); err == nil {
+			req.Threads = threadsInt
+			return nil
+		}
+
+		var threadsStr string
+		if err := json.Unmarshal(aux.Threads, &threadsStr); err == nil {
+			val, err := strconv.Atoi(threadsStr)
+			if err != nil {
+				return errors.New("threads must be a valid integer")
+			}
+			req.Threads = val
+			return nil
+		}
+		return errors.New("threads must be an integer or a string containing an integer")
+	}
+
+	return nil
+}
+
 // @Summary Update Transcode Worker Settings
 // @Description Update concurrency limits (threads) or hardware acceleration configuration for a registered worker.
 // @Tags Worker Administration
@@ -91,13 +126,13 @@ type updateWorkerRequest struct {
 func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid worker id")
+		respondError(w, http.StatusBadRequest, "invalid worker id", err)
 		return
 	}
 
 	var req updateWorkerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -108,7 +143,7 @@ func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	err = sqlite.UpdateWorkerSettings(r.Context(), h.db, id, req.Threads, req.HWAccel)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "worker not found")
+		respondError(w, http.StatusNotFound, "worker not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update worker settings", err)
@@ -138,13 +173,13 @@ func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *WorkerAdminHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid worker id")
+		respondError(w, http.StatusBadRequest, "invalid worker id", err)
 		return
 	}
 
 	err = sqlite.DeleteWorker(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "worker not found")
+		respondError(w, http.StatusNotFound, "worker not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to delete worker", err)
@@ -189,7 +224,7 @@ func (h *WorkerAdminHandler) ListEphemeralTokens(w http.ResponseWriter, r *http.
 func (h *WorkerAdminHandler) CreateEphemeralToken(w http.ResponseWriter, r *http.Request) {
 	var req createEphemeralTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -220,13 +255,13 @@ func (h *WorkerAdminHandler) CreateEphemeralToken(w http.ResponseWriter, r *http
 func (h *WorkerAdminHandler) DeleteEphemeralToken(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid token id")
+		respondError(w, http.StatusBadRequest, "invalid token id", err)
 		return
 	}
 
 	err = sqlite.DeleteEphemeralWorkerToken(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "token not found")
+		respondError(w, http.StatusNotFound, "token not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to delete token", err)

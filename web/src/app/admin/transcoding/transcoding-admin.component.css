@@ -1299,3 +1299,74 @@ table td {
     min-width: 0;
   }
 }
+
+/* Sub-jobs styles for Transcoding Queue Page */
+.queue-subjobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.queue-subjob-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-subjob-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-subjob-icon {
+  font-size: 15px;
+  opacity: 0.6;
+}
+
+.queue-subjob-icon.done {
+  color: var(--surface-tint, #00dbe9);
+  opacity: 1;
+}
+
+.queue-subjob-icon.failed {
+  color: var(--error, #ff5449);
+  opacity: 1;
+}
+
+.queue-subjob-icon.processing {
+  color: var(--secondary, #80d4ff);
+  opacity: 1;
+  animation: spin 2s linear infinite;
+}
+
+.queue-subjob-name {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.queue-subjob-status-pct {
+  font-size: 11px;
+  color: var(--on-surface-variant, rgba(255, 255, 255, 0.6));
+  font-weight: bold;
+}
+
+.queue-subjob-progress-bar-container {
+  grid-column: span 2;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1px;
+}
+
+.queue-subjob-progress-bar {
+  height: 100%;
+  background: var(--surface-tint, #00dbe9);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}

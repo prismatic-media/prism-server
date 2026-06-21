@@ -66,11 +66,11 @@ func (h *UsersHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	var req createUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if req.Username == "" || req.Email == "" || req.Password == "" {
-		respondError(w, http.StatusBadRequest, "username, email, and password are required")
+		respondError(w, http.StatusBadRequest, "username, email, and password are required", err)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (h *UsersHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := sqlite.CreateUser(r.Context(), h.db, u); err != nil {
-		respondError(w, http.StatusConflict, "username or email already in use")
+		respondError(w, http.StatusConflict, "username or email already in use", err)
 		return
 	}
 
@@ -121,13 +121,13 @@ func (h *UsersHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := uuidFromClaims(claims)
 	if err != nil {
-		respondError(w, http.StatusUnauthorized, "invalid token")
+		respondError(w, http.StatusUnauthorized, "invalid token", err)
 		return
 	}
 
 	user, err := sqlite.GetUserByID(r.Context(), h.db, userID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "user not found")
+		respondError(w, http.StatusNotFound, "user not found", err)
 		return
 	}
 
@@ -158,19 +158,19 @@ func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := uuidFromClaims(claims)
 	if err != nil {
-		respondError(w, http.StatusUnauthorized, "invalid token")
+		respondError(w, http.StatusUnauthorized, "invalid token", err)
 		return
 	}
 
 	user, err := sqlite.GetUserByID(r.Context(), h.db, userID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "user not found")
+		respondError(w, http.StatusNotFound, "user not found", err)
 		return
 	}
 
 	var req updateMeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -190,7 +190,7 @@ func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := sqlite.UpdateUser(r.Context(), h.db, user); err != nil {
-		respondError(w, http.StatusConflict, "username or email already in use")
+		respondError(w, http.StatusConflict, "username or email already in use", err)
 		return
 	}
 

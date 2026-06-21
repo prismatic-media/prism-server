@@ -112,6 +112,10 @@ func ListSeasonEpisodes(ctx context.Context, db *sql.DB, seasonID uuid.UUID) ([]
 		if err == nil && prog != nil {
 			m.TranscodeProgress = prog
 		}
+		subJobs, err := GetMediaItemLatestJobSubJobs(ctx, db, m.ID)
+		if err == nil && subJobs != nil {
+			m.SubJobs = subJobs
+		}
 	}
 	return items, nil
 }

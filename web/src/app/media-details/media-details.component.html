@@ -86,10 +86,10 @@
           <div class="hero-actions-container" *ngIf="mediaType === 'movie' && movie">
             <button
               class="btn-primary btn-large"
-              [disabled]="movie.transcode_status !== 'done'"
+              [disabled]="movie.bundle_status !== 'available'"
               (click)="playMovie(movie)"
               [title]="
-                movie.transcode_status !== 'done'
+                movie.bundle_status !== 'available'
                   ? 'Please optimize this stream first'
                   : 'Watch Now'
               "
@@ -101,7 +101,7 @@
             <!-- Play from beginning option -->
             <button
               class="btn-glass btn-large"
-              *ngIf="getMovieHistory() && movie.transcode_status === 'done'"
+              *ngIf="getMovieHistory() && movie.bundle_status === 'available'"
               (click)="playMovieFromBeginning(movie)"
               title="Play from Beginning"
             >
@@ -161,6 +161,32 @@
             >
               <span class="spinner-small"></span>
               <span>OPTIMIZING ({{ Math.round(movie.transcode_progress || 0) }}%)</span>
+            </div>
+
+            <!-- Movie sub-jobs progress details -->
+            <div
+              class="subjobs-progress-box frosted-glass"
+              *ngIf="movie.transcode_status === 'processing' && movie.sub_jobs && movie.sub_jobs.length > 0"
+            >
+              <div class="subjob-item" *ngFor="let sj of movie.sub_jobs">
+                <div class="subjob-info">
+                  <span class="material-symbols-outlined subjob-icon" [ngClass]="sj.status">
+                    {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
+                  </span>
+                  <span class="subjob-name label-mono">
+                    {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                  </span>
+                </div>
+                <div class="subjob-status-pct label-mono">
+                  <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}%</span>
+                  <span *ngIf="sj.status === 'done'">DONE</span>
+                  <span *ngIf="sj.status === 'failed'">FAILED</span>
+                  <span *ngIf="sj.status === 'pending'">PENDING</span>
+                </div>
+                <div class="subjob-progress-bar-container" *ngIf="sj.status === 'processing'">
+                  <div class="subjob-progress-bar" [style.width.%]="sj.progress"></div>
+                </div>
+              </div>
             </div>
 
             <div class="transcode-status done label-mono" *ngIf="movie.transcode_status === 'done'">
@@ -367,109 +393,135 @@
         <div class="episodes-list-box" *ngIf="!episodesLoading && episodes.length > 0">
           <div
             *ngFor="let ep of episodes; trackBy: trackByEpisodeId"
-            class="episode-row"
+            class="episode-container"
+            [class.processing]="ep.transcode_status === 'processing'"
             (mouseenter)="previewEpisode(ep)"
             (mouseleave)="restoreShowPreview()"
           >
-            <div class="ep-number label-mono">E{{ ep.episode_number }}</div>
+            <div class="episode-row">
+              <div class="ep-number label-mono">E{{ ep.episode_number }}</div>
 
-            <!-- Episode Still / Artwork -->
-            <div class="ep-still-container">
-              <img
-                *ngIf="ep.poster_path; else fallbackStill"
-                [src]="getEpisodeStillUrl(ep)"
-                alt=""
-                class="ep-still-img"
-              />
-              <ng-template #fallbackStill>
-                <div class="ep-still-fallback">
-                  <span class="material-symbols-outlined">movie</span>
+              <!-- Episode Still / Artwork -->
+              <div class="ep-still-container">
+                <img
+                  *ngIf="ep.poster_path; else fallbackStill"
+                  [src]="getEpisodeStillUrl(ep)"
+                  alt=""
+                  class="ep-still-img"
+                />
+                <ng-template #fallbackStill>
+                  <div class="ep-still-fallback">
+                    <span class="material-symbols-outlined">movie</span>
+                  </div>
+                </ng-template>
+                <!-- Mini progress bar -->
+                <div class="ep-progress-container" *ngIf="getEpisodeHistory(ep) as hist">
+                  <div
+                    class="ep-progress-bar"
+                    [style.width.%]="calculateProgressPercent(hist, ep.duration)"
+                  ></div>
                 </div>
-              </ng-template>
-              <!-- Mini progress bar -->
-              <div class="ep-progress-container" *ngIf="getEpisodeHistory(ep) as hist">
+              </div>
+
+              <div class="ep-main-details">
+                <h4 class="ep-title">{{ ep.title }}</h4>
+                <div class="ep-sub-meta">
+                  <span>{{ formatDuration(ep.duration) }}</span>
+                  <span class="meta-dot">&bull;</span>
+                  <span class="codec-text label-mono">{{ ep.video_codec }}</span>
+                  <span class="meta-dot" *ngIf="ep.transcode_status === 'done'">&bull;</span>
+                  <span class="ep-badge label-mono" *ngIf="ep.transcode_status === 'done'">OPT</span>
+                  <span class="meta-dot" *ngIf="getEpisodeHistory(ep)">&bull;</span>
+                  <span
+                    class="ep-progress-text text-primary-dim"
+                    *ngIf="getEpisodeHistory(ep) as hist"
+                    >{{ formatRemainingTime(hist, ep.duration) }} remaining</span
+                  >
+                </div>
+              </div>
+              <div class="ep-actions-box">
+                <button
+                  class="ep-action-btn play"
+                  [disabled]="ep.bundle_status !== 'available'"
+                  (click)="playEpisode(ep, $event)"
+                  [title]="getEpisodeHistory(ep) ? 'Resume Playback' : 'Play Episode'"
+                >
+                  <span class="material-symbols-outlined">play_arrow</span>
+                </button>
+                <button
+                  class="ep-action-btn replay"
+                  *ngIf="getEpisodeHistory(ep) && ep.bundle_status === 'available'"
+                  (click)="playEpisodeFromBeginning(ep, $event)"
+                  title="Play from Beginning"
+                >
+                  <span class="material-symbols-outlined">replay</span>
+                </button>
+                <button
+                  class="ep-action-btn transcode"
+                  *ngIf="
+                    ep.transcode_status !== 'done' &&
+                    ep.transcode_status !== 'pending' &&
+                    ep.transcode_status !== 'processing'
+                  "
+                  (click)="triggerTranscode(ep)"
+                  title="Optimize Episode"
+                >
+                  <span class="material-symbols-outlined">settings_input_component</span>
+                </button>
+                <button
+                  class="ep-action-btn transcode"
+                  *ngIf="ep.transcode_status === 'done'"
+                  (click)="triggerTranscode(ep, $event)"
+                  title="Re-optimize Episode"
+                >
+                  <span class="material-symbols-outlined">sync</span>
+                </button>
                 <div
-                  class="ep-progress-bar"
-                  [style.width.%]="calculateProgressPercent(hist, ep.duration)"
-                ></div>
+                  class="ep-spinner-box"
+                  *ngIf="ep.transcode_status === 'pending'"
+                  title="Optimization enqueued"
+                >
+                  <span class="spinner-small"></span>
+                </div>
+                <div
+                  class="ep-spinner-box"
+                  *ngIf="ep.transcode_status === 'processing'"
+                  title="Optimization in progress"
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-family: monospace;
+                    font-size: 11px;
+                    color: var(--secondary);
+                  "
+                >
+                  <span class="spinner-small"></span>
+                  <span>{{ Math.round(ep.transcode_progress || 0) }}%</span>
+                </div>
               </div>
             </div>
 
-            <div class="ep-main-details">
-              <h4 class="ep-title">{{ ep.title }}</h4>
-              <div class="ep-sub-meta">
-                <span>{{ formatDuration(ep.duration) }}</span>
-                <span class="meta-dot">&bull;</span>
-                <span class="codec-text label-mono">{{ ep.video_codec }}</span>
-                <span class="meta-dot" *ngIf="ep.transcode_status === 'done'">&bull;</span>
-                <span class="ep-badge label-mono" *ngIf="ep.transcode_status === 'done'">OPT</span>
-                <span class="meta-dot" *ngIf="getEpisodeHistory(ep)">&bull;</span>
-                <span
-                  class="ep-progress-text text-primary-dim"
-                  *ngIf="getEpisodeHistory(ep) as hist"
-                  >{{ formatRemainingTime(hist, ep.duration) }} remaining</span
-                >
-              </div>
-            </div>
-            <div class="ep-actions-box">
-              <button
-                class="ep-action-btn play"
-                [disabled]="ep.transcode_status !== 'done'"
-                (click)="playEpisode(ep, $event)"
-                [title]="getEpisodeHistory(ep) ? 'Resume Playback' : 'Play Episode'"
-              >
-                <span class="material-symbols-outlined">play_arrow</span>
-              </button>
-              <button
-                class="ep-action-btn replay"
-                *ngIf="getEpisodeHistory(ep) && ep.transcode_status === 'done'"
-                (click)="playEpisodeFromBeginning(ep, $event)"
-                title="Play from Beginning"
-              >
-                <span class="material-symbols-outlined">replay</span>
-              </button>
-              <button
-                class="ep-action-btn transcode"
-                *ngIf="
-                  ep.transcode_status !== 'done' &&
-                  ep.transcode_status !== 'pending' &&
-                  ep.transcode_status !== 'processing'
-                "
-                (click)="triggerTranscode(ep)"
-                title="Optimize Episode"
-              >
-                <span class="material-symbols-outlined">settings_input_component</span>
-              </button>
-              <button
-                class="ep-action-btn transcode"
-                *ngIf="ep.transcode_status === 'done'"
-                (click)="triggerTranscode(ep, $event)"
-                title="Re-optimize Episode"
-              >
-                <span class="material-symbols-outlined">sync</span>
-              </button>
-              <div
-                class="ep-spinner-box"
-                *ngIf="ep.transcode_status === 'pending'"
-                title="Optimization enqueued"
-              >
-                <span class="spinner-small"></span>
-              </div>
-              <div
-                class="ep-spinner-box"
-                *ngIf="ep.transcode_status === 'processing'"
-                title="Optimization in progress"
-                style="
-                  display: flex;
-                  align-items: center;
-                  gap: 4px;
-                  font-family: monospace;
-                  font-size: 11px;
-                  color: var(--secondary);
-                "
-              >
-                <span class="spinner-small"></span>
-                <span>{{ Math.round(ep.transcode_progress || 0) }}%</span>
+            <!-- Episode sub-jobs progress details -->
+            <div
+              class="ep-subjobs-list frosted-glass"
+              *ngIf="ep.transcode_status === 'processing' && ep.sub_jobs && ep.sub_jobs.length > 0"
+            >
+              <div class="ep-subjob-item" *ngFor="let sj of ep.sub_jobs">
+                <div class="ep-subjob-info">
+                  <span class="material-symbols-outlined ep-subjob-icon" [ngClass]="sj.status">
+                    {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
+                  </span>
+                  <span class="ep-subjob-name label-mono">
+                    {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                  </span>
+                </div>
+                <div class="ep-subjob-status-pct label-mono">
+                  <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}%</span>
+                  <span *ngIf="sj.status === 'done'">DONE</span>
+                  <span *ngIf="sj.status === 'failed'">FAILED</span>
+                  <span *ngIf="sj.status === 'pending'">PENDING</span>
+                </div>
               </div>
             </div>
           </div>

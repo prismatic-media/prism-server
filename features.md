@@ -157,7 +157,7 @@ The following keys can be set in the database `settings` table or via the UI:
 | `ffmpeg_path`                 | `"ffmpeg"`         | Path to the ffmpeg executable.                                                |
 | `ffprobe_path`                | `"ffprobe"`        | Path to the ffprobe executable.                                               |
 | `ffmpeg_hwaccel`              | `"none"`           | Hardware acceleration type (`none`, `nvenc`, `vaapi`, `qsv`, `videotoolbox`). |
-| `transcode_workers`           | `"2"`              | Maximum number of concurrent transcoding worker threads.                      |
+| `transcode_workers`           | `"1"`              | Maximum number of concurrent transcoding worker threads.                      |
 | `transcode_poll_interval`     | `"15"`             | Wait time (in seconds) before checking for new transcode queue items.         |
 | `storage_min_free_bytes`      | `"21474836480"`    | Headroom limit (default 20 GB) before a storage path is deemed full.          |
 | `auto_transcode_on_discovery` | `"false"`          | Automatically queue transcoding jobs when a new media item is scanned.        |

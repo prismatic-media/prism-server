@@ -29,8 +29,8 @@ func TestCreateWorker_SetsProperties(t *testing.T) {
 	if w.APIKey == "" {
 		t.Error("expected worker API key to be set")
 	}
-	if w.Threads != 2 {
-		t.Errorf("expected default threads 2, got %d", w.Threads)
+	if w.Threads != 1 {
+		t.Errorf("expected default threads 1, got %d", w.Threads)
 	}
 	if w.HWAccel != "none" {
 		t.Errorf("expected default hwaccel 'none', got %q", w.HWAccel)
@@ -255,6 +255,11 @@ func TestRecoverFailedWorkers(t *testing.T) {
 
 	// Update job to be processing by w1
 	if _, err := db.ExecContext(ctx, "UPDATE transcode_jobs SET status = 'processing', worker_id = ?, progress = 50.0 WHERE id = ?", w1.ID.String(), j.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update sub-jobs to be processing by w1
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_sub_jobs SET status = 'processing', worker_id = ?, progress = 50.0 WHERE job_id = ?", w1.ID.String(), j.ID.String()); err != nil {
 		t.Fatal(err)
 	}
 

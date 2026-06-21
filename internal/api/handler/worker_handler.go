@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/prismatic-media/prism-server/internal/models"
@@ -51,7 +50,7 @@ func (h *WorkerHandler) Authenticate(next http.Handler) http.Handler {
 
 		worker, err := sqlite.GetWorkerByAPIKey(r.Context(), h.db, key)
 		if errors.Is(err, sqlite.ErrNotFound) {
-			respondError(w, http.StatusUnauthorized, "invalid worker api key")
+			respondError(w, http.StatusUnauthorized, "invalid worker api key", err)
 			return
 		} else if err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to validate worker key", err)
@@ -63,20 +62,28 @@ func (h *WorkerHandler) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-type WorkerJob struct {
-	ID          uuid.UUID                 `json:"id"`
-	MediaItemID uuid.UUID                 `json:"media_item_id"`
-	Profiles    []models.TranscodeProfile `json:"profiles"`
+type WorkerSubJob struct {
+	ID          uuid.UUID                `json:"id"`
+	JobID       uuid.UUID                `json:"job_id"`
+	MediaItemID uuid.UUID                `json:"media_item_id"`
+	Type        string                   `json:"type"` // "video" or "subtitles"
+	Profile     *models.TranscodeProfile `json:"profile,omitempty"`
 }
 
 type heartbeatResponse struct {
-	Threads int        `json:"threads"`
-	HWAccel string     `json:"hwaccel"`
-	Job     *WorkerJob `json:"job"`
+	Threads int           `json:"threads"`
+	HWAccel string        `json:"hwaccel"`
+	Job     *WorkerSubJob `json:"job"` // keep JSON key as "job" for worker compatibility
+}
+
+type progressRequest struct {
+	Progress float64 `json:"progress"`
+	Status   string  `json:"status"`
+	ErrorMsg string  `json:"error_msg"`
 }
 
 // @Summary Worker Heartbeat
-// @Description Submit worker status heartbeat. If the worker has capacity, claims and returns the next pending transcode job.
+// @Description Submit worker status heartbeat. If the worker has capacity, claims and returns the next pending transcode sub-job.
 // @Tags Worker Interface
 // @Security WorkerAuth
 // @Produce json
@@ -91,10 +98,10 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Count active processing jobs for this worker
+	// Count active processing sub-jobs for this worker
 	var activeCount int
 	err := h.db.QueryRowContext(r.Context(), `
-		SELECT COUNT(*) FROM transcode_jobs 
+		SELECT COUNT(*) FROM transcode_sub_jobs 
 		WHERE worker_id = ? AND status = 'processing'`, 
 		worker.ID.String(),
 	).Scan(&activeCount)
@@ -114,36 +121,48 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var claimedJob *models.TranscodeJob
+	var claimedSubJob *models.TranscodeSubJob
 	if activeCount < worker.Threads {
-		// Claim next job
-		claimedJob, err = sqlite.ClaimNextJob(r.Context(), h.db, &worker.ID)
+		// Claim next sub-job
+		claimedSubJob, err = sqlite.ClaimNextSubJob(r.Context(), h.db, &worker.ID)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to claim job", err)
 			return
 		}
 
-		if claimedJob != nil {
+		if claimedSubJob != nil {
 			// Update status of worker to transcoding
 			_ = sqlite.UpdateWorkerHeartbeat(r.Context(), h.db, worker.ID, "transcoding")
 			
 			// Set media transcode status & publish events
-			item, err := sqlite.GetMediaItemByID(r.Context(), h.db, claimedJob.MediaItemID)
+			item, err := sqlite.GetMediaItemByID(r.Context(), h.db, claimedSubJob.MediaItemID)
 			if err == nil {
-				_ = sqlite.SetMediaTranscodeStatus(r.Context(), h.db, claimedJob.MediaItemID, models.TranscodeStatusProcessing)
+				// Clean up old transcode files if a bundle is currently available,
+				// but ONLY if this is the first sub-job of the parent job to start processing.
+				isFirstSubJob := false
+				if subJobs, err := sqlite.ListTranscodeSubJobsByJob(r.Context(), h.db, claimedSubJob.JobID); err == nil {
+					nonPendingCount := 0
+					for _, sj := range subJobs {
+						if sj.Status != models.TranscodeStatusPending {
+							nonPendingCount++
+						}
+					}
+					if nonPendingCount <= 1 {
+						isFirstSubJob = true
+					}
+				}
 
-				// Clean up old transcode files if a bundle is currently available.
-				if item.BundleStatus == models.BundleStatusAvailable {
-					outputDir, err := h.pool.SelectSegmentsOutputDir(r.Context(), claimedJob.MediaItemID)
+				if isFirstSubJob && item.BundleStatus == models.BundleStatusAvailable {
+					outputDir, err := h.pool.SelectSegmentsOutputDir(r.Context(), claimedSubJob.MediaItemID)
 					if err == nil && outputDir != "" {
 						_ = os.RemoveAll(outputDir)
 					}
-					_ = sqlite.SetMediaBundleStatus(r.Context(), h.db, claimedJob.MediaItemID, models.BundleStatusNone)
+					_ = sqlite.SetMediaBundleStatus(r.Context(), h.db, claimedSubJob.MediaItemID, models.BundleStatusNone)
 				}
 
 				if h.bus != nil {
 					h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-						MediaItemID:     claimedJob.MediaItemID,
+						MediaItemID:     claimedSubJob.MediaItemID,
 						LibraryID:       item.LibraryID,
 						TranscodeStatus: string(models.TranscodeStatusProcessing),
 					})
@@ -152,28 +171,30 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var wJob *WorkerJob
-	if claimedJob != nil {
-		dbProfiles, err := sqlite.ListTranscodeProfiles(r.Context(), h.db, true)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to load transcode profiles", err)
-			return
+	var wSubJob *WorkerSubJob
+	if claimedSubJob != nil {
+		var prof *models.TranscodeProfile
+		if claimedSubJob.Type == models.SubJobTypeVideo && claimedSubJob.ProfileID != nil {
+			prof, err = sqlite.GetTranscodeProfile(r.Context(), h.db, *claimedSubJob.ProfileID)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to load profile for sub-job", err)
+				return
+			}
 		}
-		var wProfiles []models.TranscodeProfile
-		for _, dp := range dbProfiles {
-			wProfiles = append(wProfiles, *dp)
-		}
-		wJob = &WorkerJob{
-			ID:          claimedJob.ID,
-			MediaItemID: claimedJob.MediaItemID,
-			Profiles:    wProfiles,
+
+		wSubJob = &WorkerSubJob{
+			ID:          claimedSubJob.ID,
+			JobID:       claimedSubJob.JobID,
+			MediaItemID: claimedSubJob.MediaItemID,
+			Type:        claimedSubJob.Type,
+			Profile:     prof,
 		}
 	}
 
 	respondJSON(w, http.StatusOK, heartbeatResponse{
 		Threads: worker.Threads,
 		HWAccel: worker.HWAccel,
-		Job:     wJob,
+		Job:     wSubJob,
 	})
 }
 
@@ -197,13 +218,13 @@ func (h *WorkerHandler) DownloadSource(w http.ResponseWriter, r *http.Request) {
 
 	mediaID, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to get media item", err)
@@ -213,155 +234,163 @@ func (h *WorkerHandler) DownloadSource(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, item.FilePath)
 }
 
-type progressRequest struct {
-	Progress float64 `json:"progress"`
-	Status   string  `json:"status"` // "processing" or "failed"
-	ErrorMsg string  `json:"error_msg"`
-}
-
-// @Summary Update Job Progress
-// @Description Update progress (0-100) or report failures of the currently assigned transcode job.
+// @Summary Update Sub-Job Progress
+// @Description Update progress (0-100) or report failures of the currently assigned transcode sub-job.
 // @Tags Worker Interface
 // @Security WorkerAuth
 // @Accept json
 // @Produce json
-// @Param id path string true "Job ID" format(uuid)
+// @Param id path string true "Sub-Job ID" format(uuid)
 // @Param body body progressRequest true "Progress update payload"
 // @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
-// @Failure 400 {object} map[string]string "Invalid request body or job ID"
+// @Failure 400 {object} map[string]string "Invalid request body or sub-job ID"
 // @Failure 401 {object} map[string]string "Unauthorized"
-// @Failure 403 {object} map[string]string "Job not assigned to this worker"
-// @Failure 404 {object} map[string]string "Job not found"
+// @Failure 403 {object} map[string]string "Sub-job not assigned to this worker"
+// @Failure 404 {object} map[string]string "Sub-job not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /worker/jobs/{id}/progress [post]
-func (h *WorkerHandler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
+// @Router /worker/subjobs/{id}/progress [post]
+func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {
 		respondError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	jobID, err := uuidParam(r, "id")
+	subJobID, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid job id")
+		respondError(w, http.StatusBadRequest, "invalid sub-job id", err)
 		return
 	}
 
 	var req progressRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
-	job, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, jobID)
+	subJob, err := sqlite.GetTranscodeSubJobByID(r.Context(), h.db, subJobID)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "job not found")
+		respondError(w, http.StatusNotFound, "sub-job not found", err)
 		return
 	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch job", err)
+		respondError(w, http.StatusInternalServerError, "failed to fetch sub-job", err)
 		return
 	}
 
-	if job.WorkerID == nil || *job.WorkerID != worker.ID {
-		respondError(w, http.StatusForbidden, "job not assigned to this worker")
+	if subJob.WorkerID == nil || *subJob.WorkerID != worker.ID {
+		respondError(w, http.StatusForbidden, "sub-job not assigned to this worker")
 		return
 	}
 
 	if req.Status == "failed" {
 		errStr := req.ErrorMsg
 		if errStr == "" {
-			errStr = "remote worker transcode failed"
+			errStr = "unknown worker error"
 		}
-		_ = sqlite.UpdateJobStatus(r.Context(), h.db, jobID, models.TranscodeStatusFailed, &errStr)
-		_ = sqlite.SetMediaTranscodeStatus(r.Context(), h.db, job.MediaItemID, models.TranscodeStatusFailed)
+		_ = sqlite.UpdateSubJobStatus(r.Context(), h.db, subJobID, models.TranscodeStatusFailed, &errStr)
+
+		var subJobs []*models.TranscodeSubJob
+		parentJob, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, subJob.JobID)
+		if err == nil && parentJob != nil {
+			subJobs = parentJob.SubJobs
+		}
 
 		h.pool.Hub().Publish(transcoder.ProgressEvent{
-			JobID:    jobID,
+			JobID:    subJob.JobID,
 			Progress: 0,
 			Done:     true,
 			Error:    errStr,
+			SubJobs:  subJobs,
 		})
 
 		if h.bus != nil {
-			item, _ := sqlite.GetMediaItemByID(r.Context(), h.db, job.MediaItemID)
+			item, _ := sqlite.GetMediaItemByID(r.Context(), h.db, subJob.MediaItemID)
 			var libraryID uuid.UUID
 			if item != nil {
 				libraryID = item.LibraryID
 			}
 			h.bus.Publish(events.EventJobProgress, events.JobProgressPayload{
-				JobID:       jobID,
-				MediaItemID: job.MediaItemID,
+				JobID:       subJob.JobID,
+				MediaItemID: subJob.MediaItemID,
 				Done:        true,
 				Error:       errStr,
+				SubJobs:     subJobs,
 			})
 			h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-				MediaItemID:     job.MediaItemID,
+				MediaItemID:     subJob.MediaItemID,
 				LibraryID:       libraryID,
 				TranscodeStatus: string(models.TranscodeStatusFailed),
 			})
 		}
 	} else {
-		_ = sqlite.UpdateJobProgress(r.Context(), h.db, jobID, req.Progress)
-		h.pool.Hub().Publish(transcoder.ProgressEvent{
-			JobID:    jobID,
-			Progress: req.Progress,
-		})
+		_ = sqlite.UpdateSubJobProgress(r.Context(), h.db, subJobID, req.Progress)
 
-		if h.bus != nil {
-			h.bus.Publish(events.EventJobProgress, events.JobProgressPayload{
-				JobID:       jobID,
-				MediaItemID: job.MediaItemID,
-				Progress:    req.Progress,
+		// Fetch updated parent job to get the averaged progress
+		parentJob, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, subJob.JobID)
+		if err == nil && parentJob != nil {
+			h.pool.Hub().Publish(transcoder.ProgressEvent{
+				JobID:    subJob.JobID,
+				Progress: parentJob.Progress,
+				SubJobs:  parentJob.SubJobs,
 			})
+
+			if h.bus != nil {
+				h.bus.Publish(events.EventJobProgress, events.JobProgressPayload{
+					JobID:       subJob.JobID,
+					MediaItemID: subJob.MediaItemID,
+					Progress:    parentJob.Progress,
+					SubJobs:     parentJob.SubJobs,
+				})
+			}
 		}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// @Summary Upload Transcode Output Bundle
-// @Description Upload completed MPEG-DASH output files as a ZIP bundle. The server extracts the bundle, creates sidecar metadata, and updates job status to completed.
+// @Summary Upload Transcode Output Bundle for Sub-Job
+// @Description Upload completed stream/segments output files as a ZIP bundle for a sub-job. The server extracts the bundle, merges segments, regenerates the master manifest, and updates statuses.
 // @Tags Worker Interface
 // @Security WorkerAuth
 // @Accept multipart/form-data
 // @Produce json
-// @Param id path string true "Job ID" format(uuid)
-// @Param bundle formData file true "The ZIP bundle file containing transcode outputs (segments, manifest, etc.)"
+// @Param id path string true "Sub-Job ID" format(uuid)
+// @Param bundle formData file true "The ZIP bundle file containing transcode outputs (segments, etc.)"
 // @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
-// @Failure 400 {object} map[string]string "Invalid job ID or multipart form"
+// @Failure 400 {object} map[string]string "Invalid sub-job ID or multipart form"
 // @Failure 401 {object} map[string]string "Unauthorized"
-// @Failure 403 {object} map[string]string "Job not assigned to this worker"
-// @Failure 404 {object} map[string]string "Job not found"
+// @Failure 403 {object} map[string]string "Sub-job not assigned to this worker"
+// @Failure 404 {object} map[string]string "Sub-job not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /worker/jobs/{id}/bundle [post]
-func (h *WorkerHandler) UploadBundle(w http.ResponseWriter, r *http.Request) {
+// @Router /worker/subjobs/{id}/bundle [post]
+func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {
 		respondError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	jobID, err := uuidParam(r, "id")
+	subJobID, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid job id")
+		respondError(w, http.StatusBadRequest, "invalid sub-job id", err)
 		return
 	}
 
-	job, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, jobID)
+	subJob, err := sqlite.GetTranscodeSubJobByID(r.Context(), h.db, subJobID)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "job not found")
+		respondError(w, http.StatusNotFound, "sub-job not found", err)
 		return
 	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to fetch job", err)
+		respondError(w, http.StatusInternalServerError, "failed to fetch sub-job", err)
 		return
 	}
 
-	if job.WorkerID == nil || *job.WorkerID != worker.ID {
-		respondError(w, http.StatusForbidden, "job not assigned to this worker")
+	if subJob.WorkerID == nil || *subJob.WorkerID != worker.ID {
+		respondError(w, http.StatusForbidden, "sub-job not assigned to this worker")
 		return
 	}
 
-	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, job.MediaItemID)
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, subJob.MediaItemID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to get media item", err)
 		return
@@ -396,7 +425,7 @@ func (h *WorkerHandler) UploadBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	outputDir, err := h.pool.SelectSegmentsOutputDir(r.Context(), job.MediaItemID)
+	outputDir, err := h.pool.SelectSegmentsOutputDir(r.Context(), subJob.MediaItemID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to select output path", err)
 		return
@@ -416,7 +445,7 @@ func (h *WorkerHandler) UploadBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = os.RemoveAll(outputDir)
+	// Make sure target output directory exists (we do NOT call RemoveAll here to preserve other sub-jobs' segments)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create output dir", err)
 		return
@@ -427,43 +456,66 @@ func (h *WorkerHandler) UploadBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mpdPath := filepath.Join(outputDir, "manifest.mpd")
+	// Update sub-job status to Done
+	_ = sqlite.UpdateSubJobStatus(r.Context(), h.db, subJob.ID, models.TranscodeStatusDone, nil)
+	_ = sqlite.UpdateSubJobProgress(r.Context(), h.db, subJob.ID, 100)
 
-	if err := sqlite.SetMediaMPDPath(r.Context(), h.db, job.MediaItemID, mpdPath); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to set mpd path", err)
+	// Regenerate manifest based on completed sub-jobs
+	if err := transcoder.RegenerateManifestForJob(r.Context(), h.db, subJob.JobID, outputDir); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to regenerate manifest", err)
 		return
 	}
-	h.pool.MPDCache().Set(job.MediaItemID, mpdPath)
 
-	// Write the artifact.json sidecar file for recovery.
-	if err := transcoder.WriteSidecarForMediaItem(r.Context(), h.db, job.MediaItemID); err != nil {
+	mpdPath := filepath.Join(outputDir, "manifest.mpd")
+	h.pool.MPDCache().Set(subJob.MediaItemID, mpdPath)
+
+	// Write sidecar file for recovery
+	if err := transcoder.WriteSidecarForMediaItem(r.Context(), h.db, subJob.MediaItemID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to write artifact sidecar", err)
 		return
 	}
 
-	now := time.Now().UTC()
-	job.FinishedAt = &now
-	_ = sqlite.UpdateJobStatus(r.Context(), h.db, job.ID, models.TranscodeStatusDone, nil)
-	_ = sqlite.UpdateJobProgress(r.Context(), h.db, job.ID, 100)
+	// Fetch parent job and check final status
+	parentJob, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, subJob.JobID)
+	if err == nil && parentJob != nil {
+		isDone := parentJob.Status == models.TranscodeStatusDone || parentJob.Status == models.TranscodeStatusFailed
+		var errStr string
+		if parentJob.ErrorMsg != nil {
+			errStr = *parentJob.ErrorMsg
+		}
 
-	h.pool.Hub().Publish(transcoder.ProgressEvent{
-		JobID:    job.ID,
-		Progress: 100,
-		Done:     true,
-	})
+		h.pool.Hub().Publish(transcoder.ProgressEvent{
+			JobID:    parentJob.ID,
+			Progress: parentJob.Progress,
+			Done:     isDone,
+			Error:    errStr,
+			SubJobs:  parentJob.SubJobs,
+		})
 
-	if h.bus != nil {
-		h.bus.Publish(events.EventJobProgress, events.JobProgressPayload{
-			JobID:       job.ID,
-			MediaItemID: job.MediaItemID,
-			Progress:    100,
-			Done:        true,
-		})
-		h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-			MediaItemID:     job.MediaItemID,
-			LibraryID:       item.LibraryID,
-			TranscodeStatus: string(models.TranscodeStatusDone),
-		})
+		if h.bus != nil {
+			h.bus.Publish(events.EventJobProgress, events.JobProgressPayload{
+				JobID:       parentJob.ID,
+				MediaItemID: parentJob.MediaItemID,
+				Progress:    parentJob.Progress,
+				Done:        isDone,
+				Error:       errStr,
+				SubJobs:     parentJob.SubJobs,
+			})
+			if isDone {
+				h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+					MediaItemID:     parentJob.MediaItemID,
+					LibraryID:       item.LibraryID,
+					TranscodeStatus: string(parentJob.Status),
+				})
+			} else {
+				// Publish intermediate update so UI knows bundle_status might have changed to available
+				h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+					MediaItemID:     parentJob.MediaItemID,
+					LibraryID:       item.LibraryID,
+					TranscodeStatus: string(models.TranscodeStatusProcessing),
+				})
+			}
+		}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -539,7 +591,7 @@ type registerWorkerResponse struct {
 func (h *WorkerHandler) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 	var req registerWorkerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -555,7 +607,7 @@ func (h *WorkerHandler) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 	// 1. Verify token
 	_, err := sqlite.GetEphemeralWorkerTokenByValue(r.Context(), h.db, req.Token)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusUnauthorized, "invalid registration token")
+		respondError(w, http.StatusUnauthorized, "invalid registration token", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to validate registration token", err)

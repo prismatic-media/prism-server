@@ -121,7 +121,7 @@ All config values can be set via environment variables (`PRISM_` prefix) or a `c
 | `PRISM_THUMBS_DIR`        | `/data/thumbs`           | Thumbnail cache           |
 | `PRISM_FFMPEG_PATH`       | `ffmpeg`                 | FFmpeg binary path        |
 | `PRISM_FFPROBE_PATH`      | `ffprobe`                | FFprobe binary path       |
-| `PRISM_TRANSCODE_WORKERS` | `2`                      | Concurrent transcode jobs |
+| `PRISM_TRANSCODE_WORKERS` | `1`                      | Concurrent transcode jobs |
 | `PRISM_TMDB_API_KEY`      | _(optional)_             | TMDB metadata enrichment  |
 
 ## Roadmap

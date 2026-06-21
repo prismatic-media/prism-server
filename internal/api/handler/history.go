@@ -149,20 +149,20 @@ func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 
 	mediaID, err := uuidParam(r, "mediaID")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	var req upsertHistoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	// Verify the media item exists.
 	_, err = sqlite.GetMediaItemByID(r.Context(), h.db, mediaID)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -21,12 +22,14 @@ func Authenticate(jwtSecret string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenStr := bearerToken(r)
 			if tokenStr == "" {
+				slog.Warn("Authentication failed: missing authorization header", "path", r.URL.Path, "method", r.Method)
 				http.Error(w, `{"error":"missing authorization header"}`, http.StatusUnauthorized)
 				return
 			}
 
 			claims, err := auth.ValidateAccessToken(jwtSecret, tokenStr)
 			if err != nil {
+				slog.Warn("Authentication failed: invalid or expired token", "path", r.URL.Path, "method", r.Method, "error", err)
 				http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
 				return
 			}
@@ -43,6 +46,7 @@ func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := ClaimsFromContext(r.Context())
 		if claims == nil || !claims.IsAdmin {
+			slog.Warn("Access forbidden: requires admin status", "path", r.URL.Path, "method", r.Method, "claims", claims)
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -114,6 +118,7 @@ func AuthenticateStream(jwtSecret string) func(http.Handler) http.Handler {
 				}
 			}
 
+			slog.Warn("Authentication failed: missing or invalid stream/cast token", "path", r.URL.Path, "method", r.Method)
 			http.Error(w, `{"error":"missing or invalid authorization"}`, http.StatusUnauthorized)
 		})
 	}

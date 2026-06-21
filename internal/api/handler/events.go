@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -26,6 +27,7 @@ func NewEventsHandler(bus *events.Bus) *EventsHandler {
 func (h *EventsHandler) ServeEvents(w http.ResponseWriter, r *http.Request) {
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
+		slog.Error("Failed to upgrade websocket", "error", err)
 		return
 	}
 	defer func() { _ = conn.Close() }()
@@ -50,18 +52,22 @@ func (h *EventsHandler) ServeEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case evt, ok := <-ch:
 			if !ok {
+				slog.Info("channel closed")
 				return
 			}
 			conn.SetWriteDeadline(time.Now().Add(10 * time.Second)) //nolint:errcheck
 			if err := conn.WriteJSON(evt); err != nil {
+				slog.Error("Failed to write event", "error", err)
 				return
 			}
 		case <-ticker.C:
 			conn.SetWriteDeadline(time.Now().Add(10 * time.Second)) //nolint:errcheck
 			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				slog.Error("Failed to write ping", "error", err)
 				return
 			}
 		case <-r.Context().Done():
+			slog.Info("request context done")
 			return
 		}
 	}

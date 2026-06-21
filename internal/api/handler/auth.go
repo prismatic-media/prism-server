@@ -54,7 +54,7 @@ type loginResponse struct {
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if req.Username == "" || req.Password == "" {
@@ -66,12 +66,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Return the same error for "not found" and "wrong password" to
 		// prevent username enumeration.
-		respondError(w, http.StatusUnauthorized, "invalid credentials")
+		respondError(w, http.StatusUnauthorized, "invalid credentials", err)
 		return
 	}
 
 	if err := auth.CheckPassword(user.PasswordHash, req.Password); err != nil {
-		respondError(w, http.StatusUnauthorized, "invalid credentials")
+		respondError(w, http.StatusUnauthorized, "invalid credentials", err)
 		return
 	}
 
@@ -109,13 +109,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(refreshCookieName)
 	if err != nil {
-		respondError(w, http.StatusUnauthorized, "missing refresh token")
+		respondError(w, http.StatusUnauthorized, "missing refresh token", err)
 		return
 	}
 
 	stored, err := sqlite.GetRefreshTokenByHash(r.Context(), h.db, hashToken(cookie.Value))
 	if err != nil {
-		respondError(w, http.StatusUnauthorized, "invalid refresh token")
+		respondError(w, http.StatusUnauthorized, "invalid refresh token", err)
 		return
 	}
 
@@ -126,7 +126,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	user, err := sqlite.GetUserByID(r.Context(), h.db, stored.UserID)
 	if err != nil {
-		respondError(w, http.StatusUnauthorized, "user not found")
+		respondError(w, http.StatusUnauthorized, "user not found", err)
 		return
 	}
 

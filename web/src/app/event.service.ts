@@ -11,6 +11,7 @@ export class EventService implements OnDestroy {
   private authSub: Subscription;
   private isDestroyed = false;
   private reconnectTimeout: any;
+  private isRefreshingToken = false;
 
   private eventSubject = new Subject<any>();
   public events$: Observable<any[]> = this.eventSubject.asObservable().pipe(
@@ -41,6 +42,27 @@ export class EventService implements OnDestroy {
 
     const token = this.authService.getToken();
     if (!token) return;
+
+    if (this.authService.isTokenExpired(token)) {
+      if (this.isRefreshingToken) {
+        console.error('Token refresh loop detected for WebSocket connection. Logging out.');
+        this.authService.logout();
+        return;
+      }
+      this.isRefreshingToken = true;
+      this.authService.refreshToken().subscribe({
+        next: () => {
+          this.isRefreshingToken = false;
+          this.connect();
+        },
+        error: (err) => {
+          this.isRefreshingToken = false;
+          console.error('Failed to refresh token for WebSocket connection:', err);
+          this.authService.logout();
+        }
+      });
+      return;
+    }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;

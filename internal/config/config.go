@@ -49,7 +49,7 @@ func RuntimeSettingsFromMap(m map[string]string) RuntimeSettings {
 		JWTSecret:         m["jwt_secret"],
 		ThumbsDir:         m["thumbs_dir"],
 		FFmpegHWAccel:     stringOrDefault(m["ffmpeg_hwaccel"], "none"),
-		TranscodeWorkers:  intOrDefault(m["transcode_workers"], 2),
+		TranscodeWorkers:  intOrDefault(m["transcode_workers"], 1),
 		TMDBApiKey:        m["tmdb_api_key"],
 		CastReceiverAppID: m["cast_receiver_app_id"],
 	}

@@ -1205,3 +1205,151 @@
   color: var(--surface-tint);
   font-weight: 500;
 }
+
+/* Sub-jobs progress display */
+.subjobs-progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--rounded-md);
+  background: rgba(220, 228, 229, 0.03);
+  border: 1px solid rgba(220, 228, 229, 0.08);
+  margin-top: 16px;
+  width: 100%;
+  max-width: 450px;
+}
+
+.subjob-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.subjob-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subjob-icon {
+  font-size: 16px;
+  opacity: 0.6;
+}
+
+.subjob-icon.done {
+  color: var(--surface-tint);
+  opacity: 1;
+}
+
+.subjob-icon.failed {
+  color: var(--error);
+  opacity: 1;
+}
+
+.subjob-icon.processing {
+  color: var(--secondary);
+  opacity: 1;
+  animation: spin 2s linear infinite;
+}
+
+.subjob-name {
+  font-size: 12px;
+  color: #ffffff;
+}
+
+.subjob-status-pct {
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  font-weight: bold;
+}
+
+.subjob-progress-bar-container {
+  grid-column: span 2;
+  height: 4px;
+  background: rgba(220, 228, 229, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.subjob-progress-bar {
+  height: 100%;
+  background: var(--surface-tint);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* TV Episode Sub-jobs */
+.episode-container {
+  display: flex;
+  flex-direction: column;
+  background: rgba(220, 228, 229, 0.02);
+  border: 1px solid rgba(220, 228, 229, 0.05);
+  border-radius: var(--rounded);
+  transition: all 0.2s;
+}
+
+.episode-container.processing {
+  border-color: rgba(0, 219, 233, 0.2);
+}
+
+.episode-container .episode-row {
+  border: none;
+  background: none;
+}
+
+.ep-subjobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px 12px 16px;
+  border-top: 1px solid rgba(220, 228, 229, 0.04);
+  background: rgba(220, 228, 229, 0.01);
+}
+
+.ep-subjob-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.ep-subjob-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ep-subjob-icon {
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.ep-subjob-icon.done {
+  color: var(--surface-tint);
+  opacity: 1;
+}
+
+.ep-subjob-icon.failed {
+  color: var(--error);
+  opacity: 1;
+}
+
+.ep-subjob-icon.processing {
+  color: var(--secondary);
+  opacity: 1;
+  animation: spin 2s linear infinite;
+}
+
+.ep-subjob-name {
+  font-size: 11px;
+  color: rgba(220, 228, 229, 0.85);
+}
+
+.ep-subjob-status-pct {
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  font-weight: 500;
+}

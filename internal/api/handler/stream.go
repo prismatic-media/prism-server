@@ -50,13 +50,13 @@ func NewStreamHandler(db *sql.DB, mpdCache *dash.Cache, jwtSecret string) *Strea
 func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {
@@ -116,13 +116,13 @@ func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {
@@ -148,11 +148,11 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 	wildcardPath := chi.URLParam(r, "*")
 	unescapedPath, err := url.PathUnescape(wildcardPath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid segment path encoding")
+		respondError(w, http.StatusBadRequest, "invalid segment path encoding", err)
 		return
 	}
 	if strings.Contains(unescapedPath, "..") {
-		respondError(w, http.StatusBadRequest, "invalid segment path")
+		respondError(w, http.StatusBadRequest, "invalid segment path", err)
 		return
 	}
 
@@ -190,7 +190,7 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 func (h *StreamHandler) IssueCastToken(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 

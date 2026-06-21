@@ -125,6 +125,10 @@ func GetMediaItemByID(ctx context.Context, db *sql.DB, id uuid.UUID) (*models.Me
 	if err == nil && prog != nil {
 		item.TranscodeProgress = prog
 	}
+	subJobs, err := GetMediaItemLatestJobSubJobs(ctx, db, item.ID)
+	if err == nil && subJobs != nil {
+		item.SubJobs = subJobs
+	}
 	if item.MediaType == models.MediaTypeEpisode && item.TVShowID != nil {
 		show, err := GetTVShowByID(ctx, db, *item.TVShowID)
 		if err == nil {

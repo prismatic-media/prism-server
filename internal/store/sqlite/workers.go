@@ -26,7 +26,7 @@ func CreateWorker(ctx context.Context, db *sql.DB, name string) (*models.Transco
 		ID:          id,
 		Name:        name,
 		APIKey:      apiKey,
-		Threads:     2,
+		Threads:     1,
 		HWAccel:     "none",
 		Status:      "offline",
 		IsEphemeral: false,
@@ -60,7 +60,7 @@ func CreateEphemeralWorker(ctx context.Context, db *sql.DB, name string) (*model
 		ID:          id,
 		Name:        name,
 		APIKey:      apiKey,
-		Threads:     2,
+		Threads:     1,
 		HWAccel:     "none",
 		Status:      "idle",
 		IsEphemeral: true,
@@ -330,9 +330,9 @@ type RequeuedJobInfo struct {
 // RecoverFailedWorkers finds workers whose last heartbeat is older than the timeout.
 // For non-ephemeral workers, it updates their status to 'offline'.
 // For ephemeral workers, it deletes them entirely from the database.
-// In both cases, any job currently 'processing' on those workers is moved back to 'pending',
-// progress is reset to 0, the worker ID is cleared, and the media item transcode status is reset to 'pending'.
-// Returns the list of jobs that were re-queued so caller can broadcast status events.
+// In both cases, any sub-job currently 'processing' on those workers is moved back to 'pending',
+// progress is reset to 0, and the worker ID is cleared.
+// Returns the list of parent jobs that were re-queued so caller can broadcast status events.
 func RecoverFailedWorkers(ctx context.Context, db *sql.DB, timeout time.Duration) ([]RequeuedJobInfo, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -378,36 +378,41 @@ func RecoverFailedWorkers(ctx context.Context, db *sql.DB, timeout time.Duration
 		return nil, nil
 	}
 
-	// 2. Find all processing jobs associated with these workers along with their media item and library info (BEFORE we delete/update anything)
+	// 2. Find all processing sub-jobs associated with these workers along with their parent job, media item, and library info (BEFORE we delete/update anything)
 	var requeuedJobs []RequeuedJobInfo
+	seenJobs := make(map[uuid.UUID]bool)
 	for _, wID := range allFailedWorkerIDs {
-		jRows, err := tx.QueryContext(ctx, `
-			SELECT j.id, j.media_item_id, m.library_id
-			FROM transcode_jobs j
+		sjRows, err := tx.QueryContext(ctx, `
+			SELECT sj.id, sj.job_id, j.media_item_id, m.library_id
+			FROM transcode_sub_jobs sj
+			JOIN transcode_jobs j ON sj.job_id = j.id
 			JOIN media_items m ON j.media_item_id = m.id
-			WHERE j.status = 'processing' AND j.worker_id = ?`,
+			WHERE sj.status = 'processing' AND sj.worker_id = ?`,
 			wID,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("querying processing jobs for worker: %w", err)
+			return nil, fmt.Errorf("querying processing sub-jobs for worker: %w", err)
 		}
-		defer func() { _ = jRows.Close() }()
+		defer func() { _ = sjRows.Close() }()
 
-		for jRows.Next() {
-			var jIDStr, mIDStr, lIDStr string
-			if err := jRows.Scan(&jIDStr, &mIDStr, &lIDStr); err != nil {
-				return nil, fmt.Errorf("scanning job info: %w", err)
+		for sjRows.Next() {
+			var sjIDStr, jIDStr, mIDStr, lIDStr string
+			if err := sjRows.Scan(&sjIDStr, &jIDStr, &mIDStr, &lIDStr); err != nil {
+				return nil, fmt.Errorf("scanning sub-job info: %w", err)
 			}
 			jID, _ := uuid.Parse(jIDStr)
 			mID, _ := uuid.Parse(mIDStr)
 			lID, _ := uuid.Parse(lIDStr)
-			requeuedJobs = append(requeuedJobs, RequeuedJobInfo{
-				JobID:       jID,
-				MediaItemID: mID,
-				LibraryID:   lID,
-			})
+			if !seenJobs[jID] {
+				seenJobs[jID] = true
+				requeuedJobs = append(requeuedJobs, RequeuedJobInfo{
+					JobID:       jID,
+					MediaItemID: mID,
+					LibraryID:   lID,
+				})
+			}
 		}
-		if err := jRows.Err(); err != nil {
+		if err := sjRows.Err(); err != nil {
 			return nil, err
 		}
 	}
@@ -434,26 +439,87 @@ func RecoverFailedWorkers(ctx context.Context, db *sql.DB, timeout time.Duration
 		}
 	}
 
-	// 5. Re-queue those jobs and update corresponding media items
-	for _, job := range requeuedJobs {
+	// 5. Re-queue those sub-jobs
+	for _, wID := range allFailedWorkerIDs {
 		_, err := tx.ExecContext(ctx, `
-			UPDATE transcode_jobs
+			UPDATE transcode_sub_jobs
 			SET status = 'pending', worker_id = NULL, started_at = NULL, finished_at = NULL, error_msg = NULL, progress = 0
-			WHERE id = ?`,
-			job.JobID.String(),
+			WHERE status = 'processing' AND worker_id = ?`,
+			wID,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("resetting job: %w", err)
+			return nil, fmt.Errorf("resetting sub-jobs: %w", err)
+		}
+	}
+
+	// 6. Reset parent jobs and media item statuses if they were failed, and recalculate parent progress
+	for _, job := range requeuedJobs {
+		// Clear worker_id on parent job if it matches any of the failed workers
+		for _, wID := range allFailedWorkerIDs {
+			_, _ = tx.ExecContext(ctx, `UPDATE transcode_jobs SET worker_id = NULL WHERE id = ? AND worker_id = ?`, job.JobID.String(), wID)
 		}
 
-		_, err = tx.ExecContext(ctx, `
-			UPDATE media_items
-			SET transcode_status = 'pending', updated_at = ?
-			WHERE id = ?`,
-			now, job.MediaItemID.String(),
-		)
+		// Check if any sub-job is not pending
+		var activeCount int
+		err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM transcode_sub_jobs WHERE job_id = ? AND status IN ('processing', 'done')`, job.JobID.String()).Scan(&activeCount)
 		if err != nil {
-			return nil, fmt.Errorf("resetting media transcode status: %w", err)
+			return nil, fmt.Errorf("counting active sub-jobs: %w", err)
+		}
+
+		if activeCount == 0 {
+			// All sub-jobs are pending (or failed). Reset parent job and media item to pending
+			_, err = tx.ExecContext(ctx, `
+				UPDATE transcode_jobs
+				SET status = 'pending', worker_id = NULL, error_msg = NULL, started_at = NULL
+				WHERE id = ?`,
+				job.JobID.String(),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("resetting parent job to pending: %w", err)
+			}
+
+			_, err = tx.ExecContext(ctx, `
+				UPDATE media_items
+				SET transcode_status = 'pending', updated_at = ?
+				WHERE id = ?`,
+				now, job.MediaItemID.String(),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("resetting media transcode status: %w", err)
+			}
+		} else {
+			// Some sub-jobs are done or processing. Keep parent job as processing, but clear error_msg if failed
+			_, err = tx.ExecContext(ctx, `
+				UPDATE transcode_jobs
+				SET status = 'processing', error_msg = NULL
+				WHERE id = ? AND status = 'failed'`,
+				job.JobID.String(),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("updating parent job: %w", err)
+			}
+
+			_, err = tx.ExecContext(ctx, `
+				UPDATE media_items
+				SET transcode_status = 'processing', updated_at = ?
+				WHERE id = ? AND transcode_status = 'failed'`,
+				now, job.MediaItemID.String(),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("updating media transcode status: %w", err)
+			}
+		}
+
+		// Recalculate average progress for parent job
+		var avgProgress float64
+		err = tx.QueryRowContext(ctx, `SELECT COALESCE(AVG(progress), 0) FROM transcode_sub_jobs WHERE job_id = ?`, job.JobID.String()).Scan(&avgProgress)
+		if err != nil {
+			return nil, fmt.Errorf("recalculating parent progress: %w", err)
+		}
+
+		_, err = tx.ExecContext(ctx, `UPDATE transcode_jobs SET progress = ? WHERE id = ?`, avgProgress, job.JobID.String())
+		if err != nil {
+			return nil, fmt.Errorf("updating parent progress: %w", err)
 		}
 	}
 

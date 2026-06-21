@@ -56,7 +56,7 @@ func (h *ProfilesHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *ProfilesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var p models.TranscodeProfile
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -97,13 +97,13 @@ func (h *ProfilesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid profile id")
+		respondError(w, http.StatusBadRequest, "invalid profile id", err)
 		return
 	}
 
 	var p models.TranscodeProfile
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *ProfilesHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	if err := sqlite.UpdateTranscodeProfile(r.Context(), h.db, &p); err != nil {
 		if errors.Is(err, sqlite.ErrNotFound) {
-			respondError(w, http.StatusNotFound, "profile not found")
+			respondError(w, http.StatusNotFound, "profile not found", err)
 			return
 		}
 		respondError(w, http.StatusInternalServerError, "failed to update transcode profile", err)
@@ -148,13 +148,13 @@ func (h *ProfilesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid profile id")
+		respondError(w, http.StatusBadRequest, "invalid profile id", err)
 		return
 	}
 
 	if err := sqlite.DeleteTranscodeProfile(r.Context(), h.db, id); err != nil {
 		if errors.Is(err, sqlite.ErrNotFound) {
-			respondError(w, http.StatusNotFound, "profile not found")
+			respondError(w, http.StatusNotFound, "profile not found", err)
 			return
 		}
 		respondError(w, http.StatusInternalServerError, "failed to delete transcode profile", err)

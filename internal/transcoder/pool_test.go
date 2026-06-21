@@ -326,11 +326,11 @@ func TestPoolPrioritizeEndpointFlowClaimsTargetFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	claimed, err := sqlite.ClaimNextJob(ctx, db, nil)
+	claimed, err := sqlite.ClaimNextSubJob(ctx, db, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if claimed == nil || claimed.ID != j2.ID {
+	if claimed == nil || claimed.JobID != j2.ID {
 		t.Fatalf("expected prioritized job %s to be claimed first, got %+v", j2.ID, claimed)
 	}
 }

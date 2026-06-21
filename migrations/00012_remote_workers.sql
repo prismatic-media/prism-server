@@ -3,7 +3,7 @@ CREATE TABLE transcode_workers (
     id             TEXT PRIMARY KEY,
     name           TEXT NOT NULL,
     api_key        TEXT NOT NULL UNIQUE,
-    threads        INTEGER NOT NULL DEFAULT 2,
+    threads        INTEGER NOT NULL DEFAULT 1,
     hwaccel        TEXT NOT NULL DEFAULT 'none',
     status         TEXT NOT NULL DEFAULT 'offline',
     last_heartbeat TEXT,

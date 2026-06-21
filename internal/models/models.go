@@ -127,6 +127,7 @@ type MediaItem struct {
 	// Transcode
 	TranscodeStatus   TranscodeStatus     `db:"transcode_status" json:"transcode_status"`
 	TranscodeProgress *float64            `json:"transcode_progress,omitempty"`
+	SubJobs           []*TranscodeSubJob  `db:"-" json:"sub_jobs,omitempty"`
 	MPDPath           *string             `db:"mpd_path" json:"mpd_path,omitempty"`
 	SourceFingerprint *string             `db:"source_fingerprint" json:"source_fingerprint,omitempty"`
 	SourceStatus      string              `db:"source_status" json:"source_status"`
@@ -170,8 +171,36 @@ type TranscodeJob struct {
 	ErrorMsg    *string         `db:"error_msg" json:"error_msg,omitempty"`
 	StartedAt   *time.Time      `db:"started_at" json:"started_at,omitempty"`
 	FinishedAt  *time.Time      `db:"finished_at" json:"finished_at,omitempty"`
+	SubJobs     []*TranscodeSubJob `db:"-" json:"sub_jobs,omitempty"`
 	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
 }
+
+// TranscodeSubJob tracks a single stream/profile transcoding sub-job.
+type TranscodeSubJob struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	JobID          uuid.UUID       `db:"job_id" json:"job_id"`
+	MediaItemID    uuid.UUID       `db:"media_item_id" json:"media_item_id"`
+	WorkerID       *uuid.UUID      `db:"worker_id" json:"worker_id,omitempty"`
+	Type           string          `db:"type" json:"type"` // "video" or "subtitles"
+	ProfileID      *uuid.UUID      `db:"profile_id" json:"profile_id,omitempty"`
+	ProfileName    *string         `db:"profile_name" json:"profile_name,omitempty"`
+	Width          *int            `db:"width" json:"width,omitempty"`
+	Height         *int            `db:"height" json:"height,omitempty"`
+	VideoBitrateK  *int            `db:"video_bitrate_k" json:"video_bitrate_k,omitempty"`
+	AudioBitrateK  *int            `db:"audio_bitrate_k" json:"audio_bitrate_k,omitempty"`
+	Codec          *string         `db:"codec" json:"codec,omitempty"`
+	Status         TranscodeStatus `db:"status" json:"status"`
+	Progress       float64         `db:"progress" json:"progress"` // 0-100
+	ErrorMsg       *string         `db:"error_msg" json:"error_msg,omitempty"`
+	StartedAt      *time.Time      `db:"started_at" json:"started_at,omitempty"`
+	FinishedAt     *time.Time      `db:"finished_at" json:"finished_at,omitempty"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+}
+
+const (
+	SubJobTypeVideo     = "video"
+	SubJobTypeSubtitles = "subtitles"
+)
 
 // WatchHistory records playback position per user per item.
 type WatchHistory struct {

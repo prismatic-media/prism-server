@@ -35,10 +35,11 @@ import (
 
 // ProgressEvent is emitted during a transcode job.
 type ProgressEvent struct {
-	JobID    uuid.UUID `json:"job_id"`
-	Progress float64   `json:"progress"` // 0–100
-	Done     bool      `json:"done"`
-	Error    string    `json:"error,omitempty"`
+	JobID    uuid.UUID                 `json:"job_id"`
+	Progress float64                   `json:"progress"` // 0–100
+	Done     bool                      `json:"done"`
+	Error    string                    `json:"error,omitempty"`
+	SubJobs  []*models.TranscodeSubJob `json:"sub_jobs,omitempty"`
 }
 
 // Hub broadcasts ProgressEvents to registered WebSocket subscribers.
@@ -221,9 +222,9 @@ func (p *Pool) runWorker(ctx context.Context) {
 			return
 		}
 
-		j, err := sqlite.ClaimNextJob(ctx, p.db, nil)
+		j, err := sqlite.ClaimNextSubJob(ctx, p.db, nil)
 		if err != nil {
-			slog.Warn("claiming next transcode job failed", "error", err)
+			slog.Warn("claiming next transcode sub-job failed", "error", err)
 			if !p.sleepOrStop(ctx, time.Duration(p.pollInterval.Load())) {
 				return
 			}
@@ -263,11 +264,14 @@ func (p *Pool) runWorkerMonitor(ctx context.Context) {
 			for _, job := range requeued {
 				slog.Info("Requeued transcode job due to worker heartbeat timeout", "job_id", job.JobID, "media_item_id", job.MediaItemID)
 
+				subJobs, _ := sqlite.ListTranscodeSubJobsByJob(ctx, p.db, job.JobID)
+
 				// Publish to WebSocket hub
 				p.hub.Publish(ProgressEvent{
 					JobID:    job.JobID,
 					Progress: 0,
 					Done:     false,
+					SubJobs:  subJobs,
 				})
 
 				// Publish events to the system bus
@@ -277,6 +281,7 @@ func (p *Pool) runWorkerMonitor(ctx context.Context) {
 						MediaItemID: job.MediaItemID,
 						Progress:    0,
 						Done:        false,
+						SubJobs:     subJobs,
 					})
 					p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
 						MediaItemID:     job.MediaItemID,
@@ -379,45 +384,59 @@ func (p *Pool) loadPollInterval(ctx context.Context) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// process runs a single transcode job.
-func (p *Pool) process(ctx context.Context, j *models.TranscodeJob) {
-	log := slog.With("job_id", j.ID, "media_item_id", j.MediaItemID)
-	log.Info("starting transcode job")
-
-	// Job status is set to processing by ClaimNextJob; only update media status here.
-	if err := sqlite.SetMediaTranscodeStatus(ctx, p.db, j.MediaItemID, models.TranscodeStatusProcessing); err != nil {
-		log.Warn("could not set media processing status", "error", err)
+// process runs a single transcode sub-job.
+func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
+	parentJob, err := sqlite.GetTranscodeJobByID(ctx, p.db, j.JobID)
+	if err != nil {
+		p.fail(ctx, j, fmt.Sprintf("fetching parent job: %v", err))
+		return
 	}
 
-	item, err := sqlite.GetMediaItemByID(ctx, p.db, j.MediaItemID)
+	log := slog.With("sub_job_id", j.ID, "job_id", j.JobID, "media_item_id", parentJob.MediaItemID)
+	log.Info("starting transcode sub-job", "type", j.Type)
+
+	item, err := sqlite.GetMediaItemByID(ctx, p.db, parentJob.MediaItemID)
 	if err != nil {
 		p.fail(ctx, j, fmt.Sprintf("fetching media item: %v", err))
 		return
 	}
 
-	// Clean up old transcode files if a bundle is currently available.
-	if item.BundleStatus == models.BundleStatusAvailable {
-		outputDir, err := p.SelectSegmentsOutputDir(ctx, j.MediaItemID)
+	// Clean up old transcode files if a bundle is currently available,
+	// but ONLY if this is the first sub-job of the parent job to start processing.
+	isFirstSubJob := false
+	if subJobs, err := sqlite.ListTranscodeSubJobsByJob(ctx, p.db, j.JobID); err == nil {
+		nonPendingCount := 0
+		for _, sj := range subJobs {
+			if sj.Status != models.TranscodeStatusPending {
+				nonPendingCount++
+			}
+		}
+		if nonPendingCount <= 1 {
+			isFirstSubJob = true
+		}
+	}
+
+	if isFirstSubJob && item.BundleStatus == models.BundleStatusAvailable {
+		outputDir, err := p.SelectSegmentsOutputDir(ctx, parentJob.MediaItemID)
 		if err == nil && outputDir != "" {
 			log.Info("cleaning up old transcode bundle directory before local processing", "path", outputDir)
 			if err := os.RemoveAll(outputDir); err != nil {
 				log.Warn("failed to delete old transcode directory", "error", err)
 			}
 		}
-		if err := sqlite.SetMediaBundleStatus(ctx, p.db, j.MediaItemID, models.BundleStatusNone); err != nil {
+		if err := sqlite.SetMediaBundleStatus(ctx, p.db, parentJob.MediaItemID, models.BundleStatusNone); err != nil {
 			log.Warn("failed to update bundle status to none", "error", err)
 		}
 	}
 
 	if p.eventBus != nil {
 		p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-			MediaItemID:     j.MediaItemID,
+			MediaItemID:     parentJob.MediaItemID,
 			LibraryID:       item.LibraryID,
 			TranscodeStatus: string(models.TranscodeStatusProcessing),
 		})
 	}
 
-	// Probe to get duration, subtitle streams, and HDR info.
 	ffmpegPath := "ffmpeg"
 	ffprobePath := "ffprobe"
 
@@ -438,192 +457,216 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeJob) {
 		}
 	}
 
-	outputDir, err := p.SelectSegmentsOutputDir(ctx, j.MediaItemID)
+	outputDir, err := p.SelectSegmentsOutputDir(ctx, parentJob.MediaItemID)
 	if err != nil {
 		p.fail(ctx, j, err.Error())
 		return
 	}
-	mpdPath := filepath.Join(outputDir, "manifest.mpd")
 
-	dbProfiles, err := sqlite.ListTranscodeProfiles(ctx, p.db, true)
-	if err != nil {
-		p.fail(ctx, j, fmt.Sprintf("fetching transcode profiles: %v", err))
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		p.fail(ctx, j, fmt.Sprintf("creating output dir: %v", err))
 		return
 	}
 
-	var profiles []ffmpeg.RenditionProfile
-	for _, dp := range dbProfiles {
-		profiles = append(profiles, ffmpeg.RenditionProfile{
-			Name:          dp.Name,
-			Height:        dp.Height,
-			Width:         dp.Width,
-			VideoBitrateK: dp.VideoBitrateK,
-			AudioBitrateK: dp.AudioBitrateK,
-			Codec:         dp.Codec,
-		})
-	}
-	if len(profiles) == 0 {
-		profiles = ffmpeg.DefaultProfiles()
-	}
-	// Filter out profiles that would require upscaling. A profile is kept when:
-	//   a) the source height is >= the profile height (standard check), OR
-	//   b) the source width is >= the profile's reference width — this allows
-	//      wide-format sources (e.g. 1920x800) to receive the 1080p rendition
-	//      because their horizontal resolution is sufficient.
-	if item.Height > 0 && item.Width > 0 {
-		var filtered []ffmpeg.RenditionProfile
-		for _, prof := range profiles {
-			if prof.Height <= item.Height || (prof.Width > 0 && item.Width >= prof.Width) {
-				filtered = append(filtered, prof)
+	if j.Type == models.SubJobTypeVideo {
+		if j.ProfileName == nil {
+			p.fail(ctx, j, "video sub-job has nil profile name")
+			return
+		}
+		prof := ffmpeg.RenditionProfile{
+			Name:          *j.ProfileName,
+			Height:        *j.Height,
+			Width:         *j.Width,
+			VideoBitrateK: *j.VideoBitrateK,
+			AudioBitrateK: *j.AudioBitrateK,
+			Codec:         *j.Codec,
+		}
+
+		progressFn := func(pct float64) {
+			if pct > 99 {
+				pct = 99
+			}
+			_ = sqlite.UpdateSubJobProgress(ctx, p.db, j.ID, pct)
+			
+			parentJob, err := sqlite.GetTranscodeJobByID(ctx, p.db, j.JobID)
+			if err == nil && parentJob != nil {
+				p.hub.Publish(ProgressEvent{
+					JobID:    j.JobID,
+					Progress: parentJob.Progress,
+					SubJobs:  parentJob.SubJobs,
+				})
+				if p.eventBus != nil {
+					p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
+						JobID:       j.JobID,
+						MediaItemID: parentJob.MediaItemID,
+						Progress:    parentJob.Progress,
+						SubJobs:     parentJob.SubJobs,
+					})
+				}
 			}
 		}
-		if len(filtered) > 0 {
-			profiles = filtered
+
+		hwaccel, err := sqlite.GetSetting(ctx, p.db, "ffmpeg_hwaccel")
+		if err != nil {
+			hwaccel = "none"
+		}
+
+		opts := ffmpeg.TranscodeOptions{
+			InputPath:            item.FilePath,
+			OutputDir:            outputDir,
+			Profiles:             []ffmpeg.RenditionProfile{prof},
+			Duration:             duration,
+			SourceWidth:          item.Width,
+			SourceHeight:         item.Height,
+			ProgressFn:           progressFn,
+			HWAccelType:          hwaccel,
+			SourceIsHDR:          isHDR,
+			SourcePixFmt:         pixFmt,
+			SourceColorSpace:     colorSpace,
+			SourceColorTransfer:  colorTransfer,
+			SourceColorPrimaries: colorPrimaries,
+		}
+
+		if err := ffmpeg.TranscodeDASH(ctx, ffmpegPath, opts); err != nil {
+			p.fail(ctx, j, err.Error())
+			return
+		}
+
+	} else if j.Type == models.SubJobTypeSubtitles {
+		if err := ffmpeg.ExtractSubtitles(ctx, ffmpegPath, item.FilePath, outputDir, subtitleStreams); err != nil {
+			log.Warn("failed to extract embedded subtitles", "error", err)
+		}
+
+		var existingLangs = make(map[string]bool)
+		for _, s := range subtitleStreams {
+			lang := s.Language
+			if lang == "" {
+				lang = fmt.Sprintf("%d", s.Index)
+			}
+			existingLangs[lang] = true
+		}
+
+		sidecars := ffmpeg.FindSidecarSubtitles(item.FilePath)
+		for _, sc := range sidecars {
+			lang := sc.Language
+			if lang == "" {
+				lang = "default"
+			}
+			if existingLangs[lang] {
+				continue
+			}
+			_, err := ffmpeg.CopySidecarSubtitle(ctx, ffmpegPath, sc, outputDir)
+			if err != nil {
+				log.Warn("sidecar subtitle processing failed", "path", sc.Path, "error", err)
+				continue
+			}
+		}
+	} else {
+		p.fail(ctx, j, fmt.Sprintf("unknown sub-job type: %s", j.Type))
+		return
+	}
+
+	if err := sqlite.UpdateSubJobStatus(ctx, p.db, j.ID, models.TranscodeStatusDone, nil); err != nil {
+		log.Warn("could not mark sub-job done", "error", err)
+	}
+	if err := sqlite.UpdateSubJobProgress(ctx, p.db, j.ID, 100); err != nil {
+		log.Warn("could not set sub-job final progress", "error", err)
+	}
+
+	if err := RegenerateManifestForJob(ctx, p.db, j.JobID, outputDir); err != nil {
+		log.Warn("failed to regenerate manifest", "error", err)
+	}
+
+	mpdPath := filepath.Join(outputDir, "manifest.mpd")
+	p.mpdCache.Set(parentJob.MediaItemID, mpdPath)
+
+	if err := WriteSidecarForMediaItem(ctx, p.db, parentJob.MediaItemID); err != nil {
+		log.Warn("failed to write recovery sidecar", "error", err)
+	}
+
+	parentJob, err = sqlite.GetTranscodeJobByID(ctx, p.db, j.JobID)
+	if err == nil && parentJob != nil {
+		isDone := parentJob.Status == models.TranscodeStatusDone || parentJob.Status == models.TranscodeStatusFailed
+		var errStr string
+		if parentJob.ErrorMsg != nil {
+			errStr = *parentJob.ErrorMsg
+		}
+
+		p.hub.Publish(ProgressEvent{
+			JobID:    parentJob.ID,
+			Progress: parentJob.Progress,
+			Done:     isDone,
+			Error:    errStr,
+			SubJobs:  parentJob.SubJobs,
+		})
+
+		if p.eventBus != nil {
+			p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
+				JobID:       parentJob.ID,
+				MediaItemID: parentJob.MediaItemID,
+				Progress:    parentJob.Progress,
+				Done:        isDone,
+				Error:       errStr,
+				SubJobs:     parentJob.SubJobs,
+			})
+			if isDone {
+				p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+					MediaItemID:     parentJob.MediaItemID,
+					LibraryID:       item.LibraryID,
+					TranscodeStatus: string(parentJob.Status),
+				})
+			} else {
+				p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+					MediaItemID:     parentJob.MediaItemID,
+					LibraryID:       item.LibraryID,
+					TranscodeStatus: string(models.TranscodeStatusProcessing),
+				})
+			}
 		}
 	}
 
-	// progressFn receives an overall 0-100 percent computed by TranscodeDASH.
-	progressFn := func(pct float64) {
-		if pct > 99 {
-			pct = 99
-		}
-		_ = sqlite.UpdateJobProgress(ctx, p.db, j.ID, pct)
-		p.hub.Publish(ProgressEvent{JobID: j.ID, Progress: pct})
-		if p.eventBus != nil {
-			p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
-				JobID:       j.ID,
-				MediaItemID: j.MediaItemID,
-				Progress:    pct,
+	log.Info("transcode sub-job complete", "type", j.Type)
+}
+
+func (p *Pool) fail(ctx context.Context, j *models.TranscodeSubJob, errMsg string) {
+	slog.Warn("transcode sub-job failed", "sub_job_id", j.ID, "job_id", j.JobID, "error", errMsg)
+	_ = sqlite.UpdateSubJobStatus(ctx, p.db, j.ID, models.TranscodeStatusFailed, &errMsg)
+
+	var subJobs []*models.TranscodeSubJob
+	parentJob, err := sqlite.GetTranscodeJobByID(ctx, p.db, j.JobID)
+	if err == nil && parentJob != nil {
+		subJobs = parentJob.SubJobs
+	}
+
+	p.hub.Publish(ProgressEvent{
+		JobID:    j.JobID,
+		Progress: 0,
+		Done:     true,
+		Error:    errMsg,
+		SubJobs:  subJobs,
+	})
+	if p.eventBus != nil {
+		p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
+			JobID:       j.JobID,
+			MediaItemID: j.MediaItemID,
+			Done:        true,
+			Error:       errMsg,
+			SubJobs:     subJobs,
+		})
+
+		if parentJob != nil {
+			item, err := sqlite.GetMediaItemByID(ctx, p.db, parentJob.MediaItemID)
+			var libraryID uuid.UUID
+			if err == nil && item != nil {
+				libraryID = item.LibraryID
+			}
+			p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+				MediaItemID:     parentJob.MediaItemID,
+				LibraryID:       libraryID,
+				TranscodeStatus: string(models.TranscodeStatusFailed),
 			})
 		}
 	}
-
-	hwaccel, err := sqlite.GetSetting(ctx, p.db, "ffmpeg_hwaccel")
-	if err != nil {
-		hwaccel = "none"
-	}
-
-	opts := ffmpeg.TranscodeOptions{
-		InputPath:            item.FilePath,
-		OutputDir:            outputDir,
-		Profiles:             profiles,
-		Duration:             duration,
-		SourceWidth:          item.Width,
-		SourceHeight:         item.Height,
-		SubtitleStreams:      subtitleStreams,
-		ProgressFn:           progressFn,
-		HWAccelType:          hwaccel,
-		SourceIsHDR:          isHDR,
-		SourcePixFmt:         pixFmt,
-		SourceColorSpace:     colorSpace,
-		SourceColorTransfer:  colorTransfer,
-		SourceColorPrimaries: colorPrimaries,
-	}
-
-	if err := ffmpeg.TranscodeDASH(ctx, ffmpegPath, opts); err != nil {
-		p.fail(ctx, j, err.Error())
-		return
-	}
-
-	// Build rendition infos for MPD generation.
-	renditions := make([]dash.RenditionInfo, len(profiles))
-	for i, prof := range profiles {
-		renditions[i] = dash.RenditionInfo{
-			Name:          prof.Name,
-			Height:        prof.Height,
-			VideoBitrateK: prof.VideoBitrateK,
-			AudioBitrateK: prof.AudioBitrateK,
-			Codec:         prof.Codec,
-		}
-	}
-
-	// Collect extracted subtitle VTT files (embedded streams).
-	var subs []dash.SubtitleInfo
-	for _, s := range subtitleStreams {
-		lang := s.Language
-		if lang == "" {
-			lang = fmt.Sprintf("%d", s.Index)
-		}
-		vttPath := filepath.Join(outputDir, "sub_"+lang+".vtt")
-		subs = append(subs, dash.SubtitleInfo{Language: lang, VTTPath: vttPath})
-	}
-
-	// Also collect any sidecar .srt/.vtt files next to the source video.
-	sidecars := ffmpeg.FindSidecarSubtitles(item.FilePath)
-	for _, sc := range sidecars {
-		// Avoid overwriting a track already extracted from the container.
-		lang := sc.Language
-		if lang == "" {
-			lang = "default"
-		}
-		alreadyHave := false
-		for _, existing := range subs {
-			if existing.Language == lang {
-				alreadyHave = true
-				break
-			}
-		}
-		if alreadyHave {
-			continue
-		}
-		vttPath, err := ffmpeg.CopySidecarSubtitle(ctx, ffmpegPath, sc, outputDir)
-		if err != nil {
-			slog.Warn("sidecar subtitle processing failed", "path", sc.Path, "error", err)
-			continue
-		}
-		subs = append(subs, dash.SubtitleInfo{Language: lang, VTTPath: vttPath})
-	}
-
-	if err := dash.GenerateMPD(outputDir, mpdPath, renditions, subs, duration); err != nil {
-		p.fail(ctx, j, fmt.Sprintf("generating MPD: %v", err))
-		return
-	}
-
-	// Persist results.
-	if err := sqlite.SetMediaMPDPath(ctx, p.db, j.MediaItemID, mpdPath); err != nil {
-		log.Warn("could not set mpd path", "error", err)
-	}
-	p.mpdCache.Set(j.MediaItemID, mpdPath)
-
-	// Fetch the latest version of the media item to capture any metadata
-	// written by the Enricher (which runs concurrently during transcoding).
-	if latestItem, err := sqlite.GetMediaItemByID(ctx, p.db, j.MediaItemID); err == nil {
-		item = latestItem
-	} else {
-		log.Warn("could not reload latest media item for sidecar", "error", err)
-	}
-
-	// Write artifact metadata sidecar for recovery. This is migration-safe:
-	// it writes only to the filesystem (no database queries) so it works
-	// before and after migration 00006 is applied.
-	if err := writeArtifactSidecar(ctx, p.db, item, outputDir, profiles, duration); err != nil {
-		log.Warn("could not write artifact sidecar", "error", err)
-	}
-
-	now := time.Now()
-	j.FinishedAt = &now
-	if err := sqlite.UpdateJobStatus(ctx, p.db, j.ID, models.TranscodeStatusDone, nil); err != nil {
-		log.Warn("could not mark job done", "error", err)
-	}
-	if err := sqlite.UpdateJobProgress(ctx, p.db, j.ID, 100); err != nil {
-		log.Warn("could not set final progress", "error", err)
-	}
-
-	p.hub.Publish(ProgressEvent{JobID: j.ID, Progress: 100, Done: true})
-	if p.eventBus != nil {
-		p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
-			JobID:       j.ID,
-			MediaItemID: j.MediaItemID,
-			Progress:    100,
-			Done:        true,
-		})
-		p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-			MediaItemID:     j.MediaItemID,
-			LibraryID:       item.LibraryID,
-			TranscodeStatus: string(models.TranscodeStatusDone),
-		})
-	}
-	log.Info("transcode job complete", "mpd", mpdPath)
 }
 
 func (p *Pool) loadStorageMinFreeBytes(ctx context.Context) uint64 {
@@ -670,21 +713,6 @@ func (p *Pool) SelectSegmentsOutputDir(ctx context.Context, mediaID uuid.UUID) (
 	}
 
 	return filepath.Join(bestPath, mediaID.String()), nil
-}
-
-func (p *Pool) fail(ctx context.Context, j *models.TranscodeJob, errMsg string) {
-	slog.Warn("transcode job failed", "job_id", j.ID, "error", errMsg)
-	_ = sqlite.UpdateJobStatus(ctx, p.db, j.ID, models.TranscodeStatusFailed, &errMsg)
-	_ = sqlite.SetMediaTranscodeStatus(ctx, p.db, j.MediaItemID, models.TranscodeStatusFailed)
-	p.hub.Publish(ProgressEvent{JobID: j.ID, Progress: 0, Done: true, Error: errMsg})
-	if p.eventBus != nil {
-		p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
-			JobID:       j.ID,
-			MediaItemID: j.MediaItemID,
-			Done:        true,
-			Error:       errMsg,
-		})
-	}
 }
 
 func writeArtifactSidecar(ctx context.Context, db *sql.DB, item *models.MediaItem, outputDir string, profiles []ffmpeg.RenditionProfile, duration float64) error {
@@ -814,5 +842,88 @@ func WriteSidecarForMediaItem(ctx context.Context, db *sql.DB, itemID uuid.UUID)
 	}
 
 	return writeArtifactSidecar(ctx, db, item, outputDir, profiles, item.Duration)
+}
+
+// RegenerateManifestForJob regenerates the master manifest file using all currently completed sub-jobs.
+func RegenerateManifestForJob(ctx context.Context, db *sql.DB, jobID uuid.UUID, outputDir string) error {
+	job, err := sqlite.GetTranscodeJobByID(ctx, db, jobID)
+	if err != nil {
+		return err
+	}
+	item, err := sqlite.GetMediaItemByID(ctx, db, job.MediaItemID)
+	if err != nil {
+		return err
+	}
+
+	subJobs, err := sqlite.ListTranscodeSubJobsByJob(ctx, db, jobID)
+	if err != nil {
+		return err
+	}
+
+	var renditions []dash.RenditionInfo
+	for _, sj := range subJobs {
+		if sj.Type == models.SubJobTypeVideo && sj.Status == models.TranscodeStatusDone {
+			name := ""
+			if sj.ProfileName != nil {
+				name = *sj.ProfileName
+			}
+			height := 0
+			if sj.Height != nil {
+				height = *sj.Height
+			}
+			videoBitrateK := 0
+			if sj.VideoBitrateK != nil {
+				videoBitrateK = *sj.VideoBitrateK
+			}
+			audioBitrateK := 0
+			if sj.AudioBitrateK != nil {
+				audioBitrateK = *sj.AudioBitrateK
+			}
+			codec := "h264"
+			if sj.Codec != nil {
+				codec = *sj.Codec
+			}
+			renditions = append(renditions, dash.RenditionInfo{
+				Name:          name,
+				Height:        height,
+				VideoBitrateK: videoBitrateK,
+				AudioBitrateK: audioBitrateK,
+				Codec:         codec,
+			})
+		}
+	}
+
+	var subs []dash.SubtitleInfo
+	entries, err := os.ReadDir(outputDir)
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasPrefix(entry.Name(), "sub_") && strings.HasSuffix(entry.Name(), ".vtt") {
+				lang := strings.TrimPrefix(entry.Name(), "sub_")
+				lang = strings.TrimSuffix(lang, ".vtt")
+				subs = append(subs, dash.SubtitleInfo{
+					Language: lang,
+					VTTPath:  filepath.Join(outputDir, entry.Name()),
+				})
+			}
+		}
+	}
+
+	mpdPath := filepath.Join(outputDir, "manifest.mpd")
+	if len(renditions) > 0 {
+		if err := dash.GenerateMPD(outputDir, mpdPath, renditions, subs, item.Duration); err != nil {
+			return fmt.Errorf("generating MPD: %w", err)
+		}
+
+		now := time.Now().UTC().Format(time.RFC3339)
+		_, err = db.ExecContext(ctx, `
+			UPDATE media_items
+			SET mpd_path = ?, bundle_status = 'available', updated_at = ?
+			WHERE id = ?`,
+			mpdPath, now, item.ID.String())
+		if err != nil {
+			return fmt.Errorf("updating media item mpd_path: %w", err)
+		}
+	}
+	return nil
 }
 

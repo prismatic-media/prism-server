@@ -110,7 +110,7 @@ func (h *StorageHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
 func (h *StorageHandler) CreateStorageArea(w http.ResponseWriter, r *http.Request) {
 	var req storageAreaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if !validStorageKind(req.Kind) {
@@ -128,7 +128,7 @@ func (h *StorageHandler) CreateStorageArea(w http.ResponseWriter, r *http.Reques
 	}
 	area := &models.StorageArea{Kind: req.Kind, Path: path, Enabled: enabled}
 	if err := sqlite.CreateStorageArea(r.Context(), h.db, area); err != nil {
-		respondError(w, http.StatusBadRequest, "could not create storage area")
+		respondError(w, http.StatusBadRequest, "could not create storage area", err)
 		return
 	}
 
@@ -158,12 +158,12 @@ func (h *StorageHandler) CreateStorageArea(w http.ResponseWriter, r *http.Reques
 func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid storage area id")
+		respondError(w, http.StatusBadRequest, "invalid storage area id", err)
 		return
 	}
 	current, err := sqlite.GetStorageAreaByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "storage area not found")
+		respondError(w, http.StatusNotFound, "storage area not found", err)
 		return
 	}
 	if err != nil {
@@ -173,7 +173,7 @@ func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Reques
 
 	var req storageAreaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -188,10 +188,10 @@ func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Reques
 
 	if err := sqlite.UpdateStorageArea(r.Context(), h.db, id, path, enabled); err != nil {
 		if errors.Is(err, sqlite.ErrNotFound) {
-			respondError(w, http.StatusNotFound, "storage area not found")
+			respondError(w, http.StatusNotFound, "storage area not found", err)
 			return
 		}
-		respondError(w, http.StatusBadRequest, "could not update storage area")
+		respondError(w, http.StatusBadRequest, "could not update storage area", err)
 		return
 	}
 
@@ -223,7 +223,7 @@ func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Reques
 func (h *StorageHandler) DeleteStorageArea(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid storage area id")
+		respondError(w, http.StatusBadRequest, "invalid storage area id", err)
 		return
 	}
 
@@ -250,11 +250,11 @@ func (h *StorageHandler) DeleteStorageArea(w http.ResponseWriter, r *http.Reques
 func (h *StorageHandler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 	var req storageConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if _, err := strconv.ParseUint(strings.TrimSpace(req.StorageMinFreeBytes), 10, 64); err != nil {
-		respondError(w, http.StatusBadRequest, "storage_min_free_bytes must be an unsigned integer")
+		respondError(w, http.StatusBadRequest, "storage_min_free_bytes must be an unsigned integer", err)
 		return
 	}
 	if err := sqlite.SetSetting(r.Context(), h.db, "storage_min_free_bytes", strings.TrimSpace(req.StorageMinFreeBytes)); err != nil {

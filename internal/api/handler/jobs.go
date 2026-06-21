@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -47,13 +48,13 @@ func NewJobsHandler(db *sql.DB, pool *transcoder.Pool) *JobsHandler {
 func (h *JobsHandler) EnqueueTranscode(w http.ResponseWriter, r *http.Request) {
 	mediaID, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	// Verify the media item exists.
 	if _, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID); errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
@@ -105,13 +106,13 @@ func (h *JobsHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 func (h *JobsHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid job id")
+		respondError(w, http.StatusBadRequest, "invalid job id", err)
 		return
 	}
 
 	job, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "job not found")
+		respondError(w, http.StatusNotFound, "job not found", err)
 		return
 	}
 	if err != nil {
@@ -142,7 +143,7 @@ type bulkEnqueueRequest struct {
 func (h *JobsHandler) BulkEnqueueJobs(w http.ResponseWriter, r *http.Request) {
 	var req bulkEnqueueRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
@@ -190,17 +191,17 @@ func (h *JobsHandler) BulkEnqueueJobs(w http.ResponseWriter, r *http.Request) {
 func (h *JobsHandler) PrioritizeJob(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid job id")
+		respondError(w, http.StatusBadRequest, "invalid job id", err)
 		return
 	}
 
 	err = sqlite.PrioritizeJob(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "job not found")
+		respondError(w, http.StatusNotFound, "job not found", err)
 		return
 	}
 	if errors.Is(err, sqlite.ErrJobNotPending) {
-		respondError(w, http.StatusConflict, "job is not pending")
+		respondError(w, http.StatusConflict, "job is not pending", err)
 		return
 	}
 	if err != nil {
@@ -216,14 +217,14 @@ func (h *JobsHandler) PrioritizeJob(w http.ResponseWriter, r *http.Request) {
 func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid job id")
+		respondError(w, http.StatusBadRequest, "invalid job id", err)
 		return
 	}
 
 	// Verify job exists.
 	job, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "job not found")
+		respondError(w, http.StatusNotFound, "job not found", err)
 		return
 	}
 	if err != nil {
@@ -234,6 +235,7 @@ func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 	// If job is already terminal, return current state over WS immediately.
 	conn, wsErr := wsUpgrader.Upgrade(w, r, nil)
 	if wsErr != nil {
+		slog.Error("Failed to upgrade websocket for job progress", "error", wsErr)
 		return
 	}
 	defer func() { _ = conn.Close() }()
@@ -248,6 +250,7 @@ func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 			Progress: job.Progress,
 			Done:     true,
 			Error:    errStr,
+			SubJobs:  job.SubJobs,
 		}
 		_ = conn.WriteJSON(evt)
 		return
@@ -260,15 +263,19 @@ func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 		select {
 		case evt, ok := <-ch:
 			if !ok {
+				slog.Info("job progress channel closed", "job_id", id)
 				return
 			}
 			if err := conn.WriteJSON(evt); err != nil {
+				slog.Error("failed to write job progress event", "job_id", id, "error", err)
 				return
 			}
 			if evt.Done {
+				slog.Info("job progress stream complete", "job_id", id)
 				return
 			}
 		case <-r.Context().Done():
+			slog.Info("job progress request context done", "job_id", id)
 			return
 		}
 	}

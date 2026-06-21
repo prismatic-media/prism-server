@@ -49,17 +49,17 @@ func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if done == "true" {
-		respondError(w, http.StatusConflict, "setup already complete")
+		respondError(w, http.StatusConflict, "setup already complete", err)
 		return
 	}
 
 	var req setupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if req.Username == "" || req.Password == "" || req.SegmentsDir == "" || req.ThumbsDir == "" {
-		respondError(w, http.StatusBadRequest, "username, password, segments_dir, and thumbs_dir are required")
+		respondError(w, http.StatusBadRequest, "username, password, segments_dir, and thumbs_dir are required", err)
 		return
 	}
 

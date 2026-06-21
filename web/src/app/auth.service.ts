@@ -59,6 +59,18 @@ export class AuthService {
     return localStorage.getItem(this.tokenKey);
   }
 
+  public isTokenExpired(token: string): boolean {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return true;
+      const payload = JSON.parse(atob(parts[1]));
+      if (!payload.exp) return false;
+      return payload.exp * 1000 < Date.now();
+    } catch (e) {
+      return true;
+    }
+  }
+
   public login(username: string, password: string): Observable<LoginResponse> {
     return this.http.post<LoginResponse>('/api/v1/auth/login', { username, password }).pipe(
       tap((response) => {

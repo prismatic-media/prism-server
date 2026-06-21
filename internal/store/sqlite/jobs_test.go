@@ -236,7 +236,7 @@ func TestUpdateJobProgress(t *testing.T) {
 	}
 }
 
-func TestClaimNextJob_RespectsPriorityThenFIFO(t *testing.T) {
+func TestClaimNextSubJob_RespectsPriorityThenFIFO(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
@@ -266,20 +266,24 @@ func TestClaimNextJob_RespectsPriorityThenFIFO(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	claimed1, err := sqlite.ClaimNextJob(ctx, db, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if claimed1 == nil || claimed1.ID != j2.ID {
-		t.Fatalf("expected first claim to be prioritized job %s, got %+v", j2.ID, claimed1)
+	// Claim all sub-jobs for j2 (which has 5 sub-jobs)
+	for i := 0; i < 5; i++ {
+		claimed, err := sqlite.ClaimNextSubJob(ctx, db, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if claimed == nil || claimed.JobID != j2.ID {
+			t.Fatalf("expected claim %d to be sub-job of prioritized job %s, got %+v", i+1, j2.ID, claimed)
+		}
 	}
 
-	claimed2, err := sqlite.ClaimNextJob(ctx, db, nil)
+	// The 6th claim should be from j1
+	claimed6, err := sqlite.ClaimNextSubJob(ctx, db, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if claimed2 == nil || claimed2.ID != j1.ID {
-		t.Fatalf("expected second claim to be remaining job %s, got %+v", j1.ID, claimed2)
+	if claimed6 == nil || claimed6.JobID != j1.ID {
+		t.Fatalf("expected 6th claim to be remaining job %s, got %+v", j1.ID, claimed6)
 	}
 }
 

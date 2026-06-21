@@ -118,8 +118,8 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.Use(workerH.Authenticate)
 			r.Post("/heartbeat", workerH.Heartbeat)
 			r.Get("/media/{id}/download", workerH.DownloadSource)
-			r.Post("/jobs/{id}/progress", workerH.UpdateProgress)
-			r.Post("/jobs/{id}/bundle", workerH.UploadBundle)
+			r.Post("/subjobs/{id}/progress", workerH.UpdateSubJobProgress)
+			r.Post("/subjobs/{id}/bundle", workerH.UploadSubJobBundle)
 		})
 
 		// All routes below require a valid access JWT.

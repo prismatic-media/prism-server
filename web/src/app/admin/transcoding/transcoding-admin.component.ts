@@ -26,6 +26,7 @@ export interface TranscodeJob {
   codec?: string;
   duration?: number;
   formattedETA?: string;
+  sub_jobs?: any[];
 }
 
 export interface MediaItem {
@@ -107,12 +108,12 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
   // Transcode settings state
   ffmpegHwaccel = 'none';
-  transcodeWorkers = 2;
+  transcodeWorkers = 1;
   autoTranscodeOnDiscovery = false;
 
   // Local Pool Management Flipped Logic
   enableLocalTranscoder = true;
-  previousTranscodeWorkers = 2;
+  previousTranscodeWorkers = 1;
 
   // Auto-save State
   saveStatus: 'idle' | 'saving' | 'saved' | 'error' = 'idle';
@@ -371,6 +372,9 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     if (activeIndex !== -1) {
       const job = this.activeJobs[activeIndex];
       job.progress = payload.progress;
+      if (payload.sub_jobs) {
+        job.sub_jobs = payload.sub_jobs;
+      }
       if (payload.done) {
         job.status = payload.error ? 'failed' : 'done';
         if (payload.error) {
@@ -459,7 +463,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     this.http.get<Record<string, string>>('/api/v1/admin/settings').subscribe({
       next: (settings) => {
         this.ffmpegHwaccel = settings['ffmpeg_hwaccel'] || 'none';
-        const workers = parseInt(settings['transcode_workers'] || '2', 10);
+        const workers = parseInt(settings['transcode_workers'] || '1', 10);
         this.transcodeWorkers = workers;
         this.enableLocalTranscoder = workers > 0;
         if (workers > 0) {
@@ -477,7 +481,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   toggleLocalTranscoder(): void {
     this.enableLocalTranscoder = !this.enableLocalTranscoder;
     if (this.enableLocalTranscoder) {
-      this.transcodeWorkers = this.previousTranscodeWorkers || 2;
+      this.transcodeWorkers = this.previousTranscodeWorkers || 1;
     } else {
       if (this.transcodeWorkers > 0) {
         this.previousTranscodeWorkers = this.transcodeWorkers;

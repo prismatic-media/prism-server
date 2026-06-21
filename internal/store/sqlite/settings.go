@@ -33,7 +33,7 @@ func settingDefaults() map[string]string {
 	return map[string]string{
 		"thumbs_dir":                  "",
 		"ffmpeg_hwaccel":              "none",
-		"transcode_workers":           "2",
+		"transcode_workers":           "1",
 		"transcode_poll_interval":     "15",
 		"storage_min_free_bytes":      "21474836480",
 		"auto_transcode_on_discovery": "false",

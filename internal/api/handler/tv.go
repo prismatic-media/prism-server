@@ -71,7 +71,7 @@ func (h *TVHandler) ListShows(w http.ResponseWriter, r *http.Request) {
 
 	libID, err := uuid.Parse(libIDStr)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid library_id")
+		respondError(w, http.StatusBadRequest, "invalid library_id", err)
 		return
 	}
 
@@ -98,13 +98,13 @@ func (h *TVHandler) ListShows(w http.ResponseWriter, r *http.Request) {
 func (h *TVHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid show id")
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
 		return
 	}
 
 	show, err := sqlite.GetTVShowByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "show not found")
+		respondError(w, http.StatusNotFound, "show not found", err)
 		return
 	}
 	if err != nil {
@@ -129,7 +129,7 @@ func (h *TVHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 func (h *TVHandler) ListSeasons(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid show id")
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
 		return
 	}
 
@@ -158,20 +158,20 @@ func (h *TVHandler) ListSeasons(w http.ResponseWriter, r *http.Request) {
 func (h *TVHandler) ListEpisodes(w http.ResponseWriter, r *http.Request) {
 	showID, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid show id")
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
 		return
 	}
 
 	seasonNumStr := chi.URLParam(r, "number")
 	seasonNum, err := strconv.Atoi(seasonNumStr)
 	if err != nil || seasonNum < 1 {
-		respondError(w, http.StatusBadRequest, "invalid season number")
+		respondError(w, http.StatusBadRequest, "invalid season number", err)
 		return
 	}
 
 	season, err := sqlite.GetTVSeasonByShowAndNumber(r.Context(), h.db, showID, seasonNum)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "season not found")
+		respondError(w, http.StatusNotFound, "season not found", err)
 		return
 	}
 	if err != nil {
@@ -192,13 +192,13 @@ func (h *TVHandler) ListEpisodes(w http.ResponseWriter, r *http.Request) {
 func (h *TVHandler) ServeShowPoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid show id")
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
 		return
 	}
 
 	show, err := sqlite.GetTVShowByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "show not found")
+		respondError(w, http.StatusNotFound, "show not found", err)
 		return
 	}
 	if err != nil {
@@ -206,7 +206,7 @@ func (h *TVHandler) ServeShowPoster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if show.PosterPath == nil || *show.PosterPath == "" {
-		respondError(w, http.StatusNotFound, "no poster available")
+		respondError(w, http.StatusNotFound, "no poster available", err)
 		return
 	}
 
@@ -216,7 +216,7 @@ func (h *TVHandler) ServeShowPoster(w http.ResponseWriter, r *http.Request) {
 		posterPath = filepath.Join(thumbsDir, posterPath)
 	}
 	if _, err := os.Stat(posterPath); os.IsNotExist(err) {
-		respondError(w, http.StatusNotFound, "poster file not found")
+		respondError(w, http.StatusNotFound, "poster file not found", err)
 		return
 	}
 	http.ServeFile(w, r, posterPath)
@@ -227,20 +227,20 @@ func (h *TVHandler) ServeShowPoster(w http.ResponseWriter, r *http.Request) {
 func (h *TVHandler) ServeSeasonPoster(w http.ResponseWriter, r *http.Request) {
 	showID, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid show id")
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
 		return
 	}
 
 	seasonNumStr := chi.URLParam(r, "number")
 	seasonNum, err := strconv.Atoi(seasonNumStr)
 	if err != nil || seasonNum < 1 {
-		respondError(w, http.StatusBadRequest, "invalid season number")
+		respondError(w, http.StatusBadRequest, "invalid season number", err)
 		return
 	}
 
 	season, err := sqlite.GetTVSeasonByShowAndNumber(r.Context(), h.db, showID, seasonNum)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "season not found")
+		respondError(w, http.StatusNotFound, "season not found", err)
 		return
 	}
 	if err != nil {
@@ -248,7 +248,7 @@ func (h *TVHandler) ServeSeasonPoster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if season.PosterPath == nil || *season.PosterPath == "" {
-		respondError(w, http.StatusNotFound, "no poster available")
+		respondError(w, http.StatusNotFound, "no poster available", err)
 		return
 	}
 
@@ -258,7 +258,7 @@ func (h *TVHandler) ServeSeasonPoster(w http.ResponseWriter, r *http.Request) {
 		posterPath = filepath.Join(thumbsDir, posterPath)
 	}
 	if _, err := os.Stat(posterPath); os.IsNotExist(err) {
-		respondError(w, http.StatusNotFound, "poster file not found")
+		respondError(w, http.StatusNotFound, "poster file not found", err)
 		return
 	}
 	http.ServeFile(w, r, posterPath)
@@ -269,13 +269,13 @@ func (h *TVHandler) ServeSeasonPoster(w http.ResponseWriter, r *http.Request) {
 func (h *TVHandler) ServeShowBackdrop(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid show id")
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
 		return
 	}
 
 	show, err := sqlite.GetTVShowByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "show not found")
+		respondError(w, http.StatusNotFound, "show not found", err)
 		return
 	}
 	if err != nil {
@@ -283,7 +283,7 @@ func (h *TVHandler) ServeShowBackdrop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if show.BackdropPath == nil || *show.BackdropPath == "" {
-		respondError(w, http.StatusNotFound, "no backdrop available")
+		respondError(w, http.StatusNotFound, "no backdrop available", err)
 		return
 	}
 
@@ -293,7 +293,7 @@ func (h *TVHandler) ServeShowBackdrop(w http.ResponseWriter, r *http.Request) {
 		backdropPath = filepath.Join(thumbsDir, backdropPath)
 	}
 	if _, err := os.Stat(backdropPath); os.IsNotExist(err) {
-		respondError(w, http.StatusNotFound, "backdrop file not found")
+		respondError(w, http.StatusNotFound, "backdrop file not found", err)
 		return
 	}
 	http.ServeFile(w, r, backdropPath)
@@ -304,20 +304,20 @@ func (h *TVHandler) ServeShowBackdrop(w http.ResponseWriter, r *http.Request) {
 func (h *TVHandler) ServeShowExtraPoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid show id")
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
 		return
 	}
 
 	indexStr := chi.URLParam(r, "index")
 	index, err := strconv.Atoi(indexStr)
 	if err != nil || index < 0 {
-		respondError(w, http.StatusBadRequest, "invalid extra poster index")
+		respondError(w, http.StatusBadRequest, "invalid extra poster index", err)
 		return
 	}
 
 	show, err := sqlite.GetTVShowByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "show not found")
+		respondError(w, http.StatusNotFound, "show not found", err)
 		return
 	}
 	if err != nil {
@@ -336,7 +336,7 @@ func (h *TVHandler) ServeShowExtraPoster(w http.ResponseWriter, r *http.Request)
 		posterPath = filepath.Join(thumbsDir, posterPath)
 	}
 	if _, err := os.Stat(posterPath); os.IsNotExist(err) {
-		respondError(w, http.StatusNotFound, "poster file not found")
+		respondError(w, http.StatusNotFound, "poster file not found", err)
 		return
 	}
 	http.ServeFile(w, r, posterPath)

@@ -16,7 +16,7 @@ func TestRuntimeSettingsFromMap(t *testing.T) {
 			expected: RuntimeSettings{
 				ThumbsDir:        "",
 				FFmpegHWAccel:    "none",
-				TranscodeWorkers: 2,
+				TranscodeWorkers: 1,
 			},
 		},
 		{

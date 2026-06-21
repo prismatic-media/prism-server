@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"database/sql"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -30,9 +31,11 @@ func SetupGuard(db *sql.DB) func(http.Handler) http.Handler {
 			if done != "true" {
 				// API clients get a JSON 503; browser requests get a redirect.
 				if strings.HasPrefix(r.URL.Path, "/api/") {
+					slog.Warn("Setup guard blocked API request: server setup required", "path", r.URL.Path, "method", r.Method)
 					http.Error(w, `{"error":"server setup required","redirect":"/setup"}`, http.StatusServiceUnavailable)
 					return
 				}
+				slog.Warn("Setup guard redirecting browser request: server setup required", "path", r.URL.Path, "method", r.Method)
 				http.Redirect(w, r, "/setup", http.StatusTemporaryRedirect)
 				return
 			}

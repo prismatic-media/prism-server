@@ -24,6 +24,7 @@ export interface Movie {
   poster_path?: string;
   transcode_status: string;
   transcode_progress?: number;
+  sub_jobs?: any[];
   mpd_path?: string;
   source_status: string;
   bundle_status: string;
@@ -77,6 +78,7 @@ export interface Episode {
   episode_number: number;
   transcode_status: string;
   transcode_progress?: number;
+  sub_jobs?: any[];
   mpd_path?: string;
   source_status: string;
   bundle_status: string;
@@ -500,6 +502,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     let changed = false;
     if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
       this.movie.transcode_progress = payload.progress;
+      this.movie.sub_jobs = payload.sub_jobs;
       if (payload.done) {
         this.movie.transcode_status = payload.error ? 'failed' : 'done';
       } else {
@@ -510,6 +513,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       const ep = this.episodes.find((e) => e.id === payload.media_item_id);
       if (ep) {
         ep.transcode_progress = payload.progress;
+        ep.sub_jobs = payload.sub_jobs;
         if (payload.done) {
           ep.transcode_status = payload.error ? 'failed' : 'done';
         } else {

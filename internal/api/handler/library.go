@@ -47,7 +47,7 @@ type createLibraryRequest struct {
 func (h *LibraryHandler) CreateLibrary(w http.ResponseWriter, r *http.Request) {
 	var req createLibraryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if req.Path == "" || req.MediaType == "" {
@@ -68,7 +68,7 @@ func (h *LibraryHandler) CreateLibrary(w http.ResponseWriter, r *http.Request) {
 		MediaType: mt,
 	}
 	if err := sqlite.CreateLibrary(r.Context(), h.db, lib); err != nil {
-		respondError(w, http.StatusConflict, "library path already registered")
+		respondError(w, http.StatusConflict, "library path already registered", err)
 		return
 	}
 
@@ -113,13 +113,13 @@ func (h *LibraryHandler) ListLibraries(w http.ResponseWriter, r *http.Request) {
 func (h *LibraryHandler) GetLibrary(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid library id")
+		respondError(w, http.StatusBadRequest, "invalid library id", err)
 		return
 	}
 
 	lib, err := sqlite.GetLibraryByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "library not found")
+		respondError(w, http.StatusNotFound, "library not found", err)
 		return
 	}
 	if err != nil {
@@ -144,12 +144,12 @@ func (h *LibraryHandler) GetLibrary(w http.ResponseWriter, r *http.Request) {
 func (h *LibraryHandler) DeleteLibrary(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid library id")
+		respondError(w, http.StatusBadRequest, "invalid library id", err)
 		return
 	}
 
 	if err := sqlite.DeleteLibrary(r.Context(), h.db, id); errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "library not found")
+		respondError(w, http.StatusNotFound, "library not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not delete library", err)
@@ -176,13 +176,13 @@ func (h *LibraryHandler) DeleteLibrary(w http.ResponseWriter, r *http.Request) {
 func (h *LibraryHandler) ScanLibrary(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid library id")
+		respondError(w, http.StatusBadRequest, "invalid library id", err)
 		return
 	}
 
 	// Verify library exists.
 	if _, err := sqlite.GetLibraryByID(r.Context(), h.db, id); errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "library not found")
+		respondError(w, http.StatusNotFound, "library not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not fetch library", err)

@@ -150,6 +150,29 @@
               </button>
             </div>
           </div>
+
+          <!-- Sub-jobs progress list for Active Queue job card -->
+          <div class="queue-subjobs-list" *ngIf="job.sub_jobs && job.sub_jobs.length > 0">
+            <div class="queue-subjob-item" *ngFor="let sj of job.sub_jobs; trackBy: trackById">
+              <div class="queue-subjob-info">
+                <span class="material-symbols-outlined queue-subjob-icon" [ngClass]="sj.status">
+                  {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
+                </span>
+                <span class="queue-subjob-name font-mono">
+                  {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                </span>
+              </div>
+              <div class="queue-subjob-status-pct font-mono">
+                <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}%</span>
+                <span *ngIf="sj.status === 'done'">DONE</span>
+                <span *ngIf="sj.status === 'failed'">FAILED</span>
+                <span *ngIf="sj.status === 'pending'">PENDING</span>
+              </div>
+              <div class="queue-subjob-progress-bar-container" *ngIf="sj.status === 'processing'">
+                <div class="queue-subjob-progress-bar" [style.width.%]="sj.progress"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </ng-container>
@@ -227,6 +250,29 @@
               >
                 <span class="material-symbols-outlined">sync</span>
               </button>
+            </div>
+          </div>
+
+          <!-- Sub-jobs list for Completed Queue job card -->
+          <div class="queue-subjobs-list" *ngIf="job.sub_jobs && job.sub_jobs.length > 0">
+            <div class="queue-subjob-item" *ngFor="let sj of job.sub_jobs; trackBy: trackById">
+              <div class="queue-subjob-info">
+                <span class="material-symbols-outlined queue-subjob-icon" [ngClass]="sj.status">
+                  {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
+                </span>
+                <span class="queue-subjob-name font-mono">
+                  {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                </span>
+              </div>
+              <div class="queue-subjob-status-pct font-mono">
+                <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}%</span>
+                <span *ngIf="sj.status === 'done'">DONE</span>
+                <span *ngIf="sj.status === 'failed'">FAILED</span>
+                <span *ngIf="sj.status === 'pending'">PENDING</span>
+              </div>
+              <div class="queue-subjob-progress-bar-container" *ngIf="sj.status === 'processing'">
+                <div class="queue-subjob-progress-bar" [style.width.%]="sj.progress"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -311,12 +357,12 @@
                   (ngModelChange)="onThreadCountChange($event)"
                   [disabled]="!enableLocalTranscoder"
                 >
-                  <option [value]="1">1</option>
-                  <option [value]="2">2</option>
-                  <option [value]="4">4</option>
-                  <option [value]="8">8</option>
-                  <option [value]="12">12</option>
-                  <option [value]="16">16</option>
+                  <option [ngValue]="1">1</option>
+                  <option [ngValue]="2">2</option>
+                  <option [ngValue]="4">4</option>
+                  <option [ngValue]="8">8</option>
+                  <option [ngValue]="12">12</option>
+                  <option [ngValue]="16">16</option>
                 </select>
                 <span
                   class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50"
@@ -480,12 +526,12 @@
                         (change)="updateWorker(w)"
                         [disabled]="w.status === 'offline'"
                       >
-                        <option [value]="1">1</option>
-                        <option [value]="2">2</option>
-                        <option [value]="4">4</option>
-                        <option [value]="8">8</option>
-                        <option [value]="12">12</option>
-                        <option [value]="16">16</option>
+                        <option [ngValue]="1">1</option>
+                        <option [ngValue]="2">2</option>
+                        <option [ngValue]="4">4</option>
+                        <option [ngValue]="8">8</option>
+                        <option [ngValue]="12">12</option>
+                        <option [ngValue]="16">16</option>
                       </select>
                     </div>
                   </td>

@@ -54,7 +54,7 @@ func (h *SettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var incoming map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 

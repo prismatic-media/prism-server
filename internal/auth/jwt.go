@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const accessTokenTTL = 15 * time.Minute
+const accessTokenTTL = 8 * time.Hour
 
 // Claims is the JWT payload embedded in every access token.
 type Claims struct {

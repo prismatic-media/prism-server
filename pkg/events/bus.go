@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/prismatic-media/prism-server/internal/models"
 )
 
 // EventType is the discriminator field on every Event.
@@ -32,11 +33,12 @@ type Event struct {
 
 // JobProgressPayload carries transcode progress for one job.
 type JobProgressPayload struct {
-	JobID       uuid.UUID `json:"job_id"`
-	MediaItemID uuid.UUID `json:"media_item_id"`
-	Progress    float64   `json:"progress"`
-	Done        bool      `json:"done"`
-	Error       string    `json:"error,omitempty"`
+	JobID       uuid.UUID                 `json:"job_id"`
+	MediaItemID uuid.UUID                 `json:"media_item_id"`
+	Progress    float64                   `json:"progress"`
+	Done        bool                      `json:"done"`
+	Error       string                    `json:"error,omitempty"`
+	SubJobs     []*models.TranscodeSubJob `json:"sub_jobs,omitempty"`
 }
 
 // MediaUpdatedPayload is published when transcode_status changes.

@@ -65,7 +65,7 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 	if libIDStr != "" {
 		libID, err := uuid.Parse(libIDStr)
 		if err != nil {
-			respondError(w, http.StatusBadRequest, "invalid library_id")
+			respondError(w, http.StatusBadRequest, "invalid library_id", err)
 			return
 		}
 		var items []*models.MediaItem
@@ -136,13 +136,13 @@ func (h *MediaHandler) Search(w http.ResponseWriter, r *http.Request) {
 func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {
@@ -167,12 +167,12 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	if err := sqlite.DeleteMediaItem(r.Context(), h.db, id); errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not delete media item", err)
@@ -186,13 +186,13 @@ func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {
@@ -211,13 +211,13 @@ func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
 func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {
@@ -236,20 +236,20 @@ func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
 func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	indexStr := chi.URLParam(r, "index")
 	index, err := strconv.Atoi(indexStr)
 	if err != nil || index < 0 {
-		respondError(w, http.StatusBadRequest, "invalid extra poster index")
+		respondError(w, http.StatusBadRequest, "invalid extra poster index", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {
@@ -279,13 +279,13 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id")
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found")
+		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
 	}
 	if err != nil {
