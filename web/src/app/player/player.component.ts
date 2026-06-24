@@ -94,7 +94,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   // Quality settings
   videoQualities: any[] = [];
   isAutoQuality = true;
-  activeQualityIndex = -1;
+  activeQualityId = '';
   currentQualityLabel = 'Auto';
   showQualityPanel = false;
 
@@ -299,14 +299,12 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     // Listen to quality changes to update the active quality index
     this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_REQUESTED, (e: any) => {
       if (e.mediaType === 'video') {
-        this.activeQualityIndex = e.newQuality;
         this.updateCurrentQualityLabel();
       }
     });
 
     this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, (e: any) => {
       if (e.mediaType === 'video') {
-        this.activeQualityIndex = e.newQuality;
         this.updateCurrentQualityLabel();
       }
     });
@@ -346,20 +344,21 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   loadQualities(): void {
     if (!this.player) return;
 
-    const bitrateInfoList = (this.player as any).getBitrateInfoListFor('video') || [];
-    this.videoQualities = bitrateInfoList
+    const representationList = (this.player as any).getRepresentationsByType('video') || [];
+    this.videoQualities = representationList
       .map((info: any) => ({
-        index: info.qualityIndex,
+        id: info.id,
         width: info.width,
         height: info.height,
-        bitrate: info.bitrate,
+        bitrate: info.bandwidth,
         label: `${info.height}p`,
-        friendlyBitrate: this.getFriendlyBitrate(info.bitrate),
+        friendlyBitrate: this.getFriendlyBitrate(info.bandwidth),
       }))
       .sort((a: any, b: any) => b.height - a.height); // descending (highest first)
 
-    this.isAutoQuality = (this.player as any).getAutoSwitchQualityFor('video');
-    this.activeQualityIndex = (this.player as any).getQualityFor('video');
+    this.isAutoQuality = this.player.getSettings().streaming?.abr?.autoSwitchBitrate?.video ?? true;
+    const activeRep = (this.player as any).getCurrentRepresentationForType('video');
+    this.activeQualityId = activeRep ? activeRep.id : '';
     this.updateCurrentQualityLabel();
     this.cdr.detectChanges();
   }
@@ -373,14 +372,30 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     return `${Math.round(kbps)} Kbps`;
   }
 
-  selectQuality(qualityIndex: number | 'auto'): void {
+  selectQuality(qualityId: string | 'auto'): void {
     if (!this.player) return;
 
-    if (qualityIndex === 'auto') {
-      (this.player as any).setAutoSwitchQualityFor('video', true);
+    if (qualityId === 'auto') {
+      this.player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: true
+            }
+          }
+        }
+      });
     } else {
-      (this.player as any).setAutoSwitchQualityFor('video', false);
-      (this.player as any).setQualityFor('video', qualityIndex);
+      this.player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: false
+            }
+          }
+        }
+      });
+      (this.player as any).setRepresentationForTypeById('video', qualityId);
     }
 
     this.updateCurrentQualityLabel();
@@ -391,21 +406,19 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   updateCurrentQualityLabel(): void {
     if (!this.player) return;
 
-    this.isAutoQuality = (this.player as any).getAutoSwitchQualityFor('video');
-    this.activeQualityIndex = (this.player as any).getQualityFor('video');
-
-    const bitrateInfoList = (this.player as any).getBitrateInfoListFor('video') || [];
-    const activeInfo = bitrateInfoList.find((info: any) => info.qualityIndex === this.activeQualityIndex);
+    this.isAutoQuality = this.player.getSettings().streaming?.abr?.autoSwitchBitrate?.video ?? true;
+    const activeRep = (this.player as any).getCurrentRepresentationForType('video');
+    this.activeQualityId = activeRep ? activeRep.id : '';
 
     if (this.isAutoQuality) {
-      if (activeInfo) {
-        this.currentQualityLabel = `Auto (${activeInfo.height}p)`;
+      if (activeRep) {
+        this.currentQualityLabel = `Auto (${activeRep.height}p)`;
       } else {
         this.currentQualityLabel = 'Auto';
       }
     } else {
-      if (activeInfo) {
-        this.currentQualityLabel = `${activeInfo.height}p`;
+      if (activeRep) {
+        this.currentQualityLabel = `${activeRep.height}p`;
       } else {
         this.currentQualityLabel = 'Manual';
       }
@@ -415,10 +428,8 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
   getActiveQualityResolution(): string {
     if (!this.player) return '';
-    const index = (this.player as any).getQualityFor('video');
-    const bitrateInfoList = (this.player as any).getBitrateInfoListFor('video') || [];
-    const activeInfo = bitrateInfoList.find((info: any) => info.qualityIndex === index);
-    return activeInfo ? `${activeInfo.height}p` : '';
+    const activeRep = (this.player as any).getCurrentRepresentationForType('video');
+    return activeRep ? `${activeRep.height}p` : '';
   }
 
   toggleQualityMenu(event: MouseEvent): void {
@@ -751,11 +762,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!streamInfo) return;
 
     const videoInfo = (this.player as any).getCurrentTrackFor('video');
-    const bitrateInfoList = (this.player as any).getBitrateInfoListFor('video');
-    const quality = (this.player as any).getQualityFor('video');
+    const activeRep = (this.player as any).getCurrentRepresentationForType('video');
 
-    if (bitrateInfoList && bitrateInfoList[quality]) {
-      const bitRateKbps = bitrateInfoList[quality].bitrate / 1000;
+    if (activeRep && activeRep.bandwidth) {
+      const bitRateKbps = activeRep.bandwidth / 1000;
       this.telemetryBitrate = `${(bitRateKbps / 1000).toFixed(1)} Mbps`;
     }
 

@@ -867,6 +867,10 @@ func RegenerateManifestForJob(ctx context.Context, db *sql.DB, jobID uuid.UUID, 
 			if sj.ProfileName != nil {
 				name = *sj.ProfileName
 			}
+			width := 0
+			if sj.Width != nil {
+				width = *sj.Width
+			}
 			height := 0
 			if sj.Height != nil {
 				height = *sj.Height
@@ -885,6 +889,7 @@ func RegenerateManifestForJob(ctx context.Context, db *sql.DB, jobID uuid.UUID, 
 			}
 			renditions = append(renditions, dash.RenditionInfo{
 				Name:          name,
+				Width:         width,
 				Height:        height,
 				VideoBitrateK: videoBitrateK,
 				AudioBitrateK: audioBitrateK,

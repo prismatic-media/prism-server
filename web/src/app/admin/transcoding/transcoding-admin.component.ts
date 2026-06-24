@@ -139,6 +139,8 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   // Mapped MediaItems cache
   mediaMap = new Map<string, MediaItem>();
 
+  regeneratingMPDs = false;
+
   private eventService = inject(EventService);
   private eventSub?: Subscription;
   private etaIntervalId: any;
@@ -956,5 +958,22 @@ scratch_dir: /tmp/prism-scratch`;
 
   trackById(index: number, item: any): string | number {
     return item?.id || index;
+  }
+
+  regenerateAllMPDs(): void {
+    if (!confirm('Are you sure you want to regenerate all existing MPEG-DASH manifest (.mpd) files? This will overwrite the MPD files on disk for all media items that have completed transcodes.')) {
+      return;
+    }
+    this.regeneratingMPDs = true;
+    this.http.post<{ regenerated: number; errors: number }>('/api/v1/admin/artifacts/regenerate-mpds', {}).subscribe({
+      next: (res) => {
+        this.regeneratingMPDs = false;
+        alert(`Successfully regenerated ${res.regenerated} MPD file(s) with ${res.errors} error(s).`);
+      },
+      error: (err: any) => {
+        this.regeneratingMPDs = false;
+        alert(`Failed to regenerate MPD files: ${err.error?.error || err.message}`);
+      }
+    });
   }
 }

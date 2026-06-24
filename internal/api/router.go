@@ -205,6 +205,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Post("/admin/artifacts/index", artifactH.HandleIndex)
 			r.With(apimw.RequireAdmin).Post("/admin/artifacts/relink", artifactH.HandleRelink)
 			r.With(apimw.RequireAdmin).Post("/admin/artifacts/write-sidecars", artifactH.HandleWriteSidecars)
+			r.With(apimw.RequireAdmin).Post("/admin/artifacts/regenerate-mpds", artifactH.HandleRegenerateMPDs)
 
 			// Metadata refresh (admin only).
 			r.With(apimw.RequireAdmin).Post("/admin/metadata/refresh", metadataH.RefreshAllMetadata)

@@ -14,6 +14,7 @@ import (
 // RenditionInfo describes a single adaptive bitrate rendition.
 type RenditionInfo struct {
 	Name          string
+	Width         int
 	Height        int
 	VideoBitrateK int
 	AudioBitrateK int
@@ -67,8 +68,14 @@ func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitle
 			bandwidth := (r.VideoBitrateK + r.AudioBitrateK) * 1000
 			relDir := r.Name // relative path from MPD location
 
-			fmt.Fprintf(&sb, `      <Representation id=%q bandwidth="%d" width="auto" height="%d">`+"\n",
-				r.Name, bandwidth, r.Height)
+			width := r.Width
+			if width <= 0 {
+				// Estimate standard 16:9 aspect ratio if width is missing/zero
+				width = (r.Height * 16) / 9
+			}
+
+			fmt.Fprintf(&sb, `      <Representation id=%q bandwidth="%d" width="%d" height="%d">`+"\n",
+				r.Name, bandwidth, width, r.Height)
 			fmt.Fprintf(&sb, `        <BaseURL>segments/%s/</BaseURL>`+"\n", relDir)
 			sb.WriteString(`        <SegmentTemplate initialization="init.mp4" media="seg_$Number%05d$.m4s" startNumber="1" duration="4"/>` + "\n")
 			sb.WriteString(`      </Representation>` + "\n")

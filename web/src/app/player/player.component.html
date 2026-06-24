@@ -375,7 +375,7 @@
         >
           <div class="flex flex-col items-start">
             <span class="font-label-md">Auto</span>
-            <span class="text-[10px] text-on-surface-variant/70 font-mono" *ngIf="isAutoQuality && activeQualityIndex !== -1">Currently: {{ getActiveQualityResolution() }}</span>
+            <span class="text-[10px] text-on-surface-variant/70 font-mono" *ngIf="isAutoQuality && activeQualityId !== ''">Currently: {{ getActiveQualityResolution() }}</span>
           </div>
           <span
             class="material-symbols-outlined text-[18px]"
@@ -390,8 +390,8 @@
         <button
           *ngFor="let quality of videoQualities"
           class="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-on-surface-variant"
-          [class.track-selected]="!isAutoQuality && activeQualityIndex === quality.index"
-          (click)="selectQuality(quality.index)"
+          [class.track-selected]="!isAutoQuality && activeQualityId === quality.id"
+          (click)="selectQuality(quality.id)"
         >
           <div class="flex flex-col items-start">
             <span class="font-label-md">{{ quality.label }}</span>
@@ -399,7 +399,7 @@
           </div>
           <span
             class="material-symbols-outlined text-[18px]"
-            *ngIf="!isAutoQuality && activeQualityIndex === quality.index"
+            *ngIf="!isAutoQuality && activeQualityId === quality.id"
             >check</span
           >
         </button>
