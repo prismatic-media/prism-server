@@ -351,5 +351,16 @@ type TranscodeProfile struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// MediaSubtitle represents an uploaded subtitle track.
+type MediaSubtitle struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	MediaItemID uuid.UUID `db:"media_item_id" json:"media_item_id"`
+	Language    string    `db:"language" json:"language"`
+	Label       string    `db:"label" json:"label"`
+	VTTContent  string    `db:"vtt_content" json:"vtt_content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+}
+
+
 
 

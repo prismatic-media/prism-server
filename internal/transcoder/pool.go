@@ -898,6 +898,15 @@ func RegenerateManifestForJob(ctx context.Context, db *sql.DB, jobID uuid.UUID, 
 		}
 	}
 
+	// Write database-persisted subtitles to outputDir before scanning
+	uploadedSubs, err := sqlite.ListMediaSubtitles(ctx, db, item.ID)
+	if err == nil {
+		for _, sub := range uploadedSubs {
+			filename := fmt.Sprintf("sub_uploaded_%s_%s.vtt", sub.Language, sub.ID.String())
+			_ = os.WriteFile(filepath.Join(outputDir, filename), []byte(sub.VTTContent), 0o644)
+		}
+	}
+
 	var subs []dash.SubtitleInfo
 	entries, err := os.ReadDir(outputDir)
 	if err == nil {

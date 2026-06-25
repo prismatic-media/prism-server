@@ -131,6 +131,15 @@
               <span>Re-optimize Stream</span>
             </button>
 
+            <button
+              class="btn-glass btn-large"
+              *ngIf="authService.isAdmin"
+              (click)="openSubtitlesModal(movie.id, movie.title)"
+            >
+              <span class="material-symbols-outlined">closed_caption</span>
+              <span>Manage Subtitles</span>
+            </button>
+
             <!-- Movie watch progress indicator -->
             <div class="movie-progress-box frosted-glass" *ngIf="getMovieHistory() as hist">
               <div class="progress-details">
@@ -476,6 +485,14 @@
                 >
                   <span class="material-symbols-outlined">sync</span>
                 </button>
+                <button
+                  class="ep-action-btn subtitles"
+                  *ngIf="authService.isAdmin"
+                  (click)="openSubtitlesModal(ep.id, ep.title, $event)"
+                  title="Manage Subtitles"
+                >
+                  <span class="material-symbols-outlined">closed_caption</span>
+                </button>
                 <div
                   class="ep-spinner-box"
                   *ngIf="ep.transcode_status === 'pending'"
@@ -588,5 +605,108 @@
         </div>
       </div>
     </section>
+  </div>
+</div>
+
+<!-- Subtitles Management Modal -->
+<div class="modal-backdrop" *ngIf="showSubtitlesModal" (click)="closeSubtitlesModal()">
+  <div class="modal-card subtitle-modal-card" (click)="$event.stopPropagation()">
+    <div class="modal-gradient-overlay"></div>
+    
+    <!-- Close Button -->
+    <button class="modal-close-btn" (click)="closeSubtitlesModal()">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+
+    <div class="subtitle-modal-content">
+      <h2 class="modal-title font-headline-md text-primary">Manage Subtitles</h2>
+      <p class="modal-subtitle text-on-surface-variant font-body-md">{{ subtitleMediaTitle }}</p>
+
+      <!-- Error Alert -->
+      <div class="alert-box error mt-4" *ngIf="subtitlesError">
+        <span class="material-symbols-outlined">error</span>
+        <span>{{ subtitlesError }}</span>
+      </div>
+
+      <div class="subtitle-layout-grid mt-6">
+        <!-- Left: Subtitles List -->
+        <div class="subtitles-list-pane">
+          <h3 class="pane-title text-primary-dim font-headline-sm mb-3">Uploaded Tracks</h3>
+          
+          <div class="empty-subs-state" *ngIf="!subtitlesLoading && uploadedSubtitles.length === 0">
+            <span class="material-symbols-outlined">closed_caption_disabled</span>
+            <p>No custom subtitles uploaded yet.</p>
+          </div>
+
+          <div class="subs-spinner" *ngIf="subtitlesLoading && uploadedSubtitles.length === 0">
+            <span class="spinner-small"></span>
+            <span>Loading...</span>
+          </div>
+
+          <ul class="uploaded-subs-list" *ngIf="uploadedSubtitles.length > 0">
+            <li *ngFor="let sub of uploadedSubtitles" class="sub-list-item frosted-glass">
+              <div class="sub-info">
+                <span class="material-symbols-outlined text-primary-dim">closed_caption</span>
+                <div class="sub-details">
+                  <span class="sub-label font-bold">{{ sub.label }}</span>
+                  <span class="sub-meta label-mono font-xs">ISO: {{ sub.language }}</span>
+                </div>
+              </div>
+              <button class="btn-delete-sub hover:text-error" (click)="deleteSubtitle(sub.id)" title="Delete Subtitle">
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Right: Upload Form -->
+        <div class="subtitles-upload-pane">
+          <h3 class="pane-title text-primary-dim font-headline-sm mb-3">Upload New (SRT Only)</h3>
+          
+          <div class="form-group">
+            <label class="form-label font-body-sm text-on-surface-variant">Language</label>
+            <select class="form-select text-primary glass-panel" [(ngModel)]="selectedLanguage" (change)="onLanguageChange()">
+              <option value="eng">English</option>
+              <option value="spa">Spanish</option>
+              <option value="fra">French</option>
+              <option value="deu">German</option>
+              <option value="ita">Italian</option>
+              <option value="jpn">Japanese</option>
+              <option value="zho">Chinese</option>
+              <option value="rus">Russian</option>
+              <option value="other">Other / Custom</option>
+            </select>
+          </div>
+
+          <!-- Custom 3-letter Language input -->
+          <div class="form-group mt-3" *ngIf="selectedLanguage === 'other'">
+            <label class="form-label font-body-sm text-on-surface-variant">Custom ISO-639-2 Code (3 letters)</label>
+            <input type="text" class="form-input text-primary glass-panel" [(ngModel)]="customLanguage" placeholder="e.g. por, nld, lat" maxlength="3" />
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label font-body-sm text-on-surface-variant">Track Display Label</label>
+            <input type="text" class="form-input text-primary glass-panel" [(ngModel)]="subtitleLabel" placeholder="e.g. English (SDH)" />
+          </div>
+
+          <div class="form-group mt-3 file-upload-group">
+            <label class="form-label font-body-sm text-on-surface-variant">Select SRT File</label>
+            <div class="file-picker-container glass-panel">
+              <input id="subtitle-file-input" type="file" accept=".srt" class="file-input-hidden" (change)="onFileSelected($event)" />
+              <label for="subtitle-file-input" class="btn-picker btn-glass">
+                <span class="material-symbols-outlined">upload_file</span>
+                <span>{{ selectedFile ? selectedFile.name : 'Choose File' }}</span>
+              </label>
+            </div>
+          </div>
+
+          <button class="btn-primary w-full mt-4" [disabled]="subtitlesLoading || !selectedFile" (click)="uploadSubtitle()">
+            <span class="material-symbols-outlined">cloud_upload</span>
+            <span>Upload Subtitle</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>

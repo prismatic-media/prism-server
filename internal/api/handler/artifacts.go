@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -337,6 +338,15 @@ func (h *ArtifactHandler) HandleRegenerateMPDs(w http.ResponseWriter, r *http.Re
 			// No profile or subjob information found to regenerate the MPD
 			errorsCount++
 			continue
+		}
+
+		// Write database-persisted subtitles to outputDir before scanning
+		uploadedSubs, err := sqlite.ListMediaSubtitles(ctx, h.db, item.ID)
+		if err == nil {
+			for _, sub := range uploadedSubs {
+				filename := fmt.Sprintf("sub_uploaded_%s_%s.vtt", sub.Language, sub.ID.String())
+				_ = os.WriteFile(filepath.Join(outputDir, filename), []byte(sub.VTTContent), 0o644)
+			}
 		}
 
 		// 3. Scan outputDir for subtitle files (sub_*.vtt)

@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin, map, of, switchMap, Subscription } from 'rxjs';
@@ -107,7 +108,7 @@ export interface TranscodeSizesInfo {
 @Component({
   selector: 'app-media-details',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './media-details.component.html',
   styleUrl: './media-details.component.css',
 })
@@ -116,7 +117,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
-  private authService = inject(AuthService);
+  public authService = inject(AuthService);
   private eventService = inject(EventService);
   public castService = inject(CastService);
 
@@ -148,6 +149,18 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   seasonsLoading = false;
   episodesLoading = false;
   watchHistoryList: WatchHistory[] = [];
+
+  // Subtitles modal state
+  showSubtitlesModal = false;
+  subtitleMediaId = '';
+  subtitleMediaTitle = '';
+  uploadedSubtitles: any[] = [];
+  selectedLanguage = 'eng';
+  customLanguage = '';
+  subtitleLabel = 'English';
+  selectedFile: File | null = null;
+  subtitlesLoading = false;
+  subtitlesError = '';
 
   ngOnInit(): void {
     // Determine media type from URL path
@@ -587,5 +600,127 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
 
   trackByUrl(index: number, url: string): string {
     return url;
+  }
+
+  openSubtitlesModal(mediaId: string, title: string, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.subtitleMediaId = mediaId;
+    this.subtitleMediaTitle = title;
+    this.showSubtitlesModal = true;
+    this.uploadedSubtitles = [];
+    this.subtitlesError = '';
+    this.selectedLanguage = 'eng';
+    this.customLanguage = '';
+    this.subtitleLabel = 'English';
+    this.selectedFile = null;
+    this.loadUploadedSubtitles();
+  }
+
+  closeSubtitlesModal(): void {
+    this.showSubtitlesModal = false;
+  }
+
+  loadUploadedSubtitles(): void {
+    this.subtitlesLoading = true;
+    this.http.get<any[]>(`/api/v1/media/${this.subtitleMediaId}/subtitles`).subscribe({
+      next: (subs) => {
+        this.uploadedSubtitles = subs;
+        this.subtitlesLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Failed to load subtitles:', err);
+        this.subtitlesError = 'Failed to load subtitles list.';
+        this.subtitlesLoading = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  onLanguageChange(): void {
+    if (this.selectedLanguage === 'eng') this.subtitleLabel = 'English';
+    else if (this.selectedLanguage === 'spa') this.subtitleLabel = 'Spanish';
+    else if (this.selectedLanguage === 'fra') this.subtitleLabel = 'French';
+    else if (this.selectedLanguage === 'deu') this.subtitleLabel = 'German';
+    else if (this.selectedLanguage === 'ita') this.subtitleLabel = 'Italian';
+    else if (this.selectedLanguage === 'jpn') this.subtitleLabel = 'Japanese';
+    else if (this.selectedLanguage === 'zho') this.subtitleLabel = 'Chinese';
+    else if (this.selectedLanguage === 'rus') this.subtitleLabel = 'Russian';
+    else if (this.selectedLanguage === 'other') this.subtitleLabel = '';
+  }
+
+  onFileSelected(event: any): void {
+    const file = event.target.files?.[0];
+    if (file) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext !== 'srt') {
+        this.subtitlesError = 'Only .srt files are supported.';
+        this.selectedFile = null;
+        return;
+      }
+      this.selectedFile = file;
+      this.subtitlesError = '';
+    }
+  }
+
+  uploadSubtitle(): void {
+    if (!this.selectedFile) {
+      this.subtitlesError = 'Please select an SRT file to upload.';
+      return;
+    }
+
+    const lang = this.selectedLanguage === 'other' ? this.customLanguage.trim().toLowerCase() : this.selectedLanguage;
+    if (!lang || lang.length !== 3) {
+      this.subtitlesError = 'Please enter a valid 3-letter language code (e.g. eng, spa).';
+      return;
+    }
+
+    const label = this.subtitleLabel.trim();
+    if (!label) {
+      this.subtitlesError = 'Please provide a track label.';
+      return;
+    }
+
+    this.subtitlesLoading = true;
+    const formData = new FormData();
+    formData.append('file', this.selectedFile);
+    formData.append('language', lang);
+    formData.append('label', label);
+
+    this.http.post(`/api/v1/media/${this.subtitleMediaId}/subtitles`, formData).subscribe({
+      next: () => {
+        this.selectedFile = null;
+        const fileInput = document.getElementById('subtitle-file-input') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+        this.loadUploadedSubtitles();
+      },
+      error: (err) => {
+        console.error('Failed to upload subtitle:', err);
+        this.subtitlesError = err.error?.message || 'Failed to upload subtitle file.';
+        this.subtitlesLoading = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  deleteSubtitle(id: string): void {
+    if (!confirm('Are you sure you want to delete this subtitle track?')) {
+      return;
+    }
+
+    this.subtitlesLoading = true;
+    this.http.delete(`/api/v1/media/subtitles/${id}`).subscribe({
+      next: () => {
+        this.loadUploadedSubtitles();
+      },
+      error: (err) => {
+        console.error('Failed to delete subtitle:', err);
+        this.subtitlesError = 'Failed to delete subtitle.';
+        this.subtitlesLoading = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 }

@@ -145,6 +145,11 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Delete("/media/{id}", mediaH.DeleteMedia)
 			r.With(apimw.RequireAdmin).Post("/media/{id}/transcode", jobsH.EnqueueTranscode)
 
+			// Subtitles
+			r.With(apimw.RequireAdmin).Post("/media/{id}/subtitles", mediaH.UploadSubtitle)
+			r.Get("/media/{id}/subtitles", mediaH.ListSubtitles)
+			r.With(apimw.RequireAdmin).Delete("/media/subtitles/{id}", mediaH.DeleteSubtitle)
+
 			// Cast token — issues a short-lived media-scoped token for Chromecast.
 			r.Post("/stream/{id}/cast-token", streamH.IssueCastToken)
 

@@ -441,16 +441,32 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
   getFriendlyLanguageName(code: string): string {
     if (!code) return 'Unknown';
-    const clean = code.toLowerCase().trim();
-    if (clean === 'eng' || clean === 'en') return 'English';
-    if (clean === 'fra' || clean === 'fr') return 'French';
-    if (clean === 'spa' || clean === 'es') return 'Spanish';
-    if (clean === 'deu' || clean === 'de') return 'German';
-    if (clean === 'ita' || clean === 'it') return 'Italian';
-    if (clean === 'jpn' || clean === 'ja') return 'Japanese';
-    if (clean === 'zho' || clean === 'zh') return 'Chinese';
-    if (clean === 'rus' || clean === 'ru') return 'Russian';
-    return code.toUpperCase();
+    let clean = code.toLowerCase().trim();
+    let isUploaded = false;
+    if (clean.startsWith('uploaded_')) {
+      isUploaded = true;
+      clean = clean.substring('uploaded_'.length);
+      const parts = clean.split('_');
+      if (parts.length > 0) {
+        clean = parts[0];
+      }
+    }
+
+    let displayName = code.toUpperCase();
+    if (clean === 'eng' || clean === 'en') displayName = 'English';
+    else if (clean === 'fra' || clean === 'fr') displayName = 'French';
+    else if (clean === 'spa' || clean === 'es') displayName = 'Spanish';
+    else if (clean === 'deu' || clean === 'de') displayName = 'German';
+    else if (clean === 'ita' || clean === 'it') displayName = 'Italian';
+    else if (clean === 'jpn' || clean === 'ja') displayName = 'Japanese';
+    else if (clean === 'zho' || clean === 'zh') displayName = 'Chinese';
+    else if (clean === 'rus' || clean === 'ru') displayName = 'Russian';
+    else displayName = clean.toUpperCase();
+
+    if (isUploaded) {
+      return `${displayName} (Uploaded)`;
+    }
+    return displayName;
   }
 
   togglePlay(): void {

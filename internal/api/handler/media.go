@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -15,6 +19,8 @@ import (
 	"github.com/prismatic-media/prism-server/internal/artifact"
 	"github.com/prismatic-media/prism-server/internal/models"
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
+	"github.com/prismatic-media/prism-server/pkg/dash"
+	"github.com/prismatic-media/prism-server/pkg/ffmpeg"
 )
 
 // MediaHandler handles media item queries and deletions.
@@ -370,3 +376,269 @@ func emptySlice[T any](s []T) []T {
 	return s
 }
 
+// UploadSubtitle handles POST /api/v1/media/{id}/subtitles (Admin Only).
+// It accepts an SRT file, converts it to WebVTT via FFmpeg, and stores it in the database.
+func (h *MediaHandler) UploadSubtitle(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		return
+	}
+
+	// Validate media item exists
+	_, err = sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "media item not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+		return
+	}
+
+	err = r.ParseMultipartForm(10 << 20) // max 10MB
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "failed to parse multipart form", err)
+		return
+	}
+
+	lang := r.FormValue("language")
+	label := r.FormValue("label")
+	if lang == "" || label == "" {
+		respondError(w, http.StatusBadRequest, "language and label are required")
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "file is required", err)
+		return
+	}
+	defer func() { _ = file.Close() }()
+
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if ext != ".srt" {
+		respondError(w, http.StatusBadRequest, "only SRT files are supported")
+		return
+	}
+
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to read uploaded file", err)
+		return
+	}
+
+	vttBytes, err := ffmpeg.ConvertSRTToVTT(r.Context(), "ffmpeg", fileBytes)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to convert SRT to WebVTT: "+err.Error(), err)
+		return
+	}
+
+	sub := &models.MediaSubtitle{
+		MediaItemID: id,
+		Language:    lang,
+		Label:       label,
+		VTTContent:  string(vttBytes),
+	}
+
+	err = sqlite.AddMediaSubtitle(r.Context(), h.db, sub)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to save subtitle to database", err)
+		return
+	}
+
+	// Sync to output dir and regenerate manifest
+	err = syncSubtitlesAndRegenerateMPD(r.Context(), h.db, id)
+	if err != nil {
+		// Log but don't fail the HTTP response as it was successfully stored in the database
+		fmt.Printf("warning: syncing subtitles failed after upload: %v\n", err)
+	}
+
+	respondJSON(w, http.StatusCreated, sub)
+}
+
+// ListSubtitles handles GET /api/v1/media/{id}/subtitles.
+func (h *MediaHandler) ListSubtitles(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		return
+	}
+
+	// Validate media item exists
+	_, err = sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "media item not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+		return
+	}
+
+	subs, err := sqlite.ListMediaSubtitles(r.Context(), h.db, id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list subtitles", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, emptySlice(subs))
+}
+
+// DeleteSubtitle handles DELETE /api/v1/media/subtitles/{id} (Admin Only).
+func (h *MediaHandler) DeleteSubtitle(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid subtitle id", err)
+		return
+	}
+
+	sub, err := sqlite.GetMediaSubtitleByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "subtitle not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch subtitle", err)
+		return
+	}
+
+	err = sqlite.DeleteMediaSubtitle(r.Context(), h.db, id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete subtitle from database", err)
+		return
+	}
+
+	// Sync to output dir and regenerate manifest
+	err = syncSubtitlesAndRegenerateMPD(r.Context(), h.db, sub.MediaItemID)
+	if err != nil {
+		fmt.Printf("warning: syncing subtitles failed after deletion: %v\n", err)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func syncSubtitlesAndRegenerateMPD(ctx context.Context, db *sql.DB, mediaID uuid.UUID) error {
+	item, err := sqlite.GetMediaItemByID(ctx, db, mediaID)
+	if err != nil {
+		return fmt.Errorf("getting media item: %w", err)
+	}
+
+	if item.MPDPath == nil || *item.MPDPath == "" {
+		return nil
+	}
+
+	mpdPath := *item.MPDPath
+	outputDir := filepath.Dir(mpdPath)
+
+	uploadedSubs, err := sqlite.ListMediaSubtitles(ctx, db, mediaID)
+	if err != nil {
+		return fmt.Errorf("listing database subtitles: %w", err)
+	}
+
+	// Remove old uploaded VTT files
+	entries, err := os.ReadDir(outputDir)
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasPrefix(entry.Name(), "sub_uploaded_") && strings.HasSuffix(entry.Name(), ".vtt") {
+				_ = os.Remove(filepath.Join(outputDir, entry.Name()))
+			}
+		}
+	}
+
+	// Write current database subtitles to outputDir
+	for _, sub := range uploadedSubs {
+		filename := fmt.Sprintf("sub_uploaded_%s_%s.vtt", sub.Language, sub.ID.String())
+		subPath := filepath.Join(outputDir, filename)
+		if err := os.WriteFile(subPath, []byte(sub.VTTContent), 0o644); err != nil {
+			return fmt.Errorf("writing subtitle file %s: %w", filename, err)
+		}
+	}
+
+	return regenerateSingleMPD(ctx, db, item)
+}
+
+func regenerateSingleMPD(ctx context.Context, db *sql.DB, item *models.MediaItem) error {
+	if item.MPDPath == nil || *item.MPDPath == "" {
+		return nil
+	}
+	mpdPath := *item.MPDPath
+	outputDir := filepath.Dir(mpdPath)
+
+	var renditions []dash.RenditionInfo
+	subJobs, err := sqlite.GetMediaItemLatestJobSubJobs(ctx, db, item.ID)
+	if err == nil && len(subJobs) > 0 {
+		for _, sj := range subJobs {
+			if sj.Type == models.SubJobTypeVideo && sj.Status == models.TranscodeStatusDone {
+				name := ""
+				if sj.ProfileName != nil {
+					name = *sj.ProfileName
+				}
+				width := 0
+				if sj.Width != nil {
+					width = *sj.Width
+				}
+				height := 0
+				if sj.Height != nil {
+					height = *sj.Height
+				}
+				videoBitrateK := 0
+				if sj.VideoBitrateK != nil {
+					videoBitrateK = *sj.VideoBitrateK
+				}
+				audioBitrateK := 0
+				if sj.AudioBitrateK != nil {
+					audioBitrateK = *sj.AudioBitrateK
+				}
+				codec := "h264"
+				if sj.Codec != nil {
+					codec = *sj.Codec
+				}
+				renditions = append(renditions, dash.RenditionInfo{
+					Name:          name,
+					Width:         width,
+					Height:        height,
+					VideoBitrateK: videoBitrateK,
+					AudioBitrateK: audioBitrateK,
+					Codec:         codec,
+				})
+			}
+		}
+	}
+
+	if len(renditions) == 0 {
+		if meta, err := artifact.ReadSidecar(outputDir); err == nil && meta != nil && len(meta.Profiles) > 0 {
+			for _, p := range meta.Profiles {
+				renditions = append(renditions, dash.RenditionInfo{
+					Name:          p.Name,
+					Width:         p.Width,
+					Height:        p.Height,
+					VideoBitrateK: p.VideoBitrateK,
+					AudioBitrateK: p.AudioBitrateK,
+					Codec:         "h264",
+				})
+			}
+		}
+	}
+
+	if len(renditions) == 0 {
+		return fmt.Errorf("no profile or sub-job information found to regenerate the MPD")
+	}
+
+	var subs []dash.SubtitleInfo
+	entries, err := os.ReadDir(outputDir)
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasPrefix(entry.Name(), "sub_") && strings.HasSuffix(entry.Name(), ".vtt") {
+				lang := strings.TrimPrefix(entry.Name(), "sub_")
+				lang = strings.TrimSuffix(lang, ".vtt")
+				subs = append(subs, dash.SubtitleInfo{
+					Language: lang,
+					VTTPath:  filepath.Join(outputDir, entry.Name()),
+				})
+			}
+		}
+	}
+
+	return dash.GenerateMPD(outputDir, mpdPath, renditions, subs, item.Duration)
+}

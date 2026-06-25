@@ -404,6 +404,41 @@ func CopySidecarSubtitle(ctx context.Context, ffmpegPath string, s SidecarSubtit
 	return outPath, nil
 }
 
+// ConvertSRTToVTT converts raw SRT subtitle bytes into WebVTT format using FFmpeg.
+func ConvertSRTToVTT(ctx context.Context, ffmpegPath string, srtData []byte) ([]byte, error) {
+	tmpSRT, err := os.CreateTemp("", "prism-sub-*.srt")
+	if err != nil {
+		return nil, fmt.Errorf("creating temp srt file: %w", err)
+	}
+	defer os.Remove(tmpSRT.Name())
+	defer tmpSRT.Close()
+
+	if _, err := tmpSRT.Write(srtData); err != nil {
+		return nil, fmt.Errorf("writing temp srt file: %w", err)
+	}
+
+	tmpVTTName := tmpSRT.Name() + ".vtt"
+	defer os.Remove(tmpVTTName)
+
+	args := []string{
+		"-y",
+		"-i", tmpSRT.Name(),
+		"-c:s", "webvtt",
+		tmpVTTName,
+	}
+	if _, err := runCmd(ctx, ffmpegPath, args); err != nil {
+		return nil, fmt.Errorf("converting srt to vtt: %w", err)
+	}
+
+	vttData, err := os.ReadFile(tmpVTTName)
+	if err != nil {
+		return nil, fmt.Errorf("reading converted vtt file: %w", err)
+	}
+
+	return vttData, nil
+}
+
+
 func runCmd(ctx context.Context, bin string, args []string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, bin, args...)
 	var stdout, stderr bytes.Buffer
