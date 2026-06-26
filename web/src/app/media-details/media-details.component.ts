@@ -181,6 +181,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     this.eventSub = this.eventService.events$.subscribe((events) => {
       let changed = false;
       let shouldReloadDetails = false;
+      let shouldReloadSubtitles = false;
 
       for (const evt of events) {
         if (evt.type === 'job.progress') {
@@ -204,11 +205,18 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
               shouldReloadDetails = true;
             }
           }
+        } else if (evt.type === 'subtitle.aligned') {
+          const payload = evt.payload;
+          if (this.showSubtitlesModal && payload.media_item_id === this.subtitleMediaId) {
+            shouldReloadSubtitles = true;
+          }
         }
       }
 
       if (shouldReloadDetails) {
         this.loadDetails(true);
+      } else if (shouldReloadSubtitles) {
+        this.loadUploadedSubtitles();
       } else if (changed) {
         this.cdr.detectChanges();
       }
@@ -710,7 +718,6 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.subtitlesLoading = true;
     this.http.delete(`/api/v1/media/subtitles/${id}`).subscribe({
       next: () => {
         this.loadUploadedSubtitles();
@@ -718,6 +725,44 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Failed to delete subtitle:', err);
         this.subtitlesError = 'Failed to delete subtitle.';
+        this.subtitlesLoading = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  triggerAutoSync(id: string): void {
+    this.subtitlesLoading = true;
+    this.subtitlesError = '';
+    this.http.post(`/api/v1/media/subtitles/${id}/sync`, {}).subscribe({
+      next: () => {
+        this.loadUploadedSubtitles();
+      },
+      error: (err) => {
+        console.error('Failed to trigger auto-sync:', err);
+        this.subtitlesError = err.error?.message || 'Failed to start auto-sync.';
+        this.subtitlesLoading = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  applyManualShift(id: string, offsetStr: string): void {
+    const offset = parseFloat(offsetStr);
+    if (isNaN(offset)) {
+      this.subtitlesError = 'Please enter a valid number of seconds.';
+      return;
+    }
+
+    this.subtitlesLoading = true;
+    this.subtitlesError = '';
+    this.http.post(`/api/v1/media/subtitles/${id}/sync`, { offset }).subscribe({
+      next: () => {
+        this.loadUploadedSubtitles();
+      },
+      error: (err) => {
+        console.error('Failed to apply manual shift:', err);
+        this.subtitlesError = err.error?.message || 'Failed to apply time shift.';
         this.subtitlesLoading = false;
         this.cdr.detectChanges();
       }

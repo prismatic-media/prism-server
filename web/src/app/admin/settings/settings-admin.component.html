@@ -103,6 +103,42 @@
             Unique identifier for your custom Google Cast receiver application.
           </p>
         </div>
+
+        <!-- Whisper Settings -->
+        <div class="border-t border-outline-variant pt-6 flex flex-col gap-6">
+          <h4 class="text-sm font-semibold text-primary flex items-center gap-2">
+            <span class="material-symbols-outlined text-lg">speech_to_text</span>
+            Subtitle Alignment (Local Whisper)
+          </h4>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-on-surface">Whisper CLI Binary Path</label>
+            <input
+              class="input-glass font-mono"
+              type="text"
+              [(ngModel)]="whisperBinaryPath"
+              (ngModelChange)="onSettingChange(false)"
+              placeholder="e.g. whisper-cli or whisper"
+            />
+            <p class="text-xs text-on-surface-variant">
+              Executable name or absolute path to the local Whisper CLI tool (defaults to 'whisper-cli').
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-on-surface">Whisper Model Path (.bin)</label>
+            <input
+              class="input-glass font-mono"
+              type="text"
+              [(ngModel)]="whisperModelPath"
+              (ngModelChange)="onSettingChange(false)"
+              placeholder="e.g. /usr/local/share/whisper/models/ggml-base.bin"
+            />
+            <p class="text-xs text-on-surface-variant">
+              Absolute path to the local GGML model file (.bin format) needed for speech-to-text transcription.
+            </p>
+          </div>
+        </div>
       </div>
     </section>
 

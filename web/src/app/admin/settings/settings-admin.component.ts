@@ -21,6 +21,8 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
   thumbsDir = '';
   tmdbApiKey = '';
   castReceiverAppId = '';
+  whisperBinaryPath = '';
+  whisperModelPath = '';
 
   // Copy of settings for comparison
   private originalSettings: Record<string, string> = {};
@@ -67,6 +69,8 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
             thumbs_dir: this.thumbsDir.trim(),
             tmdb_api_key: this.tmdbApiKey.trim(),
             cast_receiver_app_id: this.castReceiverAppId.trim(),
+            whisper_binary_path: this.whisperBinaryPath.trim(),
+            whisper_model_path: this.whisperModelPath.trim(),
           };
 
           return this.http.put('/api/v1/admin/settings', payload).pipe(
@@ -125,6 +129,8 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
     this.thumbsDir = settings['thumbs_dir'] || '';
     this.tmdbApiKey = settings['tmdb_api_key'] || '';
     this.castReceiverAppId = settings['cast_receiver_app_id'] || '';
+    this.whisperBinaryPath = settings['whisper_binary_path'] || '';
+    this.whisperModelPath = settings['whisper_model_path'] || '';
   }
 
   onSettingChange(immediate: boolean): void {

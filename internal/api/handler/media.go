@@ -3,9 +3,11 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,16 +22,24 @@ import (
 	"github.com/prismatic-media/prism-server/internal/models"
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 	"github.com/prismatic-media/prism-server/pkg/dash"
+	"github.com/prismatic-media/prism-server/pkg/events"
 	"github.com/prismatic-media/prism-server/pkg/ffmpeg"
+	"github.com/prismatic-media/prism-server/pkg/subtitle"
 )
 
 // MediaHandler handles media item queries and deletions.
 type MediaHandler struct {
-	db *sql.DB
+	db  *sql.DB
+	bus *events.Bus
 }
 
 func NewMediaHandler(db *sql.DB) *MediaHandler {
 	return &MediaHandler{db: db}
+}
+
+func (h *MediaHandler) WithBus(bus *events.Bus) *MediaHandler {
+	h.bus = bus
+	return h
 }
 
 // ListMedia returns all media items. If a library_id query parameter is
@@ -447,14 +457,94 @@ func (h *MediaHandler) UploadSubtitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sync to output dir and regenerate manifest
-	err = syncSubtitlesAndRegenerateMPD(r.Context(), h.db, id)
-	if err != nil {
-		// Log but don't fail the HTTP response as it was successfully stored in the database
-		fmt.Printf("warning: syncing subtitles failed after upload: %v\n", err)
-	}
+	// Trigger similarity matching and sync auto-alignment in the background
+	go RunSubtitleAlignment(context.Background(), h.db, h.bus, sub.ID)
 
 	respondJSON(w, http.StatusCreated, sub)
+}
+
+// SyncSubtitleRequest is the payload for manual shift or auto-sync trigger.
+type SyncSubtitleRequest struct {
+	Offset *float64 `json:"offset,omitempty"`
+}
+
+// SyncSubtitle handles POST /api/v1/media/subtitles/{id}/sync (Admin Only).
+// It can trigger automatic alignment or apply a manual timestamp shift.
+func (h *MediaHandler) SyncSubtitle(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid subtitle id", err)
+		return
+	}
+
+	sub, err := sqlite.GetMediaSubtitleByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "subtitle not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch subtitle", err)
+		return
+	}
+
+	var req SyncSubtitleRequest
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondError(w, http.StatusBadRequest, "invalid JSON payload", err)
+			return
+		}
+	}
+
+	if req.Offset != nil {
+		// Manual shift
+		offsetVal := *req.Offset
+		shiftedVTT, err := subtitle.ShiftVTT(sub.VTTContent, offsetVal)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "failed to shift VTT timestamps: "+err.Error(), err)
+			return
+		}
+
+		newOffset := sub.SyncOffset + offsetVal
+		status := "completed"
+		err = sqlite.UpdateMediaSubtitleAlignment(r.Context(), h.db, sub.ID, status, sub.SimilarityScore, newOffset, shiftedVTT)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to update subtitle alignment in database", err)
+			return
+		}
+
+		err = syncSubtitlesAndRegenerateMPD(r.Context(), h.db, sub.MediaItemID)
+		if err != nil {
+			slog.Warn("syncing subtitles failed after manual shift", "subtitle_id", sub.ID, "error", err)
+		}
+
+		// Update subtitle struct for JSON response
+		sub.VTTContent = shiftedVTT
+		sub.SyncOffset = newOffset
+		sub.AlignmentStatus = status
+
+		h.bus.Publish(events.EventSubtitleAligned, events.SubtitleAlignedPayload{
+			SubtitleID:      sub.ID,
+			MediaItemID:     sub.MediaItemID,
+			SimilarityScore: sub.SimilarityScore,
+			SyncOffset:      newOffset,
+			AlignmentStatus: status,
+		})
+
+		respondJSON(w, http.StatusOK, sub)
+		return
+	}
+
+	// Auto sync fallback
+	sub.AlignmentStatus = "processing"
+	err = sqlite.UpdateMediaSubtitleStatus(r.Context(), h.db, sub.ID, "processing")
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update subtitle status", err)
+		return
+	}
+
+	go RunSubtitleAlignment(context.Background(), h.db, h.bus, sub.ID)
+
+	respondJSON(w, http.StatusAccepted, sub)
 }
 
 // ListSubtitles handles GET /api/v1/media/{id}/subtitles.

@@ -19,6 +19,8 @@ var configurableSettingKeys = map[string]struct{}{
 	"auto_transcode_on_discovery": {},
 	"tmdb_api_key":                {},
 	"cast_receiver_app_id":        {},
+	"whisper_binary_path":         {},
+	"whisper_model_path":          {},
 }
 
 // IsConfigurableKey reports whether key is a user-configurable setting.
@@ -39,6 +41,8 @@ func settingDefaults() map[string]string {
 		"auto_transcode_on_discovery": "false",
 		"tmdb_api_key":                "",
 		"cast_receiver_app_id":        "",
+		"whisper_binary_path":         "whisper-cli",
+		"whisper_model_path":          "",
 		"setup_complete":              "false",
 	}
 }

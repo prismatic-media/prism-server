@@ -23,7 +23,19 @@ const (
 	// EventMediaEnriched is published when TMDB metadata (including a poster) is
 	// fetched for a media item after it was first scanned.
 	EventMediaEnriched EventType = "media.enriched"
+	// EventSubtitleAligned is published when subtitle auto-alignment is completed or failed.
+	EventSubtitleAligned EventType = "subtitle.aligned"
 )
+
+// SubtitleAlignedPayload carries alignment results.
+type SubtitleAlignedPayload struct {
+	SubtitleID      uuid.UUID `json:"subtitle_id"`
+	MediaItemID     uuid.UUID `json:"media_item_id"`
+	SimilarityScore *float64  `json:"similarity_score"`
+	SyncOffset      float64   `json:"sync_offset"`
+	AlignmentStatus string    `json:"alignment_status"`
+	Error           string    `json:"error,omitempty"`
+}
 
 // Event is the wire-format envelope sent to WebSocket clients.
 type Event struct {

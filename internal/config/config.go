@@ -22,6 +22,8 @@ type RuntimeSettings struct {
 	TranscodeWorkers  int
 	TMDBApiKey        string
 	CastReceiverAppID string
+	WhisperBinaryPath string
+	WhisperModelPath  string
 }
 
 // Load parses startup configuration from flags and environment variables.
@@ -52,6 +54,8 @@ func RuntimeSettingsFromMap(m map[string]string) RuntimeSettings {
 		TranscodeWorkers:  intOrDefault(m["transcode_workers"], 1),
 		TMDBApiKey:        m["tmdb_api_key"],
 		CastReceiverAppID: m["cast_receiver_app_id"],
+		WhisperBinaryPath: stringOrDefault(m["whisper_binary_path"], "whisper-cli"),
+		WhisperModelPath:  m["whisper_model_path"],
 	}
 }
 

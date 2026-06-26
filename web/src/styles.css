@@ -313,25 +313,12 @@ h6 {
   border-right-color: var(--surface-tint);
 }
 
-/* --- Ambient Atmospheric Animations --- */
-@keyframes pulseGlow {
-  0%,
-  100% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05);
-  }
-}
-
+/* --- Ambient Atmospheric Elements --- */
 .ambient-glow-1 {
   position: absolute;
   border-radius: var(--rounded-full);
   pointer-events: none;
   filter: blur(140px);
-  animation: pulseGlow 12s infinite ease-in-out;
   background: #004d52;
   opacity: 0.06;
 }
@@ -341,7 +328,6 @@ h6 {
   border-radius: var(--rounded-full);
   pointer-events: none;
   filter: blur(120px);
-  animation: pulseGlow 10s infinite ease-in-out alternate;
   background: #3c222c;
   opacity: 0.04;
 }

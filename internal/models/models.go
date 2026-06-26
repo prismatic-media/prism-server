@@ -353,12 +353,15 @@ type TranscodeProfile struct {
 
 // MediaSubtitle represents an uploaded subtitle track.
 type MediaSubtitle struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	MediaItemID uuid.UUID `db:"media_item_id" json:"media_item_id"`
-	Language    string    `db:"language" json:"language"`
-	Label       string    `db:"label" json:"label"`
-	VTTContent  string    `db:"vtt_content" json:"vtt_content"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ID              uuid.UUID `db:"id" json:"id"`
+	MediaItemID     uuid.UUID `db:"media_item_id" json:"media_item_id"`
+	Language        string    `db:"language" json:"language"`
+	Label           string    `db:"label" json:"label"`
+	VTTContent      string    `db:"vtt_content" json:"vtt_content"`
+	SimilarityScore *float64  `db:"similarity_score" json:"similarity_score"`
+	SyncOffset      float64   `db:"sync_offset" json:"sync_offset"`
+	AlignmentStatus string    `db:"alignment_status" json:"alignment_status"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
 }
 
 

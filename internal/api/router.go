@@ -35,7 +35,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 	authH := handler.NewAuthHandler(db, rs.JWTSecret)
 	userH := handler.NewUsersHandler(db, rs.JWTSecret)
 	libH := handler.NewLibraryHandler(db, scanManager)
-	mediaH := handler.NewMediaHandler(db)
+	mediaH := handler.NewMediaHandler(db).WithBus(bus)
 	jobsH := handler.NewJobsHandler(db, pool)
 	streamH := handler.NewStreamHandler(db, pool.MPDCache(), rs.JWTSecret)
 	historyH := handler.NewHistoryHandler(db)
@@ -149,6 +149,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Post("/media/{id}/subtitles", mediaH.UploadSubtitle)
 			r.Get("/media/{id}/subtitles", mediaH.ListSubtitles)
 			r.With(apimw.RequireAdmin).Delete("/media/subtitles/{id}", mediaH.DeleteSubtitle)
+			r.With(apimw.RequireAdmin).Post("/media/subtitles/{id}/sync", mediaH.SyncSubtitle)
 
 			// Cast token — issues a short-lived media-scoped token for Chromecast.
 			r.Post("/stream/{id}/cast-token", streamH.IssueCastToken)

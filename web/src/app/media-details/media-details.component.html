@@ -645,16 +645,76 @@
 
           <ul class="uploaded-subs-list" *ngIf="uploadedSubtitles.length > 0">
             <li *ngFor="let sub of uploadedSubtitles" class="sub-list-item frosted-glass">
-              <div class="sub-info">
-                <span class="material-symbols-outlined text-primary-dim">closed_caption</span>
-                <div class="sub-details">
-                  <span class="sub-label font-bold">{{ sub.label }}</span>
-                  <span class="sub-meta label-mono font-xs">ISO: {{ sub.language }}</span>
+              <div class="sub-header-row">
+                <div class="sub-info">
+                  <span class="material-symbols-outlined text-primary-dim">closed_caption</span>
+                  <div class="sub-details">
+                    <span class="sub-label font-bold">{{ sub.label }}</span>
+                    <span class="sub-meta label-mono font-xs">ISO: {{ sub.language }}</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button *ngIf="sub.alignment_status !== 'processing' && sub.alignment_status !== 'pending'"
+                          class="btn-icon hover:text-primary"
+                          (click)="triggerAutoSync(sub.id)"
+                          title="Re-run Auto Sync">
+                    <span class="material-symbols-outlined">sync</span>
+                  </button>
+                  <button class="btn-delete-sub" (click)="deleteSubtitle(sub.id)" title="Delete Subtitle">
+                    <span class="material-symbols-outlined">delete</span>
+                  </button>
                 </div>
               </div>
-              <button class="btn-delete-sub hover:text-error" (click)="deleteSubtitle(sub.id)" title="Delete Subtitle">
-                <span class="material-symbols-outlined">delete</span>
-              </button>
+
+              <!-- Alignment Status & Score Info -->
+              <div class="alignment-status-box">
+                <!-- Pending -->
+                <div *ngIf="sub.alignment_status === 'pending'" class="flex items-center gap-2 text-on-surface-variant">
+                  <span class="material-symbols-outlined spinner-icon text-sm">schedule</span>
+                  <span>Pending alignment...</span>
+                </div>
+
+                <!-- Processing -->
+                <div *ngIf="sub.alignment_status === 'processing'" class="flex items-center gap-2 text-primary">
+                  <span class="material-symbols-outlined spinner-icon text-sm">sync</span>
+                  <span>Aligning & transcribing audio...</span>
+                </div>
+
+                <!-- Failed -->
+                <div *ngIf="sub.alignment_status === 'failed'" class="flex items-center gap-2 text-error">
+                  <span class="material-symbols-outlined text-sm">warning</span>
+                  <span>Alignment failed. Subtitle may be out of sync.</span>
+                </div>
+
+                <!-- Completed -->
+                <div *ngIf="sub.alignment_status === 'completed'" class="flex flex-col gap-2">
+                  <div class="flex items-center justify-between">
+                    <span class="flex items-center gap-1.5" [ngClass]="sub.similarity_score !== null && sub.similarity_score < 50.0 ? 'text-warning font-semibold' : 'text-success'">
+                      <span class="material-symbols-outlined text-sm">
+                        {{ sub.similarity_score !== null && sub.similarity_score < 50.0 ? 'warning' : 'check_circle' }}
+                      </span>
+                      <span>
+                        Match: {{ sub.similarity_score !== null ? (sub.similarity_score | number:'1.1-1') + '%' : 'N/A' }}
+                      </span>
+                    </span>
+                    <span class="text-on-surface-variant font-mono text-[10px]">
+                      Shift: {{ sub.sync_offset >= 0 ? '+' : '' }}{{ sub.sync_offset | number:'1.2-2' }}s
+                    </span>
+                  </div>
+
+                  <div *ngIf="sub.similarity_score !== null && sub.similarity_score < 50.0" class="text-warning text-[10px] mt-1">
+                    ⚠️ Warning: Low similarity detected. Ensure this subtitle matches.
+                  </div>
+
+                  <!-- Manual shift tools -->
+                  <div class="flex items-center gap-2 mt-2">
+                    <input type="number" step="0.5" #shiftInput class="input-glass text-xs p-1 text-center font-mono w-20" placeholder="+/- sec">
+                    <button class="btn-glass text-[10px] py-1 px-3" (click)="applyManualShift(sub.id, shiftInput.value); shiftInput.value=''">
+                      Shift Time
+                    </button>
+                  </div>
+                </div>
+              </div>
             </li>
           </ul>
         </div>

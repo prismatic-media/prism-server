@@ -1530,12 +1530,20 @@
 
 .sub-list-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 12px 16px;
   border-radius: var(--rounded);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sub-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .sub-info {
@@ -1560,7 +1568,7 @@
   margin-top: 2px;
 }
 
-.btn-delete-sub {
+.btn-delete-sub, .btn-icon {
   background: none;
   border: none;
   color: var(--on-surface-variant);
@@ -1574,6 +1582,25 @@
 
 .btn-delete-sub:hover {
   color: var(--error);
+}
+
+.btn-icon:hover {
+  color: var(--primary);
+}
+
+.alignment-status-box {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 8px;
+  font-size: 12px;
+}
+
+.spinner-icon {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Upload Pane */
