@@ -64,7 +64,7 @@ export class SetupComponent {
     }
 
     this.http
-      .get<{ dirs: string[] }>(`/api/v1/fs/browse?path=${encodeURIComponent(value)}`)
+      .get<{ dirs: string[] }>(`/api/v1/fs:browse?path=${encodeURIComponent(value)}`)
       .subscribe({
         next: (res) => {
           if (field === 'thumbs') {

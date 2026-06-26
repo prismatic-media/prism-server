@@ -41,18 +41,18 @@ func newTestRouterPhase2(t *testing.T) (http.Handler, func()) {
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
 
-		r.Get("/api/v1/me", userH.GetMe)
+		r.Get("/api/v1/users/me", userH.GetMe)
 
 		r.Get("/api/v1/libraries", libH.ListLibraries)
 		r.With(apimw.RequireAdmin).Post("/api/v1/libraries", libH.CreateLibrary)
 		r.Get("/api/v1/libraries/{id}", libH.GetLibrary)
 		r.With(apimw.RequireAdmin).Delete("/api/v1/libraries/{id}", libH.DeleteLibrary)
-		r.With(apimw.RequireAdmin).Post("/api/v1/libraries/{id}/scan", libH.ScanLibrary)
+		r.With(apimw.RequireAdmin).Post("/api/v1/libraries/{id}:scan", libH.ScanLibrary)
 
-		r.Get("/api/v1/media", mediaH.ListMedia)
-		r.Get("/api/v1/media/{id}", mediaH.GetMedia)
-		r.With(apimw.RequireAdmin).Delete("/api/v1/media/{id}", mediaH.DeleteMedia)
-		r.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/write-sidecars", artifactH.HandleWriteSidecars)
+		r.Get("/api/v1/movies", mediaH.ListMedia)
+		r.Get("/api/v1/movies/{id}", mediaH.GetMedia)
+		r.With(apimw.RequireAdmin).Delete("/api/v1/movies/{id}", mediaH.DeleteMedia)
+		r.With(apimw.RequireAdmin).Post("/api/v1/artifacts:writeSidecars", artifactH.HandleWriteSidecars)
 	})
 
 	cleanup := func() { _ = db.Close() }
@@ -224,7 +224,7 @@ func TestScanLibrary_Accepted(t *testing.T) {
 	var lib map[string]any
 	_ = json.NewDecoder(createRec.Body).Decode(&lib)
 
-	scanRec := do(t, router, http.MethodPost, "/api/v1/libraries/"+lib["id"].(string)+"/scan",
+	scanRec := do(t, router, http.MethodPost, "/api/v1/libraries/"+lib["id"].(string)+":scan",
 		nil, adminHeader(token))
 	if scanRec.Code != http.StatusAccepted {
 		t.Errorf("status = %d, want 202", scanRec.Code)
@@ -240,7 +240,7 @@ func TestListMedia_EmptyArray(t *testing.T) {
 	defer cleanup()
 	token := setupAdminUser(t, router)
 
-	rec := do(t, router, http.MethodGet, "/api/v1/media", nil, adminHeader(token))
+	rec := do(t, router, http.MethodGet, "/api/v1/movies", nil, adminHeader(token))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
@@ -279,13 +279,13 @@ func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 	mediaH := handler.NewMediaHandler(db)
 	r := chi.NewRouter()
 	r.Use(apimw.Authenticate(testSecret))
-	r.Get("/api/v1/media", mediaH.ListMedia)
+	r.Get("/api/v1/movies", mediaH.ListMedia)
 
 	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
 	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
 
 	// 1. Without all=true, episode should be excluded
-	rec1 := do(t, r, http.MethodGet, "/api/v1/media", nil, hdr)
+	rec1 := do(t, r, http.MethodGet, "/api/v1/movies", nil, hdr)
 	if rec1.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec1.Code)
 	}
@@ -298,7 +298,7 @@ func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 	}
 
 	// 2. With all=true, episode should be included
-	rec2 := do(t, r, http.MethodGet, "/api/v1/media?all=true", nil, hdr)
+	rec2 := do(t, r, http.MethodGet, "/api/v1/movies?all=true", nil, hdr)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec2.Code)
 	}
@@ -314,7 +314,7 @@ func TestGetMedia_NotFound(t *testing.T) {
 	defer cleanup()
 	token := setupAdminUser(t, router)
 
-	rec := do(t, router, http.MethodGet, "/api/v1/media/00000000-0000-0000-0000-000000000000",
+	rec := do(t, router, http.MethodGet, "/api/v1/movies/00000000-0000-0000-0000-000000000000",
 		nil, adminHeader(token))
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
@@ -344,19 +344,19 @@ func TestDeleteMedia_Success(t *testing.T) {
 	mediaH2 := handler.NewMediaHandler(db)
 	r2 := chi.NewRouter()
 	r2.Use(apimw.Authenticate(testSecret))
-	r2.With(apimw.RequireAdmin).Delete("/api/v1/media/{id}", mediaH2.DeleteMedia)
-	r2.Get("/api/v1/media/{id}", mediaH2.GetMedia)
+	r2.With(apimw.RequireAdmin).Delete("/api/v1/movies/{id}", mediaH2.DeleteMedia)
+	r2.Get("/api/v1/movies/{id}", mediaH2.GetMedia)
 
 	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
 	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
 	_ = token // suppress unused warning (token is from the outer router's DB)
 
-	delRec := do(t, r2, http.MethodDelete, "/api/v1/media/"+m.ID.String(), nil, hdr)
+	delRec := do(t, r2, http.MethodDelete, "/api/v1/movies/"+m.ID.String(), nil, hdr)
 	if delRec.Code != http.StatusNoContent {
 		t.Errorf("status = %d, want 204; body: %s", delRec.Code, delRec.Body)
 	}
 
-	getRec := do(t, r2, http.MethodGet, "/api/v1/media/"+m.ID.String(), nil, hdr)
+	getRec := do(t, r2, http.MethodGet, "/api/v1/movies/"+m.ID.String(), nil, hdr)
 	if getRec.Code != http.StatusNotFound {
 		t.Errorf("after delete, GET status = %d, want 404", getRec.Code)
 	}
@@ -368,7 +368,7 @@ func TestWriteSidecars_Endpoint(t *testing.T) {
 	token := setupAdminUser(t, router)
 
 	// Re-route check
-	recNotFound := do(t, router, http.MethodPost, "/api/v1/admin/artifacts/write-sidecars", nil, adminHeader(token))
+	recNotFound := do(t, router, http.MethodPost, "/api/v1/artifacts:writeSidecars", nil, adminHeader(token))
 	if recNotFound.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", recNotFound.Code, recNotFound.Body)
 	}
@@ -411,12 +411,12 @@ func TestWriteSidecars_Endpoint(t *testing.T) {
 
 	r2 := chi.NewRouter()
 	r2.Use(apimw.Authenticate(testSecret))
-	r2.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/write-sidecars", artifactH.HandleWriteSidecars)
+	r2.With(apimw.RequireAdmin).Post("/api/v1/artifacts:writeSidecars", artifactH.HandleWriteSidecars)
 
 	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
 	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
 
-	rec := do(t, r2, http.MethodPost, "/api/v1/admin/artifacts/write-sidecars", nil, hdr)
+	rec := do(t, r2, http.MethodPost, "/api/v1/artifacts:writeSidecars", nil, hdr)
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200 OK, got %d: %s", rec.Code, rec.Body)
 	}

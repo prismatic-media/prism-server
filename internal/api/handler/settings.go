@@ -27,7 +27,7 @@ func NewSettingsHandler(db *sql.DB) *SettingsHandler {
 // @Success 200 {object} map[string]string "Map of server configurations"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
-// @Router /admin/settings [get]
+// @Router /settings [get]
 func (h *SettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	settings, err := sqlite.GetAllSettings(r.Context(), h.db, true)
 	if err != nil {
@@ -50,7 +50,7 @@ func (h *SettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} map[string]string "Invalid request body or unknown configuration key"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
-// @Router /admin/settings [put]
+// @Router /settings [put]
 func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var incoming map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {

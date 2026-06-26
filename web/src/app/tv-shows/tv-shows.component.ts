@@ -117,9 +117,9 @@ export class TVShowsComponent implements OnInit, OnDestroy {
           if (tvLibs.length === 0) {
             return of([]);
           }
-          // Query /api/v1/tv/shows?library_id=xxx for each tv library
+          // Query /api/v1/tv-shows?library_id=xxx for each tv library
           const requests = tvLibs.map((lib) =>
-            this.http.get<TVShow[]>(`/api/v1/tv/shows?library_id=${lib.id}`),
+            this.http.get<TVShow[]>(`/api/v1/tv-shows?library_id=${lib.id}`),
           );
           return forkJoin(requests).pipe(
             map((results) => results.reduce((acc, val) => acc.concat(val), [])),
@@ -158,7 +158,7 @@ export class TVShowsComponent implements OnInit, OnDestroy {
 
   getShowPosterUrl(show: TVShow): string {
     if (show.poster_path) {
-      return `/api/v1/tv/shows/${show.id}/poster`;
+      return `/api/v1/tv-shows/${show.id}/poster`;
     }
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
   }

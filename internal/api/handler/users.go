@@ -111,7 +111,7 @@ type updateMeRequest struct {
 // @Success 200 {object} models.User
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "User not found"
-// @Router /me [get]
+// @Router /users/me [get]
 func (h *UsersHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -148,7 +148,7 @@ func (h *UsersHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "User not found"
 // @Failure 409 {object} map[string]string "Username or email already in use"
-// @Router /me [put]
+// @Router /users/me [put]
 func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {

@@ -73,7 +73,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
             whisper_model_path: this.whisperModelPath.trim(),
           };
 
-          return this.http.put('/api/v1/admin/settings', payload).pipe(
+          return this.http.put('/api/v1/settings', payload).pipe(
             tap({
               next: () => {
                 this.originalSettings = {
@@ -110,7 +110,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
     this.error = '';
     this.saveStatus = 'idle';
 
-    this.http.get<Record<string, string>>('/api/v1/admin/settings').subscribe({
+    this.http.get<Record<string, string>>('/api/v1/settings').subscribe({
       next: (settings) => {
         this.originalSettings = { ...settings };
         this.loadFormValues(settings);
@@ -159,7 +159,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
     }
 
     this.http
-      .get<{ dirs: string[] }>(`/api/v1/fs/browse?path=${encodeURIComponent(value)}`)
+      .get<{ dirs: string[] }>(`/api/v1/fs:browse?path=${encodeURIComponent(value)}`)
       .subscribe({
         next: (res) => {
           this.thumbsSuggestions = res.dirs || [];

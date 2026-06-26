@@ -260,3 +260,31 @@ func populateTVShow(
 	}
 	return s
 }
+
+// SearchTVShows queries TV shows matching a search string.
+func SearchTVShows(ctx context.Context, db *sql.DB, query string) ([]*models.TVShow, error) {
+	likeQuery := "%" + query + "%"
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, library_id, name, tmdb_id, overview, poster_path, first_air_year, director, cast_members, backdrop_path, extra_posters, created_at, updated_at
+		FROM tv_shows
+		WHERE name LIKE ? OR
+		      overview LIKE ? OR
+		      director LIKE ? OR
+		      cast_members LIKE ?
+		ORDER BY CASE WHEN LOWER(name) LIKE 'the %' THEN SUBSTR(name, 5) ELSE name END COLLATE NOCASE ASC`,
+		likeQuery, likeQuery, likeQuery, likeQuery)
+	if err != nil {
+		return nil, fmt.Errorf("searching tv shows: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var shows []*models.TVShow
+	for rows.Next() {
+		s, err := scanTVShowRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		shows = append(shows, s)
+	}
+	return shows, rows.Err()
+}

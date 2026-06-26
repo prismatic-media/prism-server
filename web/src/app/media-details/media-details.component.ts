@@ -263,7 +263,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     });
 
     if (this.mediaType === 'movie') {
-      this.http.get<Movie>(`/api/v1/media/${this.id}`).subscribe({
+      this.http.get<Movie>(`/api/v1/movies/${this.id}`).subscribe({
         next: (data) => {
           this.movie = data;
           this.loading = false;
@@ -281,7 +281,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         },
       });
     } else {
-      this.http.get<TVShow>(`/api/v1/tv/shows/${this.id}`).subscribe({
+      this.http.get<TVShow>(`/api/v1/tv-shows/${this.id}`).subscribe({
         next: (data) => {
           this.tvShow = data;
           this.loadSeasons(this.id, silent);
@@ -303,7 +303,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     if (!silent) {
       this.seasonsLoading = true;
     }
-    this.http.get<TVSeason[]>(`/api/v1/tv/shows/${showId}/seasons`).subscribe({
+    this.http.get<TVSeason[]>(`/api/v1/tv-shows/${showId}/seasons`).subscribe({
       next: (seasonsList) => {
         const prevSelectedSeasonNumber = this.selectedSeason
           ? this.selectedSeason.season_number
@@ -349,7 +349,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       this.episodesLoading = true;
     }
     this.http
-      .get<Episode[]>(`/api/v1/tv/shows/${showId}/seasons/${seasonNumber}/episodes`)
+      .get<Episode[]>(`/api/v1/tv-shows/${showId}/seasons/${seasonNumber}/episodes`)
       .subscribe({
         next: (episodesList) => {
           this.episodes = episodesList
@@ -368,7 +368,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   loadTranscodeSizes(mediaId: string): void {
     this.transcodeSizesLoading = true;
     this.transcodeSizesError = '';
-    this.http.get<TranscodeSizesInfo>(`/api/v1/media/${mediaId}/transcode-sizes`).subscribe({
+    this.http.get<TranscodeSizesInfo>(`/api/v1/movies/${mediaId}/transcode-sizes`).subscribe({
       next: (info) => {
         this.transcodeSizes = info;
         this.transcodeSizesLoading = false;
@@ -385,11 +385,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   getPosterUrl(): string {
     if (this.mediaType === 'movie' && this.movie) {
       if (this.movie.poster_path) {
-        return `/api/v1/media/${this.movie.id}/poster`;
+        return `/api/v1/movies/${this.movie.id}/poster`;
       }
     } else if (this.mediaType === 'tvshow' && this.tvShow) {
       if (this.tvShow.poster_path) {
-        return `/api/v1/tv/shows/${this.tvShow.id}/poster`;
+        return `/api/v1/tv-shows/${this.tvShow.id}/poster`;
       }
     }
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
@@ -397,14 +397,14 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
 
   getSeasonPosterUrl(season: TVSeason): string {
     if (season && season.poster_path && this.tvShow) {
-      return `/api/v1/tv/shows/${this.tvShow.id}/seasons/${season.season_number}/poster`;
+      return `/api/v1/tv-shows/${this.tvShow.id}/seasons/${season.season_number}/poster`;
     }
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
   }
 
   getEpisodeStillUrl(ep: Episode): string {
     if (ep && ep.poster_path) {
-      return `/api/v1/media/${ep.id}/poster`;
+      return `/api/v1/movies/${ep.id}/poster`;
     }
     return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=400&auto=format&fit=crop';
   }
@@ -455,11 +455,8 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     if (event) {
       event.stopPropagation();
     }
-    let url = `/api/v1/media/${item.id}/transcode`;
-    if (item.transcode_status === 'done') {
-      url += '?force=true';
-    }
-    this.http.post(url, {}).subscribe({
+    const isDone = item.transcode_status === 'done';
+    this.http.post('/api/v1/jobs', { media_item_id: item.id, force: isDone }).subscribe({
       next: () => {
         item.transcode_status = 'pending';
         this.cdr.detectChanges();
@@ -495,11 +492,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   getBackdropUrl(): string {
     if (this.mediaType === 'movie' && this.movie) {
       if (this.movie.backdrop_path) {
-        return `/api/v1/media/${this.movie.id}/backdrop`;
+        return `/api/v1/movies/${this.movie.id}/backdrop`;
       }
     } else if (this.mediaType === 'tvshow' && this.tvShow) {
       if (this.tvShow.backdrop_path) {
-        return `/api/v1/tv/shows/${this.tvShow.id}/backdrop`;
+        return `/api/v1/tv-shows/${this.tvShow.id}/backdrop`;
       }
     }
     return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=1600&auto=format&fit=crop';
@@ -509,11 +506,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     const urls: string[] = [];
     if (this.mediaType === 'movie' && this.movie && this.movie.extra_posters) {
       for (let i = 0; i < this.movie.extra_posters.length; i++) {
-        urls.push(`/api/v1/media/${this.movie.id}/extra-posters/${i}`);
+        urls.push(`/api/v1/movies/${this.movie.id}/extra-posters/${i}`);
       }
     } else if (this.mediaType === 'tvshow' && this.tvShow && this.tvShow.extra_posters) {
       for (let i = 0; i < this.tvShow.extra_posters.length; i++) {
-        urls.push(`/api/v1/tv/shows/${this.tvShow.id}/extra-posters/${i}`);
+        urls.push(`/api/v1/tv-shows/${this.tvShow.id}/extra-posters/${i}`);
       }
     }
     return urls;
@@ -718,7 +715,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.http.delete(`/api/v1/media/subtitles/${id}`).subscribe({
+    this.http.delete(`/api/v1/media/${this.subtitleMediaId}/subtitles/${id}`).subscribe({
       next: () => {
         this.loadUploadedSubtitles();
       },
@@ -734,7 +731,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   triggerAutoSync(id: string): void {
     this.subtitlesLoading = true;
     this.subtitlesError = '';
-    this.http.post(`/api/v1/media/subtitles/${id}/sync`, {}).subscribe({
+    this.http.post(`/api/v1/media/${this.subtitleMediaId}/subtitles/${id}:sync`, {}).subscribe({
       next: () => {
         this.loadUploadedSubtitles();
       },
@@ -756,7 +753,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
 
     this.subtitlesLoading = true;
     this.subtitlesError = '';
-    this.http.post(`/api/v1/media/subtitles/${id}/sync`, { offset }).subscribe({
+    this.http.post(`/api/v1/media/${this.subtitleMediaId}/subtitles/${id}:sync`, { offset }).subscribe({
       next: () => {
         this.loadUploadedSubtitles();
       },

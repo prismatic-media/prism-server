@@ -95,10 +95,9 @@ export class MoviesComponent implements OnInit, OnDestroy {
     if (!silent) {
       this.loading = true;
     }
-    this.http.get<Movie[]>('/api/v1/media').subscribe({
+    this.http.get<Movie[]>('/api/v1/movies').subscribe({
       next: (data) => {
-        // Filter only items of type movie
-        this.allMovies = data ? data.filter((item) => item.media_type === 'movie') : [];
+        this.allMovies = data || [];
         this.libraryStateService.moviesCache = this.allMovies;
         this.filterMovies();
         this.loading = false;
@@ -145,7 +144,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
 
   getPosterUrl(movie: Movie): string {
     if (movie.poster_path) {
-      return `/api/v1/media/${movie.id}/poster`;
+      return `/api/v1/movies/${movie.id}/poster`;
     }
     // Fallback poster
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
@@ -197,7 +196,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
 
   triggerTranscode(movie: Movie, event: MouseEvent): void {
     event.stopPropagation();
-    this.http.post(`/api/v1/media/${movie.id}/transcode`, {}).subscribe({
+    this.http.post('/api/v1/jobs', { media_item_id: movie.id }).subscribe({
       next: () => {
         this.fetchMovies(true);
       },

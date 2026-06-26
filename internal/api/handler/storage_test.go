@@ -22,11 +22,11 @@ func storageRouter(db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Get("/api/v1/admin/storage", h.ListStorage)
-		r.With(apimw.RequireAdmin).Post("/api/v1/admin/storage/areas", h.CreateStorageArea)
-		r.With(apimw.RequireAdmin).Put("/api/v1/admin/storage/areas/{id}", h.UpdateStorageArea)
-		r.With(apimw.RequireAdmin).Delete("/api/v1/admin/storage/areas/{id}", h.DeleteStorageArea)
-		r.With(apimw.RequireAdmin).Put("/api/v1/admin/storage/config", h.UpdateStorageConfig)
+		r.With(apimw.RequireAdmin).Get("/api/v1/storage-areas", h.ListStorage)
+		r.With(apimw.RequireAdmin).Post("/api/v1/storage-areas", h.CreateStorageArea)
+		r.With(apimw.RequireAdmin).Put("/api/v1/storage-areas/{id}", h.UpdateStorageArea)
+		r.With(apimw.RequireAdmin).Delete("/api/v1/storage-areas/{id}", h.DeleteStorageArea)
+		r.With(apimw.RequireAdmin).Put("/api/v1/storage-areas/config", h.UpdateStorageConfig)
 	})
 	return r
 }
@@ -37,7 +37,7 @@ func TestStorageAuthRequired(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/storage", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/storage-areas", nil)
 	w := httptest.NewRecorder()
 	storageRouter(db).ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -52,7 +52,7 @@ func TestStorageListExcludesThumbnailArea(t *testing.T) {
 	}
 	admin := createUser(t, db, "admin", "a@test.com", "pass", true)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/storage", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/storage-areas", nil)
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
 	storageRouter(db).ServeHTTP(w, req)
@@ -84,7 +84,7 @@ func TestStorageCreateUpdateAndConfig(t *testing.T) {
 	authz := "Bearer " + bearerToken(t, admin.ID, true)
 
 	createBody, _ := json.Marshal(map[string]any{"kind": "segments", "path": "/tmp/segments-extra", "enabled": true})
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/admin/storage/areas", bytes.NewReader(createBody))
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/storage-areas", bytes.NewReader(createBody))
 	createReq.Header.Set("Authorization", authz)
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
@@ -101,7 +101,7 @@ func TestStorageCreateUpdateAndConfig(t *testing.T) {
 	}
 
 	updateBody, _ := json.Marshal(map[string]any{"path": "/tmp/segments-extra-2", "enabled": false})
-	updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/admin/storage/areas/"+created.ID, bytes.NewReader(updateBody))
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/storage-areas/"+created.ID, bytes.NewReader(updateBody))
 	updateReq.Header.Set("Authorization", authz)
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateW := httptest.NewRecorder()
@@ -111,7 +111,7 @@ func TestStorageCreateUpdateAndConfig(t *testing.T) {
 	}
 
 	cfgBody, _ := json.Marshal(map[string]string{"storage_min_free_bytes": "12345"})
-	cfgReq := httptest.NewRequest(http.MethodPut, "/api/v1/admin/storage/config", bytes.NewReader(cfgBody))
+	cfgReq := httptest.NewRequest(http.MethodPut, "/api/v1/storage-areas/config", bytes.NewReader(cfgBody))
 	cfgReq.Header.Set("Authorization", authz)
 	cfgReq.Header.Set("Content-Type", "application/json")
 	cfgW := httptest.NewRecorder()
@@ -128,7 +128,7 @@ func TestStorageCreateUpdateAndConfig(t *testing.T) {
 		t.Fatalf("storage_min_free_bytes=%q want=12345", got)
 	}
 
-	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/storage/areas/"+created.ID, nil)
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/v1/storage-areas/"+created.ID, nil)
 	deleteReq.Header.Set("Authorization", authz)
 	deleteW := httptest.NewRecorder()
 	storageRouter(db).ServeHTTP(deleteW, deleteReq)

@@ -90,7 +90,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 		r.Post("/setup", setupH.CompleteSetup)
 
 		// Filesystem browse for path autocomplete (allows unauthenticated browsing only during setup).
-		r.With(apimw.AuthenticateSetupOrAdmin(db, rs.JWTSecret)).Get("/fs/browse", fsH.BrowseDir)
+		r.With(apimw.AuthenticateSetupOrAdmin(db, rs.JWTSecret)).Get("/fs:browse", fsH.BrowseDir)
 
 		// User creation: open for first user, admin-only thereafter.
 		// OptionalAuthenticate populates claims if a valid token is present.
@@ -98,123 +98,117 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 
 		// Poster and backdrop images are served unauthenticated so <img> tags work without
 		// custom headers.
-		r.Get("/media/{id}/poster", mediaH.ServePoster)
-		r.Get("/media/{id}/backdrop", mediaH.ServeBackdrop)
-		r.Get("/media/{id}/extra-posters/{index}", mediaH.ServeExtraPoster)
-		r.Get("/tv/shows/{id}/poster", tvH.ServeShowPoster)
-		r.Get("/tv/shows/{id}/backdrop", tvH.ServeShowBackdrop)
-		r.Get("/tv/shows/{id}/extra-posters/{index}", tvH.ServeShowExtraPoster)
-		r.Get("/tv/shows/{id}/seasons/{number}/poster", tvH.ServeSeasonPoster)
+		r.Get("/movies/{id}/poster", mediaH.ServePoster)
+		r.Get("/movies/{id}/backdrop", mediaH.ServeBackdrop)
+		r.Get("/movies/{id}/extra-posters/{index}", mediaH.ServeExtraPoster)
+		r.Get("/tv-shows/{id}/poster", tvH.ServeShowPoster)
+		r.Get("/tv-shows/{id}/backdrop", tvH.ServeShowBackdrop)
+		r.Get("/tv-shows/{id}/extra-posters/{index}", tvH.ServeShowExtraPoster)
+		r.Get("/tv-shows/{id}/seasons/{number}/poster", tvH.ServeSeasonPoster)
 
 		// Streaming (Phase 5) — AuthenticateStream also accepts ?cast_token=
 		// so Chromecast devices can fetch manifests and segments without
 		// custom request headers.
-		r.With(apimw.AuthenticateStream(rs.JWTSecret)).Get("/stream/{id}/manifest.mpd", streamH.ServeManifest)
-		r.With(apimw.AuthenticateStream(rs.JWTSecret)).Get("/stream/{id}/segments/*", streamH.ServeSegment)
+		r.With(apimw.AuthenticateStream(rs.JWTSecret)).Get("/stream/{media_id}/manifest.mpd", streamH.ServeManifest)
+		r.With(apimw.AuthenticateStream(rs.JWTSecret)).Get("/stream/{media_id}/segments/*", streamH.ServeSegment)
 
 		// Remote transcoding worker endpoints
-		r.Post("/worker/register", workerH.RegisterWorker)
-		r.Route("/worker", func(r chi.Router) {
-			r.Use(workerH.Authenticate)
-			r.Post("/heartbeat", workerH.Heartbeat)
-			r.Get("/media/{id}/download", workerH.DownloadSource)
-			r.Post("/subjobs/{id}/progress", workerH.UpdateSubJobProgress)
-			r.Post("/subjobs/{id}/bundle", workerH.UploadSubJobBundle)
-		})
+		r.Post("/workers:register", workerH.RegisterWorker)
+		r.With(workerH.Authenticate).Post("/workers:heartbeat", workerH.Heartbeat)
+		r.With(workerH.Authenticate).Get("/media/{media_id}/source", workerH.DownloadSource)
+		r.With(workerH.Authenticate).Patch("/jobs/{job_id}/subjobs/{subjob_id}", workerH.UpdateSubJobProgress)
+		r.With(workerH.Authenticate).Put("/jobs/{job_id}/subjobs/{subjob_id}/bundle", workerH.UploadSubJobBundle)
 
 		// All routes below require a valid access JWT.
 		r.Group(func(r chi.Router) {
 			r.Use(apimw.Authenticate(rs.JWTSecret))
 
 			// Current user profile
-			r.Get("/me", userH.GetMe)
-			r.Put("/me", userH.UpdateMe)
+			r.Get("/users/me", userH.GetMe)
+			r.Put("/users/me", userH.UpdateMe)
 
 			// Libraries (Phase 2)
 			r.Get("/libraries", libH.ListLibraries)
 			r.With(apimw.RequireAdmin).Post("/libraries", libH.CreateLibrary)
 			r.Get("/libraries/{id}", libH.GetLibrary)
 			r.With(apimw.RequireAdmin).Delete("/libraries/{id}", libH.DeleteLibrary)
-			r.With(apimw.RequireAdmin).Post("/libraries/{id}/scan", libH.ScanLibrary)
+			r.With(apimw.RequireAdmin).Post("/libraries/{id}:scan", libH.ScanLibrary)
 
-			// Media items (Phase 2)
-			r.Get("/media", mediaH.ListMedia)
-			r.Get("/search", mediaH.Search)
-			r.Get("/media/{id}", mediaH.GetMedia)
-			r.Get("/media/{id}/transcode-sizes", mediaH.GetTranscodeSizes)
-			r.With(apimw.RequireAdmin).Delete("/media/{id}", mediaH.DeleteMedia)
-			r.With(apimw.RequireAdmin).Post("/media/{id}/transcode", jobsH.EnqueueTranscode)
+			// Movies (Phase 2)
+			r.Get("/movies", mediaH.ListMedia)
+			r.Get("/movies/{id}", mediaH.GetMedia)
+			r.Get("/movies/{id}/transcode-sizes", mediaH.GetTranscodeSizes)
+			r.With(apimw.RequireAdmin).Delete("/movies/{id}", mediaH.DeleteMedia)
 
-			// Subtitles
-			r.With(apimw.RequireAdmin).Post("/media/{id}/subtitles", mediaH.UploadSubtitle)
-			r.Get("/media/{id}/subtitles", mediaH.ListSubtitles)
-			r.With(apimw.RequireAdmin).Delete("/media/subtitles/{id}", mediaH.DeleteSubtitle)
-			r.With(apimw.RequireAdmin).Post("/media/subtitles/{id}/sync", mediaH.SyncSubtitle)
+			// Subtitles (polymorphic)
+			r.Get("/media/{media_id}/subtitles", mediaH.ListSubtitles)
+			r.With(apimw.RequireAdmin).Post("/media/{media_id}/subtitles", mediaH.UploadSubtitle)
+			r.With(apimw.RequireAdmin).Delete("/media/{media_id}/subtitles/{subtitle_id}", mediaH.DeleteSubtitle)
+			r.With(apimw.RequireAdmin).Post("/media/{media_id}/subtitles/{subtitle_id}:sync", mediaH.SyncSubtitle)
 
 			// Cast token — issues a short-lived media-scoped token for Chromecast.
-			r.Post("/stream/{id}/cast-token", streamH.IssueCastToken)
+			r.Post("/stream/{media_id}/cast-token", streamH.IssueCastToken)
 
 			// Watch history (Phase 5)
 			r.Get("/history", historyH.GetHistory)
-			r.Get("/history/now-playing", historyH.GetNowPlaying)
-			r.Put("/history/{mediaID}", historyH.UpsertHistory)
+			r.Get("/history:now-playing", historyH.GetNowPlaying)
+			r.Put("/history/{media_id}", historyH.UpsertHistory)
 
 			// Transcode jobs (Phase 4)
 			r.With(apimw.RequireAdmin).Get("/jobs", jobsH.ListJobs)
 			r.With(apimw.RequireAdmin).Get("/jobs/{id}", jobsH.GetJob)
-			r.With(apimw.RequireAdmin).Post("/jobs/bulk-enqueue", jobsH.BulkEnqueueJobs)
-			r.With(apimw.RequireAdmin).Post("/jobs/{id}/prioritize", jobsH.PrioritizeJob)
+			r.With(apimw.RequireAdmin).Post("/jobs", jobsH.CreateJob)
+			r.With(apimw.RequireAdmin).Post("/jobs/{id}:prioritize", jobsH.PrioritizeJob)
 
-			// WebSocket for job progress (Phase 4) — no RequireAdmin; auth checked via JWT in query/header
-			r.With(apimw.RequireAdmin).Get("/ws/jobs/{id}", jobsH.JobProgress)
-
-
+			// WebSocket for job progress (Phase 4)
+			r.With(apimw.RequireAdmin).Get("/jobs/{id}/progress", jobsH.JobProgress)
 
 			// TV show browsing
-			r.Get("/tv/shows", tvH.ListShows)
-			r.Get("/tv/shows/{id}", tvH.GetShow)
-			r.Get("/tv/shows/{id}/seasons", tvH.ListSeasons)
-			r.Get("/tv/shows/{id}/seasons/{number}/episodes", tvH.ListEpisodes)
+			r.Get("/tv-shows", tvH.ListShows)
+			r.Get("/tv-shows/{id}", tvH.GetShow)
+			r.Get("/tv-shows/{id}/seasons", tvH.ListSeasons)
+			r.Get("/tv-shows/{id}/seasons/{number}/episodes", tvH.ListEpisodes)
 
 			// WebSocket for global real-time events — any authenticated user.
 			r.Get("/ws/events", eventsH.ServeEvents)
 
 			// Cast config — returns the Cast App ID to the sender UI.
-			r.Get("/cast/config", castH.GetConfig)
+			r.Get("/cast-config", castH.GetConfig)
 
 			// Admin settings
-			r.With(apimw.RequireAdmin).Get("/admin/settings", settingsH.GetSettings)
-			r.With(apimw.RequireAdmin).Put("/admin/settings", settingsH.UpdateSettings)
-			r.With(apimw.RequireAdmin).Get("/admin/storage", storageH.ListStorage)
-			r.With(apimw.RequireAdmin).Post("/admin/storage/areas", storageH.CreateStorageArea)
-			r.With(apimw.RequireAdmin).Put("/admin/storage/areas/{id}", storageH.UpdateStorageArea)
-			r.With(apimw.RequireAdmin).Delete("/admin/storage/areas/{id}", storageH.DeleteStorageArea)
-			r.With(apimw.RequireAdmin).Put("/admin/storage/config", storageH.UpdateStorageConfig)
+			r.With(apimw.RequireAdmin).Get("/settings", settingsH.GetSettings)
+			r.With(apimw.RequireAdmin).Put("/settings", settingsH.UpdateSettings)
+
+			// Storage areas
+			r.With(apimw.RequireAdmin).Get("/storage-areas", storageH.ListStorage)
+			r.With(apimw.RequireAdmin).Post("/storage-areas", storageH.CreateStorageArea)
+			r.With(apimw.RequireAdmin).Put("/storage-areas/{id}", storageH.UpdateStorageArea)
+			r.With(apimw.RequireAdmin).Delete("/storage-areas/{id}", storageH.DeleteStorageArea)
 
 			// Admin transcode-profiles
-			r.With(apimw.RequireAdmin).Get("/admin/transcode-profiles", profilesH.List)
-			r.With(apimw.RequireAdmin).Post("/admin/transcode-profiles", profilesH.Create)
-			r.With(apimw.RequireAdmin).Put("/admin/transcode-profiles/{id}", profilesH.Update)
-			r.With(apimw.RequireAdmin).Delete("/admin/transcode-profiles/{id}", profilesH.Delete)
+			r.With(apimw.RequireAdmin).Get("/transcode-profiles", profilesH.List)
+			r.With(apimw.RequireAdmin).Post("/transcode-profiles", profilesH.Create)
+			r.With(apimw.RequireAdmin).Put("/transcode-profiles/{id}", profilesH.Update)
+			r.With(apimw.RequireAdmin).Delete("/transcode-profiles/{id}", profilesH.Delete)
 
 			// Admin workers
-			r.With(apimw.RequireAdmin).Get("/admin/workers", workerAdminH.List)
-			r.With(apimw.RequireAdmin).Post("/admin/workers", workerAdminH.Create)
-			r.With(apimw.RequireAdmin).Put("/admin/workers/{id}", workerAdminH.Update)
-			r.With(apimw.RequireAdmin).Delete("/admin/workers/{id}", workerAdminH.Delete)
-			r.With(apimw.RequireAdmin).Get("/admin/workers/ephemeral-tokens", workerAdminH.ListEphemeralTokens)
-			r.With(apimw.RequireAdmin).Post("/admin/workers/ephemeral-tokens", workerAdminH.CreateEphemeralToken)
-			r.With(apimw.RequireAdmin).Delete("/admin/workers/ephemeral-tokens/{id}", workerAdminH.DeleteEphemeralToken)
+			r.With(apimw.RequireAdmin).Get("/workers", workerAdminH.List)
+			r.With(apimw.RequireAdmin).Post("/workers", workerAdminH.Create)
+			r.With(apimw.RequireAdmin).Put("/workers/{id}", workerAdminH.Update)
+			r.With(apimw.RequireAdmin).Delete("/workers/{id}", workerAdminH.Delete)
+			r.With(apimw.RequireAdmin).Get("/worker-tokens", workerAdminH.ListEphemeralTokens)
+			r.With(apimw.RequireAdmin).Post("/worker-tokens", workerAdminH.CreateEphemeralToken)
+			r.With(apimw.RequireAdmin).Delete("/worker-tokens/{id}", workerAdminH.DeleteEphemeralToken)
 
 			// Artifact indexing and relinking (admin only).
-			r.With(apimw.RequireAdmin).Get("/admin/artifacts/status", artifactH.HandleStatus)
-			r.With(apimw.RequireAdmin).Post("/admin/artifacts/index", artifactH.HandleIndex)
-			r.With(apimw.RequireAdmin).Post("/admin/artifacts/relink", artifactH.HandleRelink)
-			r.With(apimw.RequireAdmin).Post("/admin/artifacts/write-sidecars", artifactH.HandleWriteSidecars)
-			r.With(apimw.RequireAdmin).Post("/admin/artifacts/regenerate-mpds", artifactH.HandleRegenerateMPDs)
+			r.With(apimw.RequireAdmin).Get("/artifacts", artifactH.HandleStatus)
+			r.With(apimw.RequireAdmin).Post("/artifacts:index", artifactH.HandleIndex)
+			r.With(apimw.RequireAdmin).Post("/artifacts:relink", artifactH.HandleRelink)
+			r.With(apimw.RequireAdmin).Post("/artifacts:writeSidecars", artifactH.HandleWriteSidecars)
+			r.With(apimw.RequireAdmin).Post("/artifacts:regenerateMpd", artifactH.HandleRegenerateMPDs)
 
 			// Metadata refresh (admin only).
-			r.With(apimw.RequireAdmin).Post("/admin/metadata/refresh", metadataH.RefreshAllMetadata)
+			r.With(apimw.RequireAdmin).Post("/metadata:refresh", metadataH.RefreshAllMetadata)
 		})
 	})
 

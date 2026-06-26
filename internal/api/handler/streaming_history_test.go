@@ -31,8 +31,8 @@ func newStreamRouter(t *testing.T, h *handler.StreamHandler) http.Handler {
 	t.Helper()
 	r := chi.NewRouter()
 	r.Use(apimw.Authenticate(testSecret))
-	r.Get("/api/v1/stream/{id}/manifest.mpd", h.ServeManifest)
-	r.Get("/api/v1/stream/{id}/segments/*", h.ServeSegment)
+	r.Get("/api/v1/stream/{media_id}/manifest.mpd", h.ServeManifest)
+	r.Get("/api/v1/stream/{media_id}/segments/*", h.ServeSegment)
 	return r
 }
 
@@ -42,7 +42,7 @@ func newHistoryRouter(t *testing.T, h *handler.HistoryHandler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(apimw.Authenticate(testSecret))
 	r.Get("/api/v1/history", h.GetHistory)
-	r.Put("/api/v1/history/{mediaID}", h.UpsertHistory)
+	r.Put("/api/v1/history/{media_id}", h.UpsertHistory)
 	return r
 }
 

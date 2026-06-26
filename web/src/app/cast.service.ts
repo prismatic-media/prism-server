@@ -381,9 +381,9 @@ export class CastService {
         let posterUrl = '';
         if (mediaItem.poster_path) {
           if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
-            posterUrl = `${window.location.origin}/api/v1/media/${mediaItem.id}/poster`;
+            posterUrl = `${window.location.origin}/api/v1/movies/${mediaItem.id}/poster`;
           } else {
-            posterUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/poster`;
+            posterUrl = `${window.location.origin}/api/v1/tv-shows/${mediaItem.id}/poster`;
           }
         } else {
           posterUrl =
@@ -587,9 +587,9 @@ export class CastService {
       let posterUrl = '';
       if (mediaItem.poster_path) {
         if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
-          posterUrl = `${window.location.origin}/api/v1/media/${mediaItem.id}/poster`;
+          posterUrl = `${window.location.origin}/api/v1/movies/${mediaItem.id}/poster`;
         } else {
-          posterUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/poster`;
+          posterUrl = `${window.location.origin}/api/v1/tv-shows/${mediaItem.id}/poster`;
         }
       } else {
         posterUrl =
@@ -599,9 +599,9 @@ export class CastService {
       let backdropUrl = '';
       if (mediaItem.backdrop_path) {
         if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
-          backdropUrl = `${window.location.origin}/api/v1/media/${mediaItem.id}/backdrop`;
+          backdropUrl = `${window.location.origin}/api/v1/movies/${mediaItem.id}/backdrop`;
         } else {
-          backdropUrl = `${window.location.origin}/api/v1/tv/shows/${mediaItem.id}/backdrop`;
+          backdropUrl = `${window.location.origin}/api/v1/tv-shows/${mediaItem.id}/backdrop`;
         }
       } else {
         backdropUrl = posterUrl;

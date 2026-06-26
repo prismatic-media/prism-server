@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
@@ -32,43 +33,92 @@ func NewJobsHandler(db *sql.DB, pool *transcoder.Pool) *JobsHandler {
 	return &JobsHandler{db: db, pool: pool}
 }
 
-// EnqueueTranscode handles POST /api/v1/media/{id}/transcode.
-// @Summary Enqueue Transcode Job (Admin Only)
-// @Description Adds a media item to the FFmpeg transcoding queue to produce adaptive bitrate DASH stream formats.
+// CreateJobRequest is the payload for creating single or bulk transcode jobs.
+type CreateJobRequest struct {
+	MediaItemID *uuid.UUID `json:"media_item_id,omitempty"`
+	Force       *bool      `json:"force,omitempty"`
+	Filter      *string    `json:"filter,omitempty"`
+}
+
+// CreateJob handles POST /api/v1/jobs.
+// @Summary Create Transcode Job(s) (Admin Only)
+// @Description Creates a new transcode job for a specific media item, or bulk enqueues based on a filter.
 // @Tags Transcoding Jobs
 // @Security BearerAuth
+// @Accept json
 // @Produce json
-// @Param id path string true "Media Item ID" format(uuid)
-// @Success 202 {object} models.TranscodeJob "Job enqueued"
-// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Param body body CreateJobRequest true "Job creation parameters"
+// @Success 202 {object} models.TranscodeJob "Returns the created transcode job (for single item)"
+// @Success 200 {object} map[string]int "Returns number of jobs enqueued (for bulk filter): {'enqueued': N}"
+// @Failure 400 {object} map[string]string "Invalid input or parameters"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
 // @Failure 404 {object} map[string]string "Media item not found"
-// @Router /media/{id}/transcode [post]
-func (h *JobsHandler) EnqueueTranscode(w http.ResponseWriter, r *http.Request) {
-	mediaID, err := uuidParam(r, "id")
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id", err)
+// @Router /jobs [post]
+func (h *JobsHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
+	var req CreateJobRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
-	// Verify the media item exists.
-	if _, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID); errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found", err)
-		return
-	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+	// 1. Single Media Item Enqueue
+	if req.MediaItemID != nil {
+		mediaID := *req.MediaItemID
+		// Verify the media item exists.
+		if _, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID); errors.Is(err, sqlite.ErrNotFound) {
+			respondError(w, http.StatusNotFound, "media item not found", err)
+			return
+		} else if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+			return
+		}
+
+		force := false
+		if req.Force != nil {
+			force = *req.Force
+		}
+		job, err := h.pool.Enqueue(r.Context(), mediaID, force)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not enqueue transcode job", err)
+			return
+		}
+		respondJSON(w, http.StatusAccepted, job)
 		return
 	}
 
-	force := r.URL.Query().Get("force") == "true"
-	job, err := h.pool.Enqueue(r.Context(), mediaID, force)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not enqueue transcode job", err)
+	// 2. Bulk Filter Enqueue
+	if req.Filter != nil {
+		filter := strings.TrimSpace(*req.Filter)
+		switch filter {
+		case "untranscoded":
+			n, err := sqlite.BulkEnqueueUntranscoded(r.Context(), h.db)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
+				return
+			}
+			respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
+		case "failed":
+			n, err := sqlite.BulkEnqueueFailed(r.Context(), h.db)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
+				return
+			}
+			respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
+		case "completed":
+			n, err := sqlite.BulkEnqueueCompleted(r.Context(), h.db)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
+				return
+			}
+			respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
+		default:
+			respondError(w, http.StatusBadRequest, "unknown filter: "+filter)
+		}
 		return
 	}
 
-	respondJSON(w, http.StatusAccepted, job)
+	respondError(w, http.StatusBadRequest, "either media_item_id or filter is required")
 }
 
 // ListJobs handles GET /api/v1/jobs.
@@ -123,57 +173,6 @@ func (h *JobsHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, job)
 }
 
-type bulkEnqueueRequest struct {
-	Filter string `json:"filter"`
-}
-
-// BulkEnqueueJobs handles POST /api/v1/jobs/bulk-enqueue.
-// @Summary Bulk Enqueue Jobs (Admin Only)
-// @Description Add multiple media items to the queue based on a filter ("untranscoded" or "failed").
-// @Tags Transcoding Jobs
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param body body bulkEnqueueRequest true "Filter specification"
-// @Success 200 {object} map[string]int "Returns number of jobs enqueued: {'enqueued': N}"
-// @Failure 400 {object} map[string]string "Invalid request body or unknown filter"
-// @Failure 401 {object} map[string]string "Unauthenticated"
-// @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
-// @Router /jobs/bulk-enqueue [post]
-func (h *JobsHandler) BulkEnqueueJobs(w http.ResponseWriter, r *http.Request) {
-	var req bulkEnqueueRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body", err)
-		return
-	}
-
-	switch strings.TrimSpace(req.Filter) {
-	case "untranscoded":
-		n, err := sqlite.BulkEnqueueUntranscoded(r.Context(), h.db)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
-			return
-		}
-		respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
-	case "failed":
-		n, err := sqlite.BulkEnqueueFailed(r.Context(), h.db)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
-			return
-		}
-		respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
-	case "completed":
-		n, err := sqlite.BulkEnqueueCompleted(r.Context(), h.db)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "could not bulk enqueue jobs", err)
-			return
-		}
-		respondJSON(w, http.StatusOK, map[string]int{"enqueued": n})
-	default:
-		respondError(w, http.StatusBadRequest, "unknown filter")
-	}
-}
-
 // PrioritizeJob handles POST /api/v1/jobs/{id}/prioritize.
 // @Summary Prioritize Job (Admin Only)
 // @Description Move a pending job to the front of the transcoding queue.
@@ -187,7 +186,7 @@ func (h *JobsHandler) BulkEnqueueJobs(w http.ResponseWriter, r *http.Request) {
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
 // @Failure 404 {object} map[string]string "Job not found"
 // @Failure 409 {object} map[string]string "Job is not pending (already processing or finished)"
-// @Router /jobs/{id}/prioritize [post]
+// @Router /jobs/{id}:prioritize [post]
 func (h *JobsHandler) PrioritizeJob(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {

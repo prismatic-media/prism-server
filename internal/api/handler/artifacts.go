@@ -56,7 +56,7 @@ type IndexSummaryResponse struct {
 // @Success 200 {object} IndexResponse
 // @Failure 409 {object} map[string]string "Conflict: Artifact schema not applied"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/artifacts/index [post]
+// @Router /artifacts:index [post]
 func (h *ArtifactHandler) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -102,7 +102,7 @@ func (h *ArtifactHandler) HandleIndex(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} map[string]any "Returns active artifact statuses, counts, and health statistics"
 // @Failure 409 {object} map[string]any "Conflict: Artifact schema not applied"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/artifacts/status [get]
+// @Router /artifacts [get]
 func (h *ArtifactHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -187,7 +187,7 @@ func (h *ArtifactHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} map[string]int "Returns link execution counts (linked, unmatched, ambiguous, invalid, skipped)"
 // @Failure 409 {object} map[string]string "Conflict: Artifact schema not applied"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/artifacts/relink [post]
+// @Router /artifacts:relink [post]
 func (h *ArtifactHandler) HandleRelink(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -219,7 +219,7 @@ func (h *ArtifactHandler) HandleRelink(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} map[string]int "Returns write execution counts (written, skipped, errors)"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/artifacts/write-sidecars [post]
+// @Router /artifacts:writeSidecars [post]
 func (h *ArtifactHandler) HandleWriteSidecars(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -257,7 +257,7 @@ func (h *ArtifactHandler) HandleWriteSidecars(w http.ResponseWriter, r *http.Req
 // @Produce json
 // @Success 200 {object} map[string]int "Returns regeneration counts (regenerated, errors)"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/artifacts/regenerate-mpds [post]
+// @Router /artifacts:regenerateMpd [post]
 func (h *ArtifactHandler) HandleRegenerateMPDs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

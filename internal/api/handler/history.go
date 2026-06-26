@@ -80,7 +80,7 @@ func (h *HistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} nowPlayingResponse
 // @Success 204 "No currently playing item"
 // @Failure 401 {object} map[string]string "Unauthenticated"
-// @Router /history/now-playing [get]
+// @Router /history:now-playing [get]
 func (h *HistoryHandler) GetNowPlaying(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -127,13 +127,13 @@ func (h *HistoryHandler) GetNowPlaying(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param mediaID path string true "Media Item ID" format(uuid)
+// @Param media_id path string true "Media Item ID" format(uuid)
 // @Param body body upsertHistoryRequest true "Active position payload"
 // @Success 200 {object} models.WatchHistory
 // @Failure 400 {object} map[string]string "Invalid input or body"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Media item not found"
-// @Router /history/{mediaID} [put]
+// @Router /history/{media_id} [put]
 func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 	claims := apimw.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -147,7 +147,7 @@ func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mediaID, err := uuidParam(r, "mediaID")
+	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return

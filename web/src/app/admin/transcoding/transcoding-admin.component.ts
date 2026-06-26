@@ -229,7 +229,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     this.error = '';
 
     // Fetch both media items and jobs to map them
-    this.http.get<MediaItem[]>('/api/v1/media?all=true').subscribe({
+    this.http.get<MediaItem[]>('/api/v1/movies?all=true').subscribe({
       next: (mediaItems) => {
         this.mediaMap.clear();
         if (mediaItems) {
@@ -362,7 +362,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   }
 
   getPosterUrl(job: TranscodeJob): string {
-    return `/api/v1/media/${job.media_item_id}/poster`;
+    return `/api/v1/movies/${job.media_item_id}/poster`;
   }
 
   handleJobProgressEvent(payload: any): { changed: boolean; shouldFetchJobs: boolean } {
@@ -462,7 +462,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   }
 
   fetchSettings(): void {
-    this.http.get<Record<string, string>>('/api/v1/admin/settings').subscribe({
+    this.http.get<Record<string, string>>('/api/v1/settings').subscribe({
       next: (settings) => {
         this.ffmpegHwaccel = settings['ffmpeg_hwaccel'] || 'none';
         const workers = parseInt(settings['transcode_workers'] || '1', 10);
@@ -552,7 +552,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
             auto_transcode_on_discovery: String(this.autoTranscodeOnDiscovery),
           };
 
-          return this.http.put('/api/v1/admin/settings', payload).pipe(
+          return this.http.put('/api/v1/settings', payload).pipe(
             tap({
               next: () => {
                 this.saveStatus = 'saved';
@@ -596,7 +596,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
   // Workers CRUD operations
   fetchWorkers(): void {
-    this.http.get<TranscodeWorker[]>('/api/v1/admin/workers').subscribe({
+    this.http.get<TranscodeWorker[]>('/api/v1/workers').subscribe({
       next: (workers) => {
         this.zone.run(() => {
           this.workers = workers || [];
@@ -623,7 +623,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     }
 
     this.http
-      .post<TranscodeWorker>('/api/v1/admin/workers', { name: this.newWorkerName.trim() })
+      .post<TranscodeWorker>('/api/v1/workers', { name: this.newWorkerName.trim() })
       .subscribe({
         next: (worker) => {
           this.zone.run(() => {
@@ -656,7 +656,7 @@ scratch_dir: /tmp/prism-scratch`;
 
   updateWorker(worker: TranscodeWorker): void {
     this.http
-      .put<TranscodeWorker>(`/api/v1/admin/workers/${worker.id}`, {
+      .put<TranscodeWorker>(`/api/v1/workers/${worker.id}`, {
         threads: worker.threads,
         hwaccel: worker.hwaccel,
       })
@@ -677,7 +677,7 @@ scratch_dir: /tmp/prism-scratch`;
       )
     )
       return;
-    this.http.delete(`/api/v1/admin/workers/${id}`).subscribe({
+    this.http.delete(`/api/v1/workers/${id}`).subscribe({
       next: () => {
         this.fetchWorkers();
       },
@@ -689,7 +689,7 @@ scratch_dir: /tmp/prism-scratch`;
 
   // Actions
   bulkEnqueue(filter: 'untranscoded' | 'failed' | 'completed'): void {
-    this.http.post<any>('/api/v1/jobs/bulk-enqueue', { filter }).subscribe({
+    this.http.post<any>('/api/v1/jobs', { filter }).subscribe({
       next: (res) => {
         const count = res.enqueued || 0;
         alert(`Successfully enqueued ${count} job(s) for transcode.`);
@@ -703,7 +703,7 @@ scratch_dir: /tmp/prism-scratch`;
 
   prioritizeJob(jobId: string, event: MouseEvent): void {
     event.stopPropagation();
-    this.http.post<any>(`/api/v1/jobs/${jobId}/prioritize`, {}).subscribe({
+    this.http.post<any>(`/api/v1/jobs/${jobId}:prioritize`, {}).subscribe({
       next: () => {
         this.fetchJobs();
       },
@@ -715,7 +715,7 @@ scratch_dir: /tmp/prism-scratch`;
 
   retranscodeMedia(mediaId: string, event: MouseEvent): void {
     event.stopPropagation();
-    this.http.post<any>(`/api/v1/media/${mediaId}/transcode?force=true`, {}).subscribe({
+    this.http.post<any>('/api/v1/jobs', { media_item_id: mediaId, force: true }).subscribe({
       next: () => {
         this.fetchJobs();
       },
@@ -755,7 +755,7 @@ scratch_dir: /tmp/prism-scratch`;
   }
 
   fetchEphemeralTokens(): void {
-    this.http.get<EphemeralWorkerToken[]>('/api/v1/admin/workers/ephemeral-tokens').subscribe({
+    this.http.get<EphemeralWorkerToken[]>('/api/v1/worker-tokens').subscribe({
       next: (tokens) => {
         this.zone.run(() => {
           this.ephemeralTokens = tokens || [];
@@ -778,7 +778,7 @@ scratch_dir: /tmp/prism-scratch`;
     }
 
     this.http
-      .post<EphemeralWorkerToken>('/api/v1/admin/workers/ephemeral-tokens', { name: this.newEphemeralTokenName.trim() })
+      .post<EphemeralWorkerToken>('/api/v1/worker-tokens', { name: this.newEphemeralTokenName.trim() })
       .subscribe({
         next: (token) => {
           this.zone.run(() => {
@@ -805,7 +805,7 @@ scratch_dir: /tmp/prism-scratch`;
     if (!confirm('Are you sure you want to revoke this registration token? Existing ephemeral workers registered with this token will continue working, but no new workers can register with it.')) {
       return;
     }
-    this.http.delete(`/api/v1/admin/workers/ephemeral-tokens/${id}`).subscribe({
+    this.http.delete(`/api/v1/worker-tokens/${id}`).subscribe({
       next: () => {
         this.fetchEphemeralTokens();
       },
@@ -850,7 +850,7 @@ scratch_dir: /tmp/prism-scratch`;
   }
 
   fetchProfiles(): void {
-    this.http.get<TranscodeProfile[]>('/api/v1/admin/transcode-profiles').subscribe({
+    this.http.get<TranscodeProfile[]>('/api/v1/transcode-profiles').subscribe({
       next: (profiles) => {
         this.profiles = profiles || [];
         this.cdr.detectChanges();
@@ -906,7 +906,7 @@ scratch_dir: /tmp/prism-scratch`;
     }
 
     if (this.isEditingProfile && p.id) {
-      this.http.put<TranscodeProfile>(`/api/v1/admin/transcode-profiles/${p.id}`, p).subscribe({
+      this.http.put<TranscodeProfile>(`/api/v1/transcode-profiles/${p.id}`, p).subscribe({
         next: () => {
           this.fetchProfiles();
           this.closeProfileModal();
@@ -916,7 +916,7 @@ scratch_dir: /tmp/prism-scratch`;
         }
       });
     } else {
-      this.http.post<TranscodeProfile>('/api/v1/admin/transcode-profiles', p).subscribe({
+      this.http.post<TranscodeProfile>('/api/v1/transcode-profiles', p).subscribe({
         next: () => {
           this.fetchProfiles();
           this.closeProfileModal();
@@ -931,7 +931,7 @@ scratch_dir: /tmp/prism-scratch`;
   deleteProfile(id: string): void {
     if (!confirm('Are you sure you want to delete this transcode profile?')) return;
 
-    this.http.delete(`/api/v1/admin/transcode-profiles/${id}`).subscribe({
+    this.http.delete(`/api/v1/transcode-profiles/${id}`).subscribe({
       next: () => {
         this.fetchProfiles();
       },
@@ -944,7 +944,7 @@ scratch_dir: /tmp/prism-scratch`;
   toggleProfileActive(profile: TranscodeProfile): void {
     const originalState = profile.is_active;
     profile.is_active = !profile.is_active;
-    this.http.put<TranscodeProfile>(`/api/v1/admin/transcode-profiles/${profile.id}`, profile).subscribe({
+    this.http.put<TranscodeProfile>(`/api/v1/transcode-profiles/${profile.id}`, profile).subscribe({
       next: () => {
         this.fetchProfiles();
       },
@@ -965,7 +965,7 @@ scratch_dir: /tmp/prism-scratch`;
       return;
     }
     this.regeneratingMPDs = true;
-    this.http.post<{ regenerated: number; errors: number }>('/api/v1/admin/artifacts/regenerate-mpds', {}).subscribe({
+    this.http.post<{ regenerated: number; errors: number }>('/api/v1/artifacts:regenerateMpd', {}).subscribe({
       next: (res) => {
         this.regeneratingMPDs = false;
         alert(`Successfully regenerated ${res.regenerated} MPD file(s) with ${res.errors} error(s).`);

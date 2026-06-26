@@ -74,7 +74,7 @@ export class StorageAdminComponent implements OnInit {
     this.loading = true;
     this.error = '';
 
-    this.http.get<StorageResponse>('/api/v1/admin/storage').subscribe({
+    this.http.get<StorageResponse>('/api/v1/storage-areas').subscribe({
       next: (res) => {
         this.areas = res.areas || [];
         this.minFreeBytes = res.storage_min_free_bytes;
@@ -117,7 +117,7 @@ export class StorageAdminComponent implements OnInit {
     const bytesValue = this.minFreeGB * 1024 * 1024 * 1024;
 
     this.http
-      .put('/api/v1/admin/storage/config', {
+      .put('/api/v1/settings', {
         storage_min_free_bytes: String(bytesValue),
       })
       .subscribe({
@@ -140,7 +140,7 @@ export class StorageAdminComponent implements OnInit {
     this.activeDropdownAreaId = null;
 
     this.http
-      .put(`/api/v1/admin/storage/areas/${area.id}`, {
+      .put(`/api/v1/storage-areas/${area.id}`, {
         enabled: !area.enabled,
       })
       .subscribe({
@@ -163,7 +163,7 @@ export class StorageAdminComponent implements OnInit {
         'Are you sure you want to remove this storage path? Existing transcode files will remain on disk but Prism will no longer read/write from this path.',
       )
     ) {
-      this.http.delete(`/api/v1/admin/storage/areas/${areaId}`).subscribe({
+      this.http.delete(`/api/v1/storage-areas/${areaId}`).subscribe({
         next: () => {
           this.fetchData();
         },
@@ -190,7 +190,7 @@ export class StorageAdminComponent implements OnInit {
     if (!this.editingPathValue.trim()) return;
 
     this.http
-      .put(`/api/v1/admin/storage/areas/${areaId}`, {
+      .put(`/api/v1/storage-areas/${areaId}`, {
         path: this.editingPathValue.trim(),
       })
       .subscribe({
@@ -233,7 +233,7 @@ export class StorageAdminComponent implements OnInit {
       enabled: this.newEnabled,
     };
 
-    this.http.post('/api/v1/admin/storage/areas', body).subscribe({
+    this.http.post('/api/v1/storage-areas', body).subscribe({
       next: () => {
         this.isSaving = false;
         this.isAddModalOpen = false;
@@ -254,7 +254,7 @@ export class StorageAdminComponent implements OnInit {
     if (targetPath !== '/' && !targetPath.endsWith('/')) {
       targetPath += '/';
     }
-    this.http.get<any>(`/api/v1/fs/browse?path=${encodeURIComponent(targetPath)}`).subscribe({
+    this.http.get<any>(`/api/v1/fs:browse?path=${encodeURIComponent(targetPath)}`).subscribe({
       next: (res) => {
         this.browsingPath = path;
         this.fsItems = res && res.dirs ? res.dirs : [];

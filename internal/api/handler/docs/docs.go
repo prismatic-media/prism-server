@@ -15,7 +15,49 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/admin/artifacts/index": {
+        "/artifacts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve current health, unmatched, and ambiguous counts of indexed transcode artifacts across all storage areas.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Artifact Administration"
+                ],
+                "summary": "Get Artifact Status",
+                "responses": {
+                    "200": {
+                        "description": "Returns active artifact statuses, counts, and health statistics",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Artifact schema not applied",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/artifacts:index": {
             "post": {
                 "security": [
                     {
@@ -58,7 +100,44 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/artifacts/relink": {
+        "/artifacts:regenerateMpd": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Regenerate all MPEG-DASH manifest (.mpd) files on the server using database records and artifact sidecars.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Artifact Administration"
+                ],
+                "summary": "Regenerate All MPDs (Admin Only)",
+                "responses": {
+                    "200": {
+                        "description": "Returns regeneration counts (regenerated, errors)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/artifacts:relink": {
             "post": {
                 "security": [
                     {
@@ -104,49 +183,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/artifacts/status": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve current health, unmatched, and ambiguous counts of indexed transcode artifacts across all storage areas.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Artifact Administration"
-                ],
-                "summary": "Get Artifact Status",
-                "responses": {
-                    "200": {
-                        "description": "Returns active artifact statuses, counts, and health statistics",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict: Artifact schema not applied",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/artifacts/write-sidecars": {
+        "/artifacts:writeSidecars": {
             "post": {
                 "security": [
                     {
@@ -168,1078 +205,6 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": {
                                 "type": "integer"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/metadata/refresh": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Clear metadata across all media items, TV shows, and TV seasons, and re-trigger bulk background TMDB metadata enrichment.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Metadata Administration"
-                ],
-                "summary": "Refresh All Metadata",
-                "responses": {
-                    "202": {
-                        "description": "Returns status and count of cleared records",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/settings": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a dictionary of all editable server setting keys and values.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin Configuration"
-                ],
-                "summary": "Get Server Settings (Admin Only)",
-                "responses": {
-                    "200": {
-                        "description": "Map of server configurations",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden (requires Admin status)",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update one or more server setting values. Unknown keys return a bad request status.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin Configuration"
-                ],
-                "summary": "Update Server Settings (Admin Only)",
-                "parameters": [
-                    {
-                        "description": "Settings key-value pairs",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Returns {'status': 'ok'}",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body or unknown configuration key",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden (requires Admin status)",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/storage": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a list of all configured storage areas with path metrics (total, free, used bytes and utilization percentage).",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Storage Administration"
-                ],
-                "summary": "List Storage Areas",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.storageListResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/storage/areas": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Register a new storage area for segments.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Storage Administration"
-                ],
-                "summary": "Create Storage Area",
-                "parameters": [
-                    {
-                        "description": "Storage area parameters",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.storageAreaRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/models.StorageArea"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid input or kind",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/storage/areas/{id}": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update path or enabled status of an existing storage area.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Storage Administration"
-                ],
-                "summary": "Update Storage Area",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Storage Area ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Storage area parameters",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.storageAreaRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.StorageArea"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid ID or request body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Storage area not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Remove a storage area from the database. Note that files on disk are not deleted.",
-                "tags": [
-                    "Storage Administration"
-                ],
-                "summary": "Delete Storage Area",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Storage Area ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Invalid ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/storage/config": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update global storage settings, such as minimum free bytes required on disk.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Storage Administration"
-                ],
-                "summary": "Update Storage Configuration",
-                "parameters": [
-                    {
-                        "description": "Storage configuration parameters",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.storageConfigRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Returns {'status': 'ok'}",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body or parameters",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/transcode-profiles": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a list of all defined transcode profiles.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin Configuration"
-                ],
-                "summary": "List Transcode Profiles (Admin Only)",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.TranscodeProfile"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden (requires Admin status)",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new transcode profile.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin Configuration"
-                ],
-                "summary": "Create Transcode Profile (Admin Only)",
-                "parameters": [
-                    {
-                        "description": "Profile details",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeProfile"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeProfile"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/transcode-profiles/{id}": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update an existing transcode profile.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin Configuration"
-                ],
-                "summary": "Update Transcode Profile (Admin Only)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Profile ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Updated profile details",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeProfile"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeProfile"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body or path mismatch",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Profile not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a transcode profile.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin Configuration"
-                ],
-                "summary": "Delete Transcode Profile (Admin Only)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Profile ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Returns {'status': 'ok'}",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid profile ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Profile not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/workers": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a list of all registered remote transcode workers.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Worker Administration"
-                ],
-                "summary": "List Transcode Workers",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.TranscodeWorker"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Register a new remote transcode worker. Returns the created worker metadata including its authentication secret key.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Worker Administration"
-                ],
-                "summary": "Register Transcode Worker",
-                "parameters": [
-                    {
-                        "description": "Worker parameters",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createWorkerRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeWorker"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/workers/ephemeral-tokens": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a list of all active ephemeral worker registration tokens.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Worker Administration"
-                ],
-                "summary": "List Ephemeral Worker Tokens",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.EphemeralWorkerToken"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new re-usable registration token for ephemeral workers.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Worker Administration"
-                ],
-                "summary": "Create Ephemeral Worker Token",
-                "parameters": [
-                    {
-                        "description": "Token parameters",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createEphemeralTokenRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/models.EphemeralWorkerToken"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/workers/ephemeral-tokens/{id}": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Revoke/delete an ephemeral worker registration token.",
-                "tags": [
-                    "Worker Administration"
-                ],
-                "summary": "Delete Ephemeral Worker Token",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Token ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Invalid ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Token not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/workers/{id}": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update concurrency limits (threads) or hardware acceleration configuration for a registered worker.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Worker Administration"
-                ],
-                "summary": "Update Transcode Worker Settings",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Worker ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Worker settings",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.updateWorkerRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeWorker"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid ID or request body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Worker not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "De-register a remote transcode worker and invalidate its API credentials.",
-                "tags": [
-                    "Worker Administration"
-                ],
-                "summary": "Delete Transcode Worker",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Worker ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Invalid ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Worker not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
                             }
                         }
                     },
@@ -1353,7 +318,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/fs/browse": {
+        "/fs:browse": {
             "get": {
                 "security": [
                     {
@@ -1447,44 +412,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/history/now-playing": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Returns the most recently updated in-progress item for the current user, bundled with media metadata.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Playback \u0026 History"
-                ],
-                "summary": "Get Currently Playing Item",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.nowPlayingResponse"
-                        }
-                    },
-                    "204": {
-                        "description": "No currently playing item"
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/history/{mediaID}": {
+        "/history/{media_id}": {
             "put": {
                 "security": [
                     {
@@ -1507,7 +435,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Media Item ID",
-                        "name": "mediaID",
+                        "name": "media_id",
                         "in": "path",
                         "required": true
                     },
@@ -1548,6 +476,43 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Media item not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/history:now-playing": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the most recently updated in-progress item for the current user, bundled with media metadata.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Playback \u0026 History"
+                ],
+                "summary": "Get Currently Playing Item",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.nowPlayingResponse"
+                        }
+                    },
+                    "204": {
+                        "description": "No currently playing item"
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1602,16 +567,14 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/jobs/bulk-enqueue": {
+            },
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Add multiple media items to the queue based on a filter (\"untranscoded\" or \"failed\").",
+                "description": "Creates a new transcode job for a specific media item, or bulk enqueues based on a filter.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1621,21 +584,21 @@ const docTemplate = `{
                 "tags": [
                     "Transcoding Jobs"
                 ],
-                "summary": "Bulk Enqueue Jobs (Admin Only)",
+                "summary": "Create Transcode Job(s) (Admin Only)",
                 "parameters": [
                     {
-                        "description": "Filter specification",
+                        "description": "Job creation parameters",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.bulkEnqueueRequest"
+                            "$ref": "#/definitions/handler.CreateJobRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Returns number of jobs enqueued: {'enqueued': N}",
+                        "description": "Returns number of jobs enqueued (for bulk filter): {'enqueued': N}",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1643,8 +606,14 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "202": {
+                        "description": "Returns the created transcode job (for single item)",
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeJob"
+                        }
+                    },
                     "400": {
-                        "description": "Invalid request body or unknown filter",
+                        "description": "Invalid input or parameters",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1663,6 +632,15 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden (requires Admin status)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Media item not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1744,7 +722,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/jobs/{id}/prioritize": {
+        "/jobs/{id}:prioritize": {
             "post": {
                 "security": [
                     {
@@ -1817,6 +795,210 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Job is not pending (already processing or finished)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/jobs/{job_id}/subjobs/{subjob_id}": {
+            "patch": {
+                "security": [
+                    {
+                        "WorkerAuth": []
+                    }
+                ],
+                "description": "Update progress (0-100) or report failures of the currently assigned transcode sub-job.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Interface"
+                ],
+                "summary": "Update Sub-Job Progress",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "job_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Sub-Job ID",
+                        "name": "subjob_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Progress update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.progressRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns {'status': 'ok'}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or sub-job ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Sub-job not assigned to this worker",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Sub-job not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/jobs/{job_id}/subjobs/{subjob_id}/bundle": {
+            "put": {
+                "security": [
+                    {
+                        "WorkerAuth": []
+                    }
+                ],
+                "description": "Upload completed stream/segments output files as a ZIP bundle for a sub-job. The server extracts the bundle, merges segments, regenerates the master manifest, and updates statuses.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Interface"
+                ],
+                "summary": "Upload Transcode Output Bundle for Sub-Job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "job_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Sub-Job ID",
+                        "name": "subjob_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "The ZIP bundle file containing transcode outputs (segments, etc.)",
+                        "name": "bundle",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns {'status': 'ok'}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid sub-job ID or multipart form",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Sub-job not assigned to this worker",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Sub-job not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2060,7 +1242,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/libraries/{id}/scan": {
+        "/libraries/{id}:scan": {
             "post": {
                 "security": [
                     {
@@ -2134,85 +1316,43 @@ const docTemplate = `{
                 }
             }
         },
-        "/me": {
+        "/media/{media_id}/source": {
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "WorkerAuth": []
                     }
                 ],
-                "description": "Returns profile details for the currently logged-in user.",
+                "description": "Download the original raw media source file for transcoding.",
                 "produces": [
-                    "application/json"
+                    "video/mp4",
+                    "video/quicktime",
+                    "video/x-matroska",
+                    "application/octet-stream"
                 ],
                 "tags": [
-                    "User Profile"
+                    "Worker Interface"
                 ],
-                "summary": "Get Current User Profile",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.User"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "User not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Allows the authenticated user to update their profile details (username, email, password).",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User Profile"
-                ],
-                "summary": "Update Current User Profile",
+                "summary": "Download Source Video",
                 "parameters": [
                     {
-                        "description": "User update payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.updateMeRequest"
-                        }
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Raw media source file",
                         "schema": {
-                            "$ref": "#/definitions/models.User"
+                            "type": "file"
                         }
                     },
                     "400": {
-                        "description": "Invalid request body",
+                        "description": "Invalid media ID",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2221,7 +1361,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Unauthenticated",
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2230,7 +1370,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "User not found",
+                        "description": "Media item not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2238,8 +1378,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "409": {
-                        "description": "Username or email already in use",
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2250,7 +1390,42 @@ const docTemplate = `{
                 }
             }
         },
-        "/media": {
+        "/metadata:refresh": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Clear metadata across all media items, TV shows, and TV seasons, and re-trigger bulk background TMDB metadata enrichment.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Metadata Administration"
+                ],
+                "summary": "Refresh All Metadata",
+                "responses": {
+                    "202": {
+                        "description": "Returns status and count of cleared records",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/movies": {
             "get": {
                 "security": [
                     {
@@ -2324,7 +1499,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/media/{id}": {
+        "/movies/{id}": {
             "get": {
                 "security": [
                     {
@@ -2447,78 +1622,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/media/{id}/transcode": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Adds a media item to the FFmpeg transcoding queue to produce adaptive bitrate DASH stream formats.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Transcoding Jobs"
-                ],
-                "summary": "Enqueue Transcode Job (Admin Only)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Media Item ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Job enqueued",
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeJob"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid media ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden (requires Admin status)",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Media item not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/media/{id}/transcode-sizes": {
+        "/movies/{id}/transcode-sizes": {
             "get": {
                 "security": [
                     {
@@ -2580,42 +1684,112 @@ const docTemplate = `{
                 }
             }
         },
-        "/search": {
+        "/settings": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Searches library for shows and movies by title.",
+                "description": "Retrieve a dictionary of all editable server setting keys and values.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Media Items"
+                    "Admin Configuration"
                 ],
-                "summary": "Global Search",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query string",
-                        "name": "q",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
+                "summary": "Get Server Settings (Admin Only)",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Map of server configurations",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.SearchResult"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
                             }
                         }
                     },
                     "401": {
                         "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden (requires Admin status)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update one or more server setting values. Unknown keys return a bad request status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Configuration"
+                ],
+                "summary": "Update Server Settings (Admin Only)",
+                "parameters": [
+                    {
+                        "description": "Settings key-value pairs",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns {'status': 'ok'}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or unknown configuration key",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden (requires Admin status)",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2681,7 +1855,266 @@ const docTemplate = `{
                 }
             }
         },
-        "/stream/{id}/cast-token": {
+        "/storage-areas": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all configured storage areas with path metrics (total, free, used bytes and utilization percentage).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Administration"
+                ],
+                "summary": "List Storage Areas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.storageListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Register a new storage area for segments.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Administration"
+                ],
+                "summary": "Create Storage Area",
+                "parameters": [
+                    {
+                        "description": "Storage area parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.storageAreaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.StorageArea"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or kind",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-areas/config": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update global storage settings, such as minimum free bytes required on disk.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Administration"
+                ],
+                "summary": "Update Storage Configuration",
+                "parameters": [
+                    {
+                        "description": "Storage configuration parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.storageConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns {'status': 'ok'}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-areas/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update path or enabled status of an existing storage area.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Administration"
+                ],
+                "summary": "Update Storage Area",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Storage Area ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Storage area parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.storageAreaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.StorageArea"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID or request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Storage area not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Remove a storage area from the database. Note that files on disk are not deleted.",
+                "tags": [
+                    "Storage Administration"
+                ],
+                "summary": "Delete Storage Area",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Storage Area ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/stream/{media_id}/cast-token": {
             "post": {
                 "security": [
                     {
@@ -2701,7 +2134,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Media ID",
-                        "name": "id",
+                        "name": "media_id",
                         "in": "path",
                         "required": true
                     }
@@ -2737,7 +2170,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/stream/{id}/manifest.mpd": {
+        "/stream/{media_id}/manifest.mpd": {
             "get": {
                 "security": [
                     {
@@ -2757,7 +2190,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Media ID",
-                        "name": "id",
+                        "name": "media_id",
                         "in": "path",
                         "required": true
                     },
@@ -2805,7 +2238,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/stream/{id}/segments/{wildcard}": {
+        "/stream/{media_id}/segments/{wildcard}": {
             "get": {
                 "security": [
                     {
@@ -2828,7 +2261,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Media ID",
-                        "name": "id",
+                        "name": "media_id",
                         "in": "path",
                         "required": true
                     },
@@ -2883,7 +2316,299 @@ const docTemplate = `{
                 }
             }
         },
-        "/tv/shows": {
+        "/transcode-profiles": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all defined transcode profiles.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Configuration"
+                ],
+                "summary": "List Transcode Profiles (Admin Only)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TranscodeProfile"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden (requires Admin status)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new transcode profile.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Configuration"
+                ],
+                "summary": "Create Transcode Profile (Admin Only)",
+                "parameters": [
+                    {
+                        "description": "Profile details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeProfile"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeProfile"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/transcode-profiles/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing transcode profile.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Configuration"
+                ],
+                "summary": "Update Transcode Profile (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated profile details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeProfile"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeProfile"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body or path mismatch",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Profile not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a transcode profile.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Configuration"
+                ],
+                "summary": "Delete Transcode Profile (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns {'status': 'ok'}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid profile ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Profile not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tv-shows": {
             "get": {
                 "security": [
                     {
@@ -2951,7 +2676,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tv/shows/{id}": {
+        "/tv-shows/{id}": {
             "get": {
                 "security": [
                     {
@@ -3012,7 +2737,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tv/shows/{id}/seasons": {
+        "/tv-shows/{id}/seasons": {
             "get": {
                 "security": [
                     {
@@ -3068,7 +2793,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tv/shows/{id}/seasons/{number}/episodes": {
+        "/tv-shows/{id}/seasons/{number}/episodes": {
             "get": {
                 "security": [
                     {
@@ -3206,6 +2931,270 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns profile details for the currently logged-in user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User Profile"
+                ],
+                "summary": "Get Current User Profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Allows the authenticated user to update their profile details (username, email, password).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User Profile"
+                ],
+                "summary": "Update Current User Profile",
+                "parameters": [
+                    {
+                        "description": "User update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updateMeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Username or email already in use",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/worker-tokens": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all active ephemeral worker registration tokens.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "List Ephemeral Worker Tokens",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.EphemeralWorkerToken"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new re-usable registration token for ephemeral workers.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "Create Ephemeral Worker Token",
+                "parameters": [
+                    {
+                        "description": "Token parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createEphemeralTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.EphemeralWorkerToken"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/worker-tokens/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revoke/delete an ephemeral worker registration token.",
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "Delete Ephemeral Worker Token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Token ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Token not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/worker/heartbeat": {
             "post": {
                 "security": [
@@ -3213,7 +3202,7 @@ const docTemplate = `{
                         "WorkerAuth": []
                     }
                 ],
-                "description": "Submit worker status heartbeat. If the worker has capacity, claims and returns the next pending transcode job.",
+                "description": "Submit worker status heartbeat. If the worker has capacity, claims and returns the next pending transcode sub-job.",
                 "produces": [
                     "application/json"
                 ],
@@ -3230,268 +3219,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/worker/jobs/{id}/bundle": {
-            "post": {
-                "security": [
-                    {
-                        "WorkerAuth": []
-                    }
-                ],
-                "description": "Upload completed MPEG-DASH output files as a ZIP bundle. The server extracts the bundle, creates sidecar metadata, and updates job status to completed.",
-                "consumes": [
-                    "multipart/form-data"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Worker Interface"
-                ],
-                "summary": "Upload Transcode Output Bundle",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Job ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "file",
-                        "description": "The ZIP bundle file containing transcode outputs (segments, manifest, etc.)",
-                        "name": "bundle",
-                        "in": "formData",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Returns {'status': 'ok'}",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid job ID or multipart form",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Job not assigned to this worker",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Job not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/worker/jobs/{id}/progress": {
-            "post": {
-                "security": [
-                    {
-                        "WorkerAuth": []
-                    }
-                ],
-                "description": "Update progress (0-100) or report failures of the currently assigned transcode job.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Worker Interface"
-                ],
-                "summary": "Update Job Progress",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Job ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Progress update payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.progressRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Returns {'status': 'ok'}",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body or job ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Job not assigned to this worker",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Job not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/worker/media/{id}/download": {
-            "get": {
-                "security": [
-                    {
-                        "WorkerAuth": []
-                    }
-                ],
-                "description": "Download the original raw media source file for transcoding.",
-                "produces": [
-                    "video/mp4",
-                    "video/quicktime",
-                    "video/x-matroska",
-                    "application/octet-stream"
-                ],
-                "tags": [
-                    "Worker Interface"
-                ],
-                "summary": "Download Source Video",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Media ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Raw media source file",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid media ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Media item not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -3571,9 +3298,243 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/workers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all registered remote transcode workers.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "List Transcode Workers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TranscodeWorker"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Register a new remote transcode worker. Returns the created worker metadata including its authentication secret key.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "Register Transcode Worker",
+                "parameters": [
+                    {
+                        "description": "Worker parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createWorkerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeWorker"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workers/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update concurrency limits (threads) or hardware acceleration configuration for a registered worker.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "Update Transcode Worker Settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Worker ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Worker settings",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updateWorkerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeWorker"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID or request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Worker not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "De-register a remote transcode worker and invalidate its API credentials.",
+                "tags": [
+                    "Worker Administration"
+                ],
+                "summary": "Delete Transcode Worker",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Worker ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Worker not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "handler.CreateJobRequest": {
+            "type": "object",
+            "properties": {
+                "filter": {
+                    "type": "string"
+                },
+                "force": {
+                    "type": "boolean"
+                },
+                "media_item_id": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.IndexResponse": {
             "type": "object",
             "properties": {
@@ -3614,27 +3575,23 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.WorkerJob": {
+        "handler.WorkerSubJob": {
             "type": "object",
             "properties": {
                 "id": {
                     "type": "string"
                 },
+                "job_id": {
+                    "type": "string"
+                },
                 "media_item_id": {
                     "type": "string"
                 },
-                "profiles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.TranscodeProfile"
-                    }
-                }
-            }
-        },
-        "handler.bulkEnqueueRequest": {
-            "type": "object",
-            "properties": {
-                "filter": {
+                "profile": {
+                    "$ref": "#/definitions/models.TranscodeProfile"
+                },
+                "type": {
+                    "description": "\"video\" or \"subtitles\"",
                     "type": "string"
                 }
             }
@@ -3690,7 +3647,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "job": {
-                    "$ref": "#/definitions/handler.WorkerJob"
+                    "description": "keep JSON key as \"job\" for worker compatibility",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.WorkerSubJob"
+                        }
+                    ]
                 },
                 "threads": {
                     "type": "integer"
@@ -3740,7 +3702,6 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "status": {
-                    "description": "\"processing\" or \"failed\"",
                     "type": "string"
                 }
             }
@@ -4022,6 +3983,12 @@ const docTemplate = `{
                 "source_status": {
                     "type": "string"
                 },
+                "sub_jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TranscodeSubJob"
+                    }
+                },
                 "title": {
                     "type": "string"
                 },
@@ -4270,6 +4237,12 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/models.TranscodeStatus"
                 },
+                "sub_jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TranscodeSubJob"
+                    }
+                },
                 "worker_id": {
                     "type": "string"
                 }
@@ -4340,6 +4313,67 @@ const docTemplate = `{
                 "TranscodeStatusDone",
                 "TranscodeStatusFailed"
             ]
+        },
+        "models.TranscodeSubJob": {
+            "type": "object",
+            "properties": {
+                "audio_bitrate_k": {
+                    "type": "integer"
+                },
+                "codec": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error_msg": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "job_id": {
+                    "type": "string"
+                },
+                "media_item_id": {
+                    "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "profile_name": {
+                    "type": "string"
+                },
+                "progress": {
+                    "description": "0-100",
+                    "type": "number"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.TranscodeStatus"
+                },
+                "type": {
+                    "description": "\"video\" or \"subtitles\"",
+                    "type": "string"
+                },
+                "video_bitrate_k": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                },
+                "worker_id": {
+                    "type": "string"
+                }
+            }
         },
         "models.TranscodeWorker": {
             "type": "object",

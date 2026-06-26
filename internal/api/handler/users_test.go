@@ -111,7 +111,7 @@ func TestGetMe_Authenticated(t *testing.T) {
 	router := newTestRouter(t, db)
 
 	token := bearerToken(t, u.ID, false)
-	rec := do(t, router, http.MethodGet, "/api/v1/me", nil,
+	rec := do(t, router, http.MethodGet, "/api/v1/users/me", nil,
 		map[string]string{"Authorization": "Bearer " + token},
 	)
 	if rec.Code != http.StatusOK {
@@ -132,7 +132,7 @@ func TestGetMe_Unauthenticated(t *testing.T) {
 	db := openTestDB(t)
 	router := newTestRouter(t, db)
 
-	rec := do(t, router, http.MethodGet, "/api/v1/me", nil, nil)
+	rec := do(t, router, http.MethodGet, "/api/v1/users/me", nil, nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
 	}
@@ -144,7 +144,7 @@ func TestUpdateMe_ChangesUsername(t *testing.T) {
 	router := newTestRouter(t, db)
 
 	token := bearerToken(t, u.ID, false)
-	rec := do(t, router, http.MethodPut, "/api/v1/me",
+	rec := do(t, router, http.MethodPut, "/api/v1/users/me",
 		jsonBody(map[string]any{"username": "grace2"}),
 		map[string]string{"Authorization": "Bearer " + token},
 	)
@@ -165,7 +165,7 @@ func TestUpdateMe_ChangesPassword(t *testing.T) {
 	router := newTestRouter(t, db)
 
 	token := bearerToken(t, u.ID, false)
-	rec := do(t, router, http.MethodPut, "/api/v1/me",
+	rec := do(t, router, http.MethodPut, "/api/v1/users/me",
 		jsonBody(map[string]any{"password": "newpw"}),
 		map[string]string{"Authorization": "Bearer " + token},
 	)
@@ -187,7 +187,7 @@ func TestUpdateMe_Unauthenticated(t *testing.T) {
 	db := openTestDB(t)
 	router := newTestRouter(t, db)
 
-	rec := do(t, router, http.MethodPut, "/api/v1/me",
+	rec := do(t, router, http.MethodPut, "/api/v1/users/me",
 		jsonBody(map[string]any{"username": "x"}),
 		nil,
 	)

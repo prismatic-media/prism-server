@@ -92,7 +92,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
 
     forkJoin({
       libraries: this.http.get<Library[]>('/api/v1/libraries').pipe(catchError(() => of([]))),
-      mediaItems: this.http.get<any[]>('/api/v1/media').pipe(catchError(() => of([]))),
+      mediaItems: this.http.get<any[]>('/api/v1/movies?all=true').pipe(catchError(() => of([]))),
     })
       .pipe(
         switchMap(({ libraries, mediaItems }) => {
@@ -106,7 +106,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
 
           const tvRequests = tvLibs.map((lib) =>
             this.http
-              .get<any[]>(`/api/v1/tv/shows?library_id=${lib.id}`)
+              .get<any[]>(`/api/v1/tv-shows?library_id=${lib.id}`)
               .pipe(catchError(() => of([]))),
           );
 
@@ -174,7 +174,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
   // Action: Refresh/Scan specific library
   scanLibrary(libId: string, event?: MouseEvent): void {
     if (event) event.stopPropagation();
-    this.http.post(`/api/v1/libraries/${libId}/scan`, {}).subscribe({
+    this.http.post(`/api/v1/libraries/${libId}:scan`, {}).subscribe({
       next: () => {
         alert('Scan triggered successfully for the library.');
         this.fetchData();
@@ -193,7 +193,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
     }
     this.isScanningAll = true;
     const scanRequests = this.libraries.map((lib) =>
-      this.http.post(`/api/v1/libraries/${lib.id}/scan`, {}),
+      this.http.post(`/api/v1/libraries/${lib.id}:scan`, {}),
     );
 
     forkJoin(scanRequests).subscribe({
@@ -278,7 +278,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
     if (targetPath !== '/' && !targetPath.endsWith('/')) {
       targetPath += '/';
     }
-    this.http.get<any>(`/api/v1/fs/browse?path=${encodeURIComponent(targetPath)}`).subscribe({
+    this.http.get<any>(`/api/v1/fs:browse?path=${encodeURIComponent(targetPath)}`).subscribe({
       next: (res) => {
         this.browsingPath = path;
         this.fsItems = res && res.dirs ? res.dirs : [];

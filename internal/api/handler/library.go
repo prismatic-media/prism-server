@@ -172,7 +172,7 @@ func (h *LibraryHandler) DeleteLibrary(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
 // @Failure 404 {object} map[string]string "Library not found"
-// @Router /libraries/{id}/scan [post]
+// @Router /libraries/{id}:scan [post]
 func (h *LibraryHandler) ScanLibrary(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {

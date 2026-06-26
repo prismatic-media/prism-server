@@ -27,7 +27,7 @@ func NewFsHandler() *FsHandler { return &FsHandler{} }
 // @Success 200 {object} map[string][]string "Returns list of matched absolute directory paths: {'dirs': [...]}"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
-// @Router /fs/browse [get]
+// @Router /fs:browse [get]
 func (h *FsHandler) BrowseDir(w http.ResponseWriter, r *http.Request) {
 	raw := r.URL.Query().Get("path")
 

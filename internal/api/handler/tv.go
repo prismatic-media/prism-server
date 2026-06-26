@@ -38,8 +38,19 @@ func NewTVHandler(db *sql.DB) *TVHandler {
 // @Success 200 {array} models.TVShow
 // @Failure 400 {object} map[string]string "Invalid library ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
-// @Router /tv/shows [get]
+// @Router /tv-shows [get]
 func (h *TVHandler) ListShows(w http.ResponseWriter, r *http.Request) {
+	qStr := r.URL.Query().Get("q")
+	if qStr != "" {
+		shows, err := sqlite.SearchTVShows(r.Context(), h.db, qStr)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not search tv shows", err)
+			return
+		}
+		respondJSON(w, http.StatusOK, emptySlice(shows))
+		return
+	}
+
 	libIDStr := r.URL.Query().Get("library_id")
 	sortStr := r.URL.Query().Get("sort")
 
@@ -94,7 +105,7 @@ func (h *TVHandler) ListShows(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} map[string]string "Invalid TV Show ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "TV Show not found"
-// @Router /tv/shows/{id} [get]
+// @Router /tv-shows/{id} [get]
 func (h *TVHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -125,7 +136,7 @@ func (h *TVHandler) GetShow(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} models.TVSeason
 // @Failure 400 {object} map[string]string "Invalid TV Show ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
-// @Router /tv/shows/{id}/seasons [get]
+// @Router /tv-shows/{id}/seasons [get]
 func (h *TVHandler) ListSeasons(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -154,7 +165,7 @@ func (h *TVHandler) ListSeasons(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} map[string]string "Invalid inputs"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Season not found"
-// @Router /tv/shows/{id}/seasons/{number}/episodes [get]
+// @Router /tv-shows/{id}/seasons/{number}/episodes [get]
 func (h *TVHandler) ListEpisodes(w http.ResponseWriter, r *http.Request) {
 	showID, err := uuidParam(r, "id")
 	if err != nil {

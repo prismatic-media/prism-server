@@ -33,7 +33,7 @@ func NewMetadataHandler(db *sql.DB, enricher *metadata.Enricher) *MetadataHandle
 // @Produce json
 // @Success 202 {object} map[string]any "Returns status and count of cleared records"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/metadata/refresh [post]
+// @Router /metadata:refresh [post]
 func (h *MetadataHandler) RefreshAllMetadata(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

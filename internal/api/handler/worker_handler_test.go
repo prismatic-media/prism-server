@@ -197,10 +197,10 @@ func TestWorkerDownloadSource(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(wHandler.Authenticate)
-	r.Get("/media/{id}/download", wHandler.DownloadSource)
+	r.Get("/media/{media_id}/source", wHandler.DownloadSource)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", fmt.Sprintf("/media/%s/download", m.ID), nil)
+	req := httptest.NewRequest("GET", fmt.Sprintf("/media/%s/source", m.ID), nil)
 	req.Header.Set("X-Worker-API-Key", worker.APIKey)
 	r.ServeHTTP(rec, req)
 
@@ -249,12 +249,12 @@ func TestWorkerUpdateProgress(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(wHandler.Authenticate)
-	r.Post("/subjobs/{id}/progress", wHandler.UpdateSubJobProgress)
+	r.Patch("/jobs/{job_id}/subjobs/{subjob_id}", wHandler.UpdateSubJobProgress)
 
 	// 1. Report progress
 	body := bytes.NewBufferString(`{"progress": 45.5, "status": "processing"}`)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", fmt.Sprintf("/subjobs/%s/progress", subJob.ID), body)
+	req := httptest.NewRequest("PATCH", fmt.Sprintf("/jobs/%s/subjobs/%s", subJob.JobID, subJob.ID), body)
 	req.Header.Set("X-Worker-API-Key", worker.APIKey)
 	r.ServeHTTP(rec, req)
 
@@ -270,7 +270,7 @@ func TestWorkerUpdateProgress(t *testing.T) {
 	// 2. Report failure
 	body = bytes.NewBufferString(`{"progress": 45.5, "status": "failed", "error_msg": "out of disk space"}`)
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", fmt.Sprintf("/subjobs/%s/progress", subJob.ID), body)
+	req = httptest.NewRequest("PATCH", fmt.Sprintf("/jobs/%s/subjobs/%s", subJob.JobID, subJob.ID), body)
 	req.Header.Set("X-Worker-API-Key", worker.APIKey)
 	r.ServeHTTP(rec, req)
 
@@ -365,10 +365,10 @@ func TestWorkerUploadBundle(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(wHandler.Authenticate)
-	r.Post("/subjobs/{id}/bundle", wHandler.UploadSubJobBundle)
+	r.Put("/jobs/{job_id}/subjobs/{subjob_id}/bundle", wHandler.UploadSubJobBundle)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", fmt.Sprintf("/subjobs/%s/bundle", subJob.ID), body)
+	req := httptest.NewRequest("PUT", fmt.Sprintf("/jobs/%s/subjobs/%s/bundle", subJob.JobID, subJob.ID), body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("X-Worker-API-Key", worker.APIKey)
 	r.ServeHTTP(rec, req)

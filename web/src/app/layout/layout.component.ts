@@ -12,8 +12,8 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Subject, Subscription, of } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
+import { Subject, Subscription, of, forkJoin } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, catchError, map } from 'rxjs/operators';
 import { AuthService } from '../auth.service';
 import { CastService } from '../cast.service';
 import { LibraryStateService } from '../library-state.service';
@@ -68,7 +68,15 @@ export class LayoutComponent implements OnInit, OnDestroy {
           }
           this.loadingSearch = true;
           this.cdr.detectChanges();
-          return this.http.get<any[]>(`/api/v1/search?q=${encodeURIComponent(query)}`).pipe(
+          return forkJoin({
+            movies: this.http.get<any[]>(`/api/v1/movies?q=${encodeURIComponent(query)}`).pipe(catchError(() => of([]))),
+            shows: this.http.get<any[]>(`/api/v1/tv-shows?q=${encodeURIComponent(query)}`).pipe(catchError(() => of([])))
+          }).pipe(
+            map(({ movies, shows }) => {
+              const formattedMovies = (movies || []).map(m => ({ ...m, media_type: 'movie' }));
+              const formattedShows = (shows || []).map(s => ({ ...s, media_type: 'tvshow' }));
+              return [...formattedMovies, ...formattedShows].sort((a, b) => a.title.localeCompare(b.title));
+            }),
             catchError(() => {
               this.loadingSearch = false;
               this.cdr.detectChanges();
@@ -178,9 +186,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
   getPosterUrl(result: any): string {
     if (result.poster_path) {
       if (result.media_type === 'movie') {
-        return `/api/v1/media/${result.id}/poster`;
+        return `/api/v1/movies/${result.id}/poster`;
       } else if (result.media_type === 'tvshow') {
-        return `/api/v1/tv/shows/${result.id}/poster`;
+        return `/api/v1/tv-shows/${result.id}/poster`;
       }
     }
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
@@ -272,9 +280,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
   getCastPosterUrl(mediaItem: any): string {
     if (mediaItem && mediaItem.poster_path) {
       if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
-        return `/api/v1/media/${mediaItem.id}/poster`;
+        return `/api/v1/movies/${mediaItem.id}/poster`;
       } else {
-        return `/api/v1/tv/shows/${mediaItem.id}/poster`;
+        return `/api/v1/tv-shows/${mediaItem.id}/poster`;
       }
     }
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';

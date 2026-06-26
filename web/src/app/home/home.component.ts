@@ -79,10 +79,10 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
 
     forkJoin({
-      allMovies: this.http.get<Movie[]>('/api/v1/media'),
-      allShows: this.http.get<TVShow[]>('/api/v1/tv/shows'),
-      recentMovies: this.http.get<Movie[]>('/api/v1/media?sort=recent&limit=20'),
-      recentShows: this.http.get<TVShow[]>('/api/v1/tv/shows?sort=recent&limit=20'),
+      allMovies: this.http.get<Movie[]>('/api/v1/movies'),
+      allShows: this.http.get<TVShow[]>('/api/v1/tv-shows'),
+      recentMovies: this.http.get<Movie[]>('/api/v1/movies?sort=recent&limit=20'),
+      recentShows: this.http.get<TVShow[]>('/api/v1/tv-shows?sort=recent&limit=20'),
       continueWatching: this.http.get<WatchHistory[]>('/api/v1/history'),
     }).subscribe({
       next: (res) => {
@@ -234,7 +234,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   getPosterUrl(movie: Movie): string {
     if (movie.poster_path) {
-      return `/api/v1/media/${movie.id}/poster`;
+      return `/api/v1/movies/${movie.id}/poster`;
     }
     // Fallback poster
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
@@ -242,7 +242,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   getShowPosterUrl(show: TVShow): string {
     if (show.poster_path) {
-      return `/api/v1/tv/shows/${show.id}/poster`;
+      return `/api/v1/tv-shows/${show.id}/poster`;
     }
     // Fallback poster
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
@@ -291,7 +291,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   triggerTranscode(movie: Movie, event: MouseEvent): void {
     event.stopPropagation();
-    this.http.post(`/api/v1/media/${movie.id}/transcode`, {}).subscribe({
+    this.http.post('/api/v1/jobs', { media_item_id: movie.id }).subscribe({
       next: () => {
         this.fetchDashboardData(true);
       },
@@ -303,7 +303,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   getContinueWatchingPosterUrl(item: WatchHistory): string {
     if (item.media?.poster_path) {
-      return `/api/v1/media/${item.media.id}/poster`;
+      return `/api/v1/movies/${item.media.id}/poster`;
     }
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
   }

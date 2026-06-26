@@ -28,8 +28,8 @@ func settingsRouter(db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Get("/api/v1/admin/settings", h.GetSettings)
-		r.With(apimw.RequireAdmin).Put("/api/v1/admin/settings", h.UpdateSettings)
+		r.With(apimw.RequireAdmin).Get("/api/v1/settings", h.GetSettings)
+		r.With(apimw.RequireAdmin).Put("/api/v1/settings", h.UpdateSettings)
 	})
 	return r
 }
@@ -147,7 +147,7 @@ func TestSettings_GetAsAdmin(t *testing.T) {
 	}
 	admin := createUser(t, db, "admin", "admin@test.com", "pass", true)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/settings", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
 
@@ -179,7 +179,7 @@ func TestSettings_GetForbiddenForNonAdmin(t *testing.T) {
 	}
 	user := createUser(t, db, "user", "user@test.com", "pass", false)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/settings", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, user.ID, false))
 	w := httptest.NewRecorder()
 
@@ -198,7 +198,7 @@ func TestSettings_Update(t *testing.T) {
 	admin := createUser(t, db, "admin", "admin@test.com", "pass", true)
 
 	body, _ := json.Marshal(map[string]string{"ffmpeg_hwaccel": "vaapi", "transcode_workers": "4"})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
@@ -223,7 +223,7 @@ func TestSettings_UnknownKeyRejected(t *testing.T) {
 	admin := createUser(t, db, "admin", "admin@test.com", "pass", true)
 
 	body, _ := json.Marshal(map[string]string{"unknown_key": "value"})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
@@ -238,7 +238,7 @@ func TestSettings_UnknownKeyRejected(t *testing.T) {
 func TestSettings_UnauthenticatedRejected(t *testing.T) {
 	db := openTestDB(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/settings", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
 	w := httptest.NewRecorder()
 
 	settingsRouter(db).ServeHTTP(w, req)

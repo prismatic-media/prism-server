@@ -710,6 +710,39 @@ func SearchMedia(ctx context.Context, db *sql.DB, query string) ([]*models.Searc
 	return results, rows.Err()
 }
 
+// SearchMovies queries movies (non-episode media items) matching a search string.
+func SearchMovies(ctx context.Context, db *sql.DB, query string) ([]*models.MediaItem, error) {
+	likeQuery := "%" + query + "%"
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, library_id, title, media_type, file_path, file_size,
+		       duration, width, height, video_codec, audio_codec,
+		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
+		       tv_show_id, tv_season_id, season_number, episode_number,
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
+		FROM media_items
+		WHERE media_type = 'movie' AND (
+			title LIKE ? OR
+			overview LIKE ? OR
+			director LIKE ? OR
+			cast_members LIKE ?
+		) ORDER BY CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE ASC`,
+		likeQuery, likeQuery, likeQuery, likeQuery)
+	if err != nil {
+		return nil, fmt.Errorf("searching movies: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []*models.MediaItem
+	for rows.Next() {
+		m, err := scanMediaItemRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, m)
+	}
+	return items, rows.Err()
+}
+
 // SetMediaTranscodeSizes updates the transcode sizes of a media item in the database.
 func SetMediaTranscodeSizes(ctx context.Context, db *sql.DB, itemID uuid.UUID, sizes *models.TranscodeSizesInfo) error {
 	var sizesStr sql.NullString

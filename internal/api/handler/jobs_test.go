@@ -36,13 +36,12 @@ func TestEnqueueTranscode_Success(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.Get("/api/v1/media/{id}", mediaH.GetMedia)
-		r.With(apimw.RequireAdmin).Post("/api/v1/media/{id}/transcode", jobsH.EnqueueTranscode)
+		r.Get("/api/v1/movies/{id}", mediaH.GetMedia)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 		r.With(apimw.RequireAdmin).Get("/api/v1/jobs", jobsH.ListJobs)
 		r.With(apimw.RequireAdmin).Get("/api/v1/jobs/{id}", jobsH.GetJob)
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/bulk-enqueue", jobsH.BulkEnqueueJobs)
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/{id}/prioritize", jobsH.PrioritizeJob)
-		r.With(apimw.RequireAdmin).Get("/api/v1/ws/jobs/{id}", jobsH.JobProgress)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/{id}:prioritize", jobsH.PrioritizeJob)
+		r.With(apimw.RequireAdmin).Get("/api/v1/jobs/{id}/progress", jobsH.JobProgress)
 	})
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -69,7 +68,7 @@ func TestEnqueueTranscode_Success(t *testing.T) {
 	token := loginResp["access_token"].(string)
 	auth := map[string]string{"Authorization": "Bearer " + token}
 
-	rec := do(t, r, http.MethodPost, "/api/v1/media/"+item.ID.String()+"/transcode", nil, auth)
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]any{"media_item_id": item.ID.String()}), auth)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body = %s", rec.Code, rec.Body)
 	}
@@ -100,7 +99,7 @@ func TestBulkEnqueueJobs_UnknownFilter(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/bulk-enqueue", jobsH.BulkEnqueueJobs)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 	})
 
 	do(t, r, http.MethodPost, "/api/v1/users",
@@ -111,7 +110,7 @@ func TestBulkEnqueueJobs_UnknownFilter(t *testing.T) {
 	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
-	rec := do(t, r, http.MethodPost, "/api/v1/jobs/bulk-enqueue", jsonBody(map[string]string{"filter": "bad"}), auth)
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]string{"filter": "bad"}), auth)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
@@ -131,7 +130,7 @@ func TestBulkEnqueueJobs_Untranscoded(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/bulk-enqueue", jobsH.BulkEnqueueJobs)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 	})
 
 	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
@@ -160,7 +159,7 @@ func TestBulkEnqueueJobs_Untranscoded(t *testing.T) {
 	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
-	rec := do(t, r, http.MethodPost, "/api/v1/jobs/bulk-enqueue", jsonBody(map[string]string{"filter": "untranscoded"}), auth)
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]string{"filter": "untranscoded"}), auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
@@ -188,7 +187,7 @@ func TestBulkEnqueueJobs_FailedFilter(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/bulk-enqueue", jobsH.BulkEnqueueJobs)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 	})
 
 	lib := &models.Library{Path: "/lf", MediaType: models.MediaTypeMovie}
@@ -226,7 +225,7 @@ func TestBulkEnqueueJobs_FailedFilter(t *testing.T) {
 	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
-	rec := do(t, r, http.MethodPost, "/api/v1/jobs/bulk-enqueue", jsonBody(map[string]string{"filter": "failed"}), auth)
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]string{"filter": "failed"}), auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
@@ -254,7 +253,7 @@ func TestPrioritizeJob_StatusCodes(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/{id}/prioritize", jobsH.PrioritizeJob)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/{id}:prioritize", jobsH.PrioritizeJob)
 	})
 
 	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
@@ -290,19 +289,19 @@ func TestPrioritizeJob_StatusCodes(t *testing.T) {
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
 	// Pending job can be prioritized.
-	okRec := do(t, r, http.MethodPost, "/api/v1/jobs/"+pending.ID.String()+"/prioritize", nil, auth)
+	okRec := do(t, r, http.MethodPost, "/api/v1/jobs/"+pending.ID.String()+":prioritize", nil, auth)
 	if okRec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", okRec.Code)
 	}
 
 	// Non-pending job gets conflict.
-	conflictRec := do(t, r, http.MethodPost, "/api/v1/jobs/"+done.ID.String()+"/prioritize", nil, auth)
+	conflictRec := do(t, r, http.MethodPost, "/api/v1/jobs/"+done.ID.String()+":prioritize", nil, auth)
 	if conflictRec.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", conflictRec.Code)
 	}
 
 	// Unknown job id gets not found.
-	notFoundRec := do(t, r, http.MethodPost, "/api/v1/jobs/00000000-0000-0000-0000-000000000001/prioritize", nil, auth)
+	notFoundRec := do(t, r, http.MethodPost, "/api/v1/jobs/00000000-0000-0000-0000-000000000001:prioritize", nil, auth)
 	if notFoundRec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", notFoundRec.Code)
 	}
@@ -323,7 +322,7 @@ func TestEnqueueTranscode_MediaNotFound(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Post("/api/v1/media/{id}/transcode", jobsH.EnqueueTranscode)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 	})
 
 	do(t, r, http.MethodPost, "/api/v1/users",
@@ -334,7 +333,7 @@ func TestEnqueueTranscode_MediaNotFound(t *testing.T) {
 	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
-	rec := do(t, r, http.MethodPost, "/api/v1/media/00000000-0000-0000-0000-000000000001/transcode", nil, auth)
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]any{"media_item_id": "00000000-0000-0000-0000-000000000001"}), auth)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
 	}
@@ -423,7 +422,7 @@ func TestJobProgressWS_TerminalJob(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Get("/api/v1/ws/jobs/{id}", jobsH.JobProgress)
+		r.With(apimw.RequireAdmin).Get("/api/v1/jobs/{id}/progress", jobsH.JobProgress)
 	})
 
 	// Seed a done job.
@@ -466,7 +465,7 @@ func TestJobProgressWS_TerminalJob(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	wsURL := "ws" + srv.URL[4:] + "/api/v1/ws/jobs/" + job.ID.String()
+	wsURL := "ws" + srv.URL[4:] + "/api/v1/jobs/" + job.ID.String() + "/progress"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, http.Header{
 		"Authorization": {"Bearer " + token},
 	})
@@ -501,7 +500,7 @@ func TestBulkEnqueueJobs_CompletedFilter(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Post("/api/v1/jobs/bulk-enqueue", jobsH.BulkEnqueueJobs)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 	})
 
 	lib := &models.Library{Path: "/lc", MediaType: models.MediaTypeMovie}
@@ -528,7 +527,7 @@ func TestBulkEnqueueJobs_CompletedFilter(t *testing.T) {
 	_ = json.NewDecoder(lr.Body).Decode(&lresp)
 	auth := map[string]string{"Authorization": "Bearer " + lresp["access_token"].(string)}
 
-	rec := do(t, r, http.MethodPost, "/api/v1/jobs/bulk-enqueue", jsonBody(map[string]string{"filter": "completed"}), auth)
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]string{"filter": "completed"}), auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
@@ -557,7 +556,7 @@ func TestEnqueueTranscode_Force(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.With(apimw.RequireAdmin).Post("/api/v1/media/{id}/transcode", jobsH.EnqueueTranscode)
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 	})
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -593,13 +592,13 @@ func TestEnqueueTranscode_Force(t *testing.T) {
 	auth := map[string]string{"Authorization": "Bearer " + token}
 
 	// Request without force should fail/be rejected (since it is already transcoded)
-	rec := do(t, r, http.MethodPost, "/api/v1/media/"+item.ID.String()+"/transcode", nil, auth)
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]any{"media_item_id": item.ID.String()}), auth)
 	if rec.Code == http.StatusAccepted {
 		t.Fatalf("expected failure for already transcoded item, got 202")
 	}
 
 	// Request with force=true should succeed
-	recForce := do(t, r, http.MethodPost, "/api/v1/media/"+item.ID.String()+"/transcode?force=true", nil, auth)
+	recForce := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]any{"media_item_id": item.ID.String(), "force": true}), auth)
 	if recForce.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202 for force transcode; body = %s", recForce.Code, recForce.Body)
 	}

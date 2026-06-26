@@ -25,10 +25,10 @@ func artifactRouter(db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.Recoverer)
 	r.Use(apimw.Authenticate(testSecret))
-	r.With(apimw.RequireAdmin).Get("/api/v1/admin/artifacts/status", artifactH.HandleStatus)
-	r.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/index", artifactH.HandleIndex)
-	r.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/relink", artifactH.HandleRelink)
-	r.With(apimw.RequireAdmin).Post("/api/v1/admin/artifacts/regenerate-mpds", artifactH.HandleRegenerateMPDs)
+	r.With(apimw.RequireAdmin).Get("/api/v1/artifacts", artifactH.HandleStatus)
+	r.With(apimw.RequireAdmin).Post("/api/v1/artifacts:index", artifactH.HandleIndex)
+	r.With(apimw.RequireAdmin).Post("/api/v1/artifacts:relink", artifactH.HandleRelink)
+	r.With(apimw.RequireAdmin).Post("/api/v1/artifacts:regenerateMpd", artifactH.HandleRegenerateMPDs)
 	return r
 }
 
@@ -37,7 +37,7 @@ func TestArtifactIndex_Unauthenticated(t *testing.T) {
 	db := openTestDB(t)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/index", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:index", nil)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -54,7 +54,7 @@ func TestArtifactIndex_Unauthorized(t *testing.T) {
 	user := createUser(t, db, "regular", "regular@example.com", "pass123", false)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/index", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:index", nil)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, user.ID, false))
 	w := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func TestArtifactIndex_AdminAuthorized(t *testing.T) {
 	admin := createUser(t, db, "admin", "admin@example.com", "pass123", true)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/index", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:index", nil)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
@@ -90,7 +90,7 @@ func TestArtifactStatus_Unauthenticated(t *testing.T) {
 	db := openTestDB(t)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/artifacts/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -106,7 +106,7 @@ func TestArtifactStatus_Unauthorized(t *testing.T) {
 	user := createUser(t, db, "regular", "regular@example.com", "pass123", false)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/artifacts/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil)
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, user.ID, false))
 	w := httptest.NewRecorder()
 
@@ -123,7 +123,7 @@ func TestArtifactStatus_AdminAuthorized(t *testing.T) {
 	admin := createUser(t, db, "admin", "admin@example.com", "pass123", true)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/artifacts/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil)
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
 
@@ -146,7 +146,7 @@ func TestArtifactRelink_Unauthenticated(t *testing.T) {
 	db := openTestDB(t)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/relink", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:relink", nil)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -163,7 +163,7 @@ func TestArtifactRelink_Unauthorized(t *testing.T) {
 	user := createUser(t, db, "regular", "regular@example.com", "pass123", false)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/relink", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:relink", nil)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, user.ID, false))
 	w := httptest.NewRecorder()
@@ -181,7 +181,7 @@ func TestArtifactRelink_AdminAuthorized(t *testing.T) {
 	admin := createUser(t, db, "admin", "admin@example.com", "pass123", true)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/relink", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:relink", nil)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
@@ -205,7 +205,7 @@ func TestArtifactRegenerateMPDs_Auth(t *testing.T) {
 	router := artifactRouter(db)
 
 	// 1. Unauthenticated
-	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/regenerate-mpds", nil)
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:regenerateMpd", nil)
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 	if w1.Code == http.StatusOK {
@@ -214,7 +214,7 @@ func TestArtifactRegenerateMPDs_Auth(t *testing.T) {
 
 	// 2. Non-admin user
 	user := createUser(t, db, "regular", "regular@example.com", "pass123", false)
-	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/regenerate-mpds", nil)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:regenerateMpd", nil)
 	req2.Header.Set("Authorization", "Bearer "+bearerToken(t, user.ID, false))
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
@@ -224,7 +224,7 @@ func TestArtifactRegenerateMPDs_Auth(t *testing.T) {
 
 	// 3. Admin user (succeeds)
 	admin := createUser(t, db, "admin", "admin@example.com", "pass123", true)
-	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/regenerate-mpds", nil)
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:regenerateMpd", nil)
 	req3.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w3 := httptest.NewRecorder()
 	router.ServeHTTP(w3, req3)
@@ -238,7 +238,7 @@ func TestArtifactRegenerateMPDs_Success(t *testing.T) {
 	admin := createUser(t, db, "admin", "admin@example.com", "pass123", true)
 	router := artifactRouter(db)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artifacts/regenerate-mpds", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts:regenerateMpd", nil)
 	req.Header.Set("Authorization", "Bearer "+bearerToken(t, admin.ID, true))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

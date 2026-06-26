@@ -62,7 +62,7 @@ type storageListResponse struct {
 // @Produce json
 // @Success 200 {object} storageListResponse
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/storage [get]
+// @Router /storage-areas [get]
 func (h *StorageHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
 	areas, err := sqlite.ListStorageAreas(r.Context(), h.db)
 	if err != nil {
@@ -106,7 +106,7 @@ func (h *StorageHandler) ListStorage(w http.ResponseWriter, r *http.Request) {
 // @Param body body storageAreaRequest true "Storage area parameters"
 // @Success 201 {object} models.StorageArea
 // @Failure 400 {object} map[string]string "Invalid input or kind"
-// @Router /admin/storage/areas [post]
+// @Router /storage-areas [post]
 func (h *StorageHandler) CreateStorageArea(w http.ResponseWriter, r *http.Request) {
 	var req storageAreaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -154,7 +154,7 @@ func (h *StorageHandler) CreateStorageArea(w http.ResponseWriter, r *http.Reques
 // @Failure 400 {object} map[string]string "Invalid ID or request body"
 // @Failure 404 {object} map[string]string "Storage area not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/storage/areas/{id} [put]
+// @Router /storage-areas/{id} [put]
 func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -219,7 +219,7 @@ func (h *StorageHandler) UpdateStorageArea(w http.ResponseWriter, r *http.Reques
 // @Success 204 "No Content"
 // @Failure 400 {object} map[string]string "Invalid ID"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/storage/areas/{id} [delete]
+// @Router /storage-areas/{id} [delete]
 func (h *StorageHandler) DeleteStorageArea(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -246,7 +246,7 @@ func (h *StorageHandler) DeleteStorageArea(w http.ResponseWriter, r *http.Reques
 // @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
 // @Failure 400 {object} map[string]string "Invalid request body or parameters"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/storage/config [put]
+// @Router /storage-areas/config [put]
 func (h *StorageHandler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 	var req storageConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

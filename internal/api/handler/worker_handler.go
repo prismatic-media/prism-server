@@ -203,20 +203,20 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 // @Tags Worker Interface
 // @Security WorkerAuth
 // @Produce video/mp4,video/quicktime,video/x-matroska,application/octet-stream
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Success 200 {file} file "Raw media source file"
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthorized"
 // @Failure 404 {object} map[string]string "Media item not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /worker/media/{id}/download [get]
+// @Router /media/{media_id}/source [get]
 func (h *WorkerHandler) DownloadSource(w http.ResponseWriter, r *http.Request) {
 	if WorkerFromContext(r.Context()) == nil {
 		respondError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	mediaID, err := uuidParam(r, "id")
+	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
@@ -240,7 +240,8 @@ func (h *WorkerHandler) DownloadSource(w http.ResponseWriter, r *http.Request) {
 // @Security WorkerAuth
 // @Accept json
 // @Produce json
-// @Param id path string true "Sub-Job ID" format(uuid)
+// @Param job_id path string true "Job ID" format(uuid)
+// @Param subjob_id path string true "Sub-Job ID" format(uuid)
 // @Param body body progressRequest true "Progress update payload"
 // @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
 // @Failure 400 {object} map[string]string "Invalid request body or sub-job ID"
@@ -248,7 +249,7 @@ func (h *WorkerHandler) DownloadSource(w http.ResponseWriter, r *http.Request) {
 // @Failure 403 {object} map[string]string "Sub-job not assigned to this worker"
 // @Failure 404 {object} map[string]string "Sub-job not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /worker/subjobs/{id}/progress [post]
+// @Router /jobs/{job_id}/subjobs/{subjob_id} [patch]
 func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {
@@ -256,7 +257,12 @@ func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	subJobID, err := uuidParam(r, "id")
+	jobID, err := uuidParam(r, "job_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid job id", err)
+		return
+	}
+	subJobID, err := uuidParam(r, "subjob_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid sub-job id", err)
 		return
@@ -274,6 +280,11 @@ func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Requ
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch sub-job", err)
+		return
+	}
+
+	if subJob.JobID != jobID {
+		respondError(w, http.StatusBadRequest, "sub-job does not belong to specified job")
 		return
 	}
 
@@ -354,7 +365,8 @@ func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Requ
 // @Security WorkerAuth
 // @Accept multipart/form-data
 // @Produce json
-// @Param id path string true "Sub-Job ID" format(uuid)
+// @Param job_id path string true "Job ID" format(uuid)
+// @Param subjob_id path string true "Sub-Job ID" format(uuid)
 // @Param bundle formData file true "The ZIP bundle file containing transcode outputs (segments, etc.)"
 // @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
 // @Failure 400 {object} map[string]string "Invalid sub-job ID or multipart form"
@@ -362,7 +374,7 @@ func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Requ
 // @Failure 403 {object} map[string]string "Sub-job not assigned to this worker"
 // @Failure 404 {object} map[string]string "Sub-job not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /worker/subjobs/{id}/bundle [post]
+// @Router /jobs/{job_id}/subjobs/{subjob_id}/bundle [put]
 func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {
@@ -370,7 +382,12 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	subJobID, err := uuidParam(r, "id")
+	jobID, err := uuidParam(r, "job_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid job id", err)
+		return
+	}
+	subJobID, err := uuidParam(r, "subjob_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid sub-job id", err)
 		return
@@ -382,6 +399,11 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 		return
 	} else if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch sub-job", err)
+		return
+	}
+
+	if subJob.JobID != jobID {
+		respondError(w, http.StatusBadRequest, "sub-job does not belong to specified job")
 		return
 	}
 

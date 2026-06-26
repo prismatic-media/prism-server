@@ -29,7 +29,7 @@ func NewProfilesHandler(db *sql.DB) *ProfilesHandler {
 // @Success 200 {array} models.TranscodeProfile
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
-// @Router /admin/transcode-profiles [get]
+// @Router /transcode-profiles [get]
 func (h *ProfilesHandler) List(w http.ResponseWriter, r *http.Request) {
 	profiles, err := sqlite.ListTranscodeProfiles(r.Context(), h.db, false)
 	if err != nil {
@@ -52,7 +52,7 @@ func (h *ProfilesHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/transcode-profiles [post]
+// @Router /transcode-profiles [post]
 func (h *ProfilesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var p models.TranscodeProfile
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
@@ -92,7 +92,7 @@ func (h *ProfilesHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Failure 403 {object} map[string]string "Forbidden"
 // @Failure 404 {object} map[string]string "Profile not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/transcode-profiles/{id} [put]
+// @Router /transcode-profiles/{id} [put]
 func (h *ProfilesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -143,7 +143,7 @@ func (h *ProfilesHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Failure 403 {object} map[string]string "Forbidden"
 // @Failure 404 {object} map[string]string "Profile not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/transcode-profiles/{id} [delete]
+// @Router /transcode-profiles/{id} [delete]
 func (h *ProfilesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)

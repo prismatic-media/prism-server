@@ -56,8 +56,19 @@ func (h *MediaHandler) WithBus(bus *events.Bus) *MediaHandler {
 // @Success 200 {array} models.MediaItem
 // @Failure 400 {object} map[string]string "Invalid library ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
-// @Router /media [get]
+// @Router /movies [get]
 func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
+	qStr := r.URL.Query().Get("q")
+	if qStr != "" {
+		items, err := sqlite.SearchMovies(r.Context(), h.db, qStr)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not search movies", err)
+			return
+		}
+		respondJSON(w, http.StatusOK, emptySlice(items))
+		return
+	}
+
 	sortStr := r.URL.Query().Get("sort")
 	if sortStr == "recent" {
 		limit := 20
@@ -121,7 +132,7 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 // @Param q query string true "Search query string"
 // @Success 200 {array} models.SearchResult
 // @Failure 401 {object} map[string]string "Unauthenticated"
-// @Router /search [get]
+// (Deprecated global search endpoint - search is now query parameter based on /movies and /tv-shows)
 func (h *MediaHandler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
@@ -148,7 +159,7 @@ func (h *MediaHandler) Search(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Media item not found"
-// @Router /media/{id} [get]
+// @Router /movies/{id} [get]
 func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -179,7 +190,7 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
 // @Failure 404 {object} map[string]string "Media item not found"
-// @Router /media/{id} [delete]
+// @Router /movies/{id} [delete]
 func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -291,7 +302,7 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Media item not found"
-// @Router /media/{id}/transcode-sizes [get]
+// @Router /movies/{id}/transcode-sizes [get]
 func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -389,7 +400,7 @@ func emptySlice[T any](s []T) []T {
 // UploadSubtitle handles POST /api/v1/media/{id}/subtitles (Admin Only).
 // It accepts an SRT file, converts it to WebVTT via FFmpeg, and stores it in the database.
 func (h *MediaHandler) UploadSubtitle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	id, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
@@ -471,7 +482,12 @@ type SyncSubtitleRequest struct {
 // SyncSubtitle handles POST /api/v1/media/subtitles/{id}/sync (Admin Only).
 // It can trigger automatic alignment or apply a manual timestamp shift.
 func (h *MediaHandler) SyncSubtitle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	mediaID, err := uuidParam(r, "media_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		return
+	}
+	id, err := uuidParam(r, "subtitle_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid subtitle id", err)
 		return
@@ -484,6 +500,10 @@ func (h *MediaHandler) SyncSubtitle(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not fetch subtitle", err)
+		return
+	}
+	if sub.MediaItemID != mediaID {
+		respondError(w, http.StatusBadRequest, "subtitle does not belong to specified media item")
 		return
 	}
 
@@ -549,7 +569,7 @@ func (h *MediaHandler) SyncSubtitle(w http.ResponseWriter, r *http.Request) {
 
 // ListSubtitles handles GET /api/v1/media/{id}/subtitles.
 func (h *MediaHandler) ListSubtitles(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	id, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
@@ -577,7 +597,12 @@ func (h *MediaHandler) ListSubtitles(w http.ResponseWriter, r *http.Request) {
 
 // DeleteSubtitle handles DELETE /api/v1/media/subtitles/{id} (Admin Only).
 func (h *MediaHandler) DeleteSubtitle(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	mediaID, err := uuidParam(r, "media_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		return
+	}
+	id, err := uuidParam(r, "subtitle_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid subtitle id", err)
 		return
@@ -590,6 +615,10 @@ func (h *MediaHandler) DeleteSubtitle(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not fetch subtitle", err)
+		return
+	}
+	if sub.MediaItemID != mediaID {
+		respondError(w, http.StatusBadRequest, "subtitle does not belong to specified media item")
 		return
 	}
 

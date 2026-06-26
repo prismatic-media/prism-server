@@ -40,15 +40,15 @@ func NewStreamHandler(db *sql.DB, mpdCache *dash.Cache, jwtSecret string) *Strea
 // @Tags Media Streaming
 // @Security BearerAuth
 // @Produce application/dash+xml
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Param cast_token query string false "Cast validation token"
 // @Success 200 {file} file "DASH Manifest XML file"
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Media item not found or transcode pending"
-// @Router /stream/{id}/manifest.mpd [get]
+// @Router /stream/{media_id}/manifest.mpd [get]
 func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	id, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
@@ -105,16 +105,16 @@ func (h *StreamHandler) ServeManifest(w http.ResponseWriter, r *http.Request) {
 // @Tags Media Streaming
 // @Security BearerAuth
 // @Produce video/mp4,video/iso.segment,text/vtt,application/octet-stream
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Param wildcard path string true "Segment path wildcard"
 // @Param cast_token query string false "Cast validation token"
 // @Success 200 {file} file "Raw media segment chunk"
 // @Failure 400 {object} map[string]string "Invalid parameters"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Segment not found"
-// @Router /stream/{id}/segments/{wildcard} [get]
+// @Router /stream/{media_id}/segments/{wildcard} [get]
 func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	id, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
@@ -182,13 +182,13 @@ func (h *StreamHandler) ServeSegment(w http.ResponseWriter, r *http.Request) {
 // @Tags Media Streaming
 // @Security BearerAuth
 // @Produce json
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Success 200 {object} map[string]string "Returns {'token': '...'}"
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
-// @Router /stream/{id}/cast-token [post]
+// @Router /stream/{media_id}/cast-token [post]
 func (h *StreamHandler) IssueCastToken(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	id, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return

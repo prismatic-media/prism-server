@@ -29,7 +29,7 @@ type createWorkerRequest struct {
 // @Produce json
 // @Success 200 {array} models.TranscodeWorker
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/workers [get]
+// @Router /workers [get]
 func (h *WorkerAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 	workers, err := sqlite.ListWorkers(r.Context(), h.db)
 	if err != nil {
@@ -49,7 +49,7 @@ func (h *WorkerAdminHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} models.TranscodeWorker
 // @Failure 400 {object} map[string]string "Invalid request body"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/workers [post]
+// @Router /workers [post]
 func (h *WorkerAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createWorkerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -122,7 +122,7 @@ func (req *updateWorkerRequest) UnmarshalJSON(data []byte) error {
 // @Failure 400 {object} map[string]string "Invalid ID or request body"
 // @Failure 404 {object} map[string]string "Worker not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/workers/{id} [put]
+// @Router /workers/{id} [put]
 func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -169,7 +169,7 @@ func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} map[string]string "Invalid ID"
 // @Failure 404 {object} map[string]string "Worker not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/workers/{id} [delete]
+// @Router /workers/{id} [delete]
 func (h *WorkerAdminHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -200,7 +200,7 @@ type createEphemeralTokenRequest struct {
 // @Produce json
 // @Success 200 {array} models.EphemeralWorkerToken
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/workers/ephemeral-tokens [get]
+// @Router /worker-tokens [get]
 func (h *WorkerAdminHandler) ListEphemeralTokens(w http.ResponseWriter, r *http.Request) {
 	tokens, err := sqlite.ListEphemeralWorkerTokens(r.Context(), h.db)
 	if err != nil {
@@ -220,7 +220,7 @@ func (h *WorkerAdminHandler) ListEphemeralTokens(w http.ResponseWriter, r *http.
 // @Success 201 {object} models.EphemeralWorkerToken
 // @Failure 400 {object} map[string]string "Invalid request body"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/workers/ephemeral-tokens [post]
+// @Router /worker-tokens [post]
 func (h *WorkerAdminHandler) CreateEphemeralToken(w http.ResponseWriter, r *http.Request) {
 	var req createEphemeralTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -251,7 +251,7 @@ func (h *WorkerAdminHandler) CreateEphemeralToken(w http.ResponseWriter, r *http
 // @Failure 400 {object} map[string]string "Invalid ID"
 // @Failure 404 {object} map[string]string "Token not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /admin/workers/ephemeral-tokens/{id} [delete]
+// @Router /worker-tokens/{id} [delete]
 func (h *WorkerAdminHandler) DeleteEphemeralToken(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
