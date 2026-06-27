@@ -687,35 +687,68 @@ func ClaimNextSubJob(ctx context.Context, db *sql.DB, workerID *uuid.UUID) (*mod
 	defer func() { _ = tx.Rollback() }()
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	var query string
-	var args []any
+	threshold := time.Now().UTC().Add(-30 * time.Second).Format(time.RFC3339)
 
+	var workerIDVal any
 	if workerID != nil {
-		query = `
-			UPDATE transcode_sub_jobs
-			SET status = 'processing', worker_id = ?, started_at = ?, finished_at = NULL, error_msg = NULL
-			WHERE id = (
-				SELECT s.id FROM transcode_sub_jobs s
+		workerIDVal = workerID.String()
+	}
+
+	query := `
+		UPDATE transcode_sub_jobs
+		SET status = 'processing', worker_id = ?, started_at = ?, finished_at = NULL, error_msg = NULL
+		WHERE id = (
+			WITH active_workers AS (
+				SELECT id FROM transcode_workers
+				WHERE status != 'offline' AND last_heartbeat >= ?
+			),
+			job_pinnings AS (
+				SELECT DISTINCT job_id, worker_id AS pinned_worker_id
+				FROM transcode_sub_jobs
+				WHERE status IN ('processing', 'done', 'failed')
+				  AND (
+					  worker_id IS NULL OR
+					  worker_id IN (SELECT id FROM active_workers)
+				  )
+			),
+			candidate_sub_jobs AS (
+				SELECT s.id AS sub_job_id,
+					   s.job_id,
+					   j.priority,
+					   j.created_at,
+					   s.type,
+					   jp.pinned_worker_id,
+					   CASE
+						   WHEN (jp.pinned_worker_id IS NULL AND ? IS NULL) OR (jp.pinned_worker_id = ?) THEN 1
+						   WHEN jp.pinned_worker_id IS NULL THEN 2
+						   ELSE 3
+					   END AS pinning_category
+				FROM transcode_sub_jobs s
 				JOIN transcode_jobs j ON s.job_id = j.id
+				LEFT JOIN job_pinnings jp ON s.job_id = jp.job_id
 				WHERE s.status = 'pending' AND j.status != 'failed'
-				ORDER BY j.priority DESC, j.created_at ASC, s.type DESC, s.id ASC
-				LIMIT 1
 			)
-			RETURNING id, job_id, worker_id, type, profile_id, profile_name, width, height, video_bitrate_k, audio_bitrate_k, codec, status, progress, error_msg, started_at, finished_at, created_at`
-		args = []any{workerID.String(), now}
-	} else {
-		query = `
-			UPDATE transcode_sub_jobs
-			SET status = 'processing', worker_id = NULL, started_at = ?, finished_at = NULL, error_msg = NULL
-			WHERE id = (
-				SELECT s.id FROM transcode_sub_jobs s
-				JOIN transcode_jobs j ON s.job_id = j.id
-				WHERE s.status = 'pending' AND j.status != 'failed'
-				ORDER BY j.priority DESC, j.created_at ASC, s.type DESC, s.id ASC
-				LIMIT 1
-			)
-			RETURNING id, job_id, worker_id, type, profile_id, profile_name, width, height, video_bitrate_k, audio_bitrate_k, codec, status, progress, error_msg, started_at, finished_at, created_at`
-		args = []any{now}
+			SELECT sub_job_id FROM candidate_sub_jobs
+			WHERE pinning_category IN (1, 2)
+			   OR (pinning_category = 3 AND NOT EXISTS (
+				   SELECT 1 FROM candidate_sub_jobs WHERE pinning_category IN (1, 2)
+			   ))
+			ORDER BY 
+				pinning_category ASC,
+				priority DESC,
+				created_at ASC,
+				type DESC,
+				sub_job_id ASC
+			LIMIT 1
+		)
+		RETURNING id, job_id, worker_id, type, profile_id, profile_name, width, height, video_bitrate_k, audio_bitrate_k, codec, status, progress, error_msg, started_at, finished_at, created_at`
+
+	args := []any{
+		workerIDVal,
+		now,
+		threshold,
+		workerIDVal,
+		workerIDVal,
 	}
 
 	row := tx.QueryRowContext(ctx, query, args...)

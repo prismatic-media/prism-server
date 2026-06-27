@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -580,5 +581,186 @@ func TestBulkEnqueueCompleted(t *testing.T) {
 		t.Errorf("media item transcode status = %s, want pending", item.TranscodeStatus)
 	}
 }
+
+func TestClaimNextSubJob_Pinning(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	m1 := newMovieItem(lib.ID, "A", "/l/a.mkv")
+	m2 := newMovieItem(lib.ID, "B", "/l/b.mkv")
+	for _, m := range []*models.MediaItem{m1, m2} {
+		if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	j1 := &models.TranscodeJob{MediaItemID: m1.ID}
+	j2 := &models.TranscodeJob{MediaItemID: m2.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j1); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create two workers
+	w1, err := sqlite.CreateWorker(ctx, db, "Worker1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w2, err := sqlite.CreateWorker(ctx, db, "Worker2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET last_heartbeat = ?, status = 'idle' WHERE id = ?", nowStr, w1.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET last_heartbeat = ?, status = 'idle' WHERE id = ?", nowStr, w2.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// --- 1. Basic Remote Worker Pinning ---
+	// w1 claims a sub-job from j1 (first job in FIFO order)
+	claimed1, err := sqlite.ClaimNextSubJob(ctx, db, &w1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed1 == nil || claimed1.JobID != j1.ID {
+		t.Fatalf("expected w1 to claim from j1, got: %+v", claimed1)
+	}
+
+	// w2 claims a sub-job. Since j1 is now pinned to active w1, w2 should NOT claim from j1.
+	// It should claim from j2 instead.
+	claimed2, err := sqlite.ClaimNextSubJob(ctx, db, &w2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed2 == nil || claimed2.JobID != j2.ID {
+		t.Fatalf("expected w2 to claim from j2, got: %+v", claimed2)
+	}
+
+	// w1 claims again. It should get another sub-job from j1 (prioritizing Category 1).
+	claimed3, err := sqlite.ClaimNextSubJob(ctx, db, &w1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed3 == nil || claimed3.JobID != j1.ID {
+		t.Fatalf("expected w1 to claim subsequent sub-job from j1, got: %+v", claimed3)
+	}
+
+	// --- 2. Inactive Worker Resets Pinning ---
+	// Mark w1 as inactive (offline)
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET status = 'offline' WHERE id = ?", w1.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now that w1 is inactive, w2 should be allowed to claim a sub-job of j1 (since pinning is ignored
+	// and j1 has priority).
+	claimed4, err := sqlite.ClaimNextSubJob(ctx, db, &w2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed4 == nil || claimed4.JobID != j1.ID {
+		t.Fatalf("expected w2 to claim from j1 after w1 went inactive, got: %+v", claimed4)
+	}
+}
+
+func TestClaimNextSubJob_LocalWorkerPinningAndExhaustion(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	m1 := newMovieItem(lib.ID, "A", "/l/a.mkv")
+	m2 := newMovieItem(lib.ID, "B", "/l/b.mkv")
+	for _, m := range []*models.MediaItem{m1, m2} {
+		if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	j1 := &models.TranscodeJob{MediaItemID: m1.ID}
+	j2 := &models.TranscodeJob{MediaItemID: m2.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j1); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j2); err != nil {
+		t.Fatal(err)
+	}
+
+	w1, err := sqlite.CreateWorker(ctx, db, "Worker1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET last_heartbeat = ?, status = 'idle' WHERE id = ?", nowStr, w1.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// --- 1. Local Worker Pinning ---
+	// Local worker (nil workerID) claims a sub-job. Should get from j1.
+	localClaim1, err := sqlite.ClaimNextSubJob(ctx, db, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if localClaim1 == nil || localClaim1.JobID != j1.ID {
+		t.Fatalf("expected local worker to claim from j1, got %+v", localClaim1)
+	}
+
+	// Remote worker w1 claims a sub-job. Since j1 is pinned to active local worker (nil),
+	// w1 must claim from j2.
+	remoteClaim1, err := sqlite.ClaimNextSubJob(ctx, db, &w1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remoteClaim1 == nil || remoteClaim1.JobID != j2.ID {
+		t.Fatalf("expected remote worker w1 to claim from j2, got %+v", remoteClaim1)
+	}
+
+	// --- 2. Queue Exhaustion (Stealing) ---
+	// Complete/claim all remaining sub-jobs of j2 so only j1 (pinned to local worker) has pending sub-jobs.
+	// j2 has 5 sub-jobs total (4 video, 1 subtitles).
+	// remoteClaim1 was the first. Let's claim the other 4.
+	for i := 0; i < 4; i++ {
+		c, err := sqlite.ClaimNextSubJob(ctx, db, &w1.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c == nil || c.JobID != j2.ID {
+			t.Fatalf("expected subsequent claims to exhaust j2, got %+v on iteration %d", c, i)
+		}
+	}
+
+	// Verify that j2 has no pending sub-jobs left
+	var pendingInJ2 int
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM transcode_sub_jobs WHERE job_id = ? AND status = 'pending'", j2.ID.String()).Scan(&pendingInJ2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pendingInJ2 != 0 {
+		t.Fatalf("expected j2 to have 0 pending sub-jobs, got %d", pendingInJ2)
+	}
+
+	// Now w1 polls again. There are no other unclaimed jobs, only j1 (which is pinned to local worker).
+	// w1 should be allowed to steal a sub-job from j1.
+	stealClaim, err := sqlite.ClaimNextSubJob(ctx, db, &w1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stealClaim == nil || stealClaim.JobID != j1.ID {
+		t.Fatalf("expected w1 to steal from j1, got %+v", stealClaim)
+	}
+}
+
 
 
