@@ -1,10 +1,12 @@
 package middleware_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
@@ -141,5 +143,65 @@ func TestClaimsFromContext_NilWhenAbsent(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	if claims := apimw.ClaimsFromContext(r.Context()); claims != nil {
 		t.Errorf("expected nil claims, got %+v", claims)
+	}
+}
+
+func TestAuthenticateStream_BearerToken(t *testing.T) {
+	userID := uuid.New()
+	token, err := auth.IssueAccessToken(testSecret, userID, false)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+
+	mw := apimw.AuthenticateStream(testSecret)(http.HandlerFunc(okHandler))
+	rec := httptest.NewRecorder()
+	mw.ServeHTTP(rec, bearerReq(t, token))
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestAuthenticateStream_CastToken_Valid(t *testing.T) {
+	mediaID := uuid.New().String()
+	token, err := auth.IssueCastToken(testSecret, mediaID)
+	if err != nil {
+		t.Fatalf("issue cast token: %v", err)
+	}
+
+	mw := apimw.AuthenticateStream(testSecret)(http.HandlerFunc(okHandler))
+	rec := httptest.NewRecorder()
+	
+	r := httptest.NewRequest(http.MethodGet, "/?cast_token="+token, nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("media_id", mediaID)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	mw.ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthenticateStream_CastToken_MismatchedMediaID(t *testing.T) {
+	mediaID := uuid.New().String()
+	token, err := auth.IssueCastToken(testSecret, mediaID)
+	if err != nil {
+		t.Fatalf("issue cast token: %v", err)
+	}
+
+	mw := apimw.AuthenticateStream(testSecret)(http.HandlerFunc(okHandler))
+	rec := httptest.NewRecorder()
+	
+	r := httptest.NewRequest(http.MethodGet, "/?cast_token="+token, nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("media_id", uuid.New().String()) // mismatched
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	mw.ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }

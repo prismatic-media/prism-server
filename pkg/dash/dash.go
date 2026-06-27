@@ -63,10 +63,10 @@ func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitle
 			dashCodec = "avc1.42E01E"
 		}
 
-		// 1. Video AdaptationSet
-		fmt.Fprintf(&sb, `    <AdaptationSet mimeType="video/mp4" codecs="%s" segmentAlignment="true">`+"\n", dashCodec)
+		// 1. Multiplexed AdaptationSet (containing both video and audio tracks since CMAF segments are multiplexed)
+		fmt.Fprintf(&sb, `    <AdaptationSet mimeType="video/mp4" codecs="%s,mp4a.40.2" segmentAlignment="true">`+"\n", dashCodec)
 		for _, r := range group {
-			bandwidth := r.VideoBitrateK * 1000
+			bandwidth := (r.VideoBitrateK + r.AudioBitrateK) * 1000
 			relDir := r.Name // relative path from MPD location
 
 			width := r.Width
@@ -77,20 +77,6 @@ func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitle
 
 			fmt.Fprintf(&sb, `      <Representation id=%q bandwidth="%d" width="%d" height="%d">`+"\n",
 				r.Name, bandwidth, width, r.Height)
-			fmt.Fprintf(&sb, `        <BaseURL>segments/%s/</BaseURL>`+"\n", relDir)
-			sb.WriteString(`        <SegmentTemplate initialization="init.mp4" media="seg_$Number%05d$.m4s" startNumber="1" duration="4"/>` + "\n")
-			sb.WriteString(`      </Representation>` + "\n")
-		}
-		sb.WriteString(`    </AdaptationSet>` + "\n")
-
-		// 2. Audio AdaptationSet (referencing same segments since they are multiplexed)
-		fmt.Fprintf(&sb, `    <AdaptationSet mimeType="audio/mp4" codecs="mp4a.40.2" lang="eng" segmentAlignment="true">`+"\n")
-		for _, r := range group {
-			bandwidth := r.AudioBitrateK * 1000
-			relDir := r.Name // relative path from MPD location
-
-			fmt.Fprintf(&sb, `      <Representation id="%s_audio" bandwidth="%d">`+"\n",
-				r.Name, bandwidth)
 			fmt.Fprintf(&sb, `        <BaseURL>segments/%s/</BaseURL>`+"\n", relDir)
 			sb.WriteString(`        <SegmentTemplate initialization="init.mp4" media="seg_$Number%05d$.m4s" startNumber="1" duration="4"/>` + "\n")
 			sb.WriteString(`      </Representation>` + "\n")

@@ -109,7 +109,7 @@ func AuthenticateStream(jwtSecret string) func(http.Handler) http.Handler {
 
 			// Fall back to a cast-scoped token tied to this specific media item.
 			if castTok := r.URL.Query().Get("cast_token"); castTok != "" {
-				mediaID := chi.URLParam(r, "id")
+				mediaID := chi.URLParam(r, "media_id")
 				if err := auth.ValidateCastToken(jwtSecret, castTok, mediaID); err == nil {
 					// Inject minimal non-admin claims so downstream handlers work.
 					ctx := context.WithValue(r.Context(), claimsContextKey, &auth.Claims{})
