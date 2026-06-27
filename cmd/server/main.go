@@ -103,7 +103,10 @@ func main() {
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
 		Handler:           router,
 		ReadHeaderTimeout: 15 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		// WriteTimeout is set to 0 (no timeout) to allow large media source file downloads
+		// and transcode bundle uploads to complete over slow connections. Individual request
+		// timeouts are enforced by the API timeout middleware.
+		WriteTimeout:      0,
 		IdleTimeout:       120 * time.Second,
 	}
 

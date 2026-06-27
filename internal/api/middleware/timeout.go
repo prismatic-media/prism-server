@@ -12,11 +12,12 @@ import (
 func Timeout(duration time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip websocket, streaming, download, and bundle upload endpoints
+			// Skip websocket, streaming, download, source download, and bundle upload endpoints
 			if r.Header.Get("Upgrade") == "websocket" ||
 				strings.Contains(r.URL.Path, "/ws/") ||
 				strings.Contains(r.URL.Path, "/stream/") ||
 				strings.HasSuffix(r.URL.Path, "/download") ||
+				strings.HasSuffix(r.URL.Path, "/source") ||
 				strings.HasSuffix(r.URL.Path, "/bundle") {
 				next.ServeHTTP(w, r)
 				return

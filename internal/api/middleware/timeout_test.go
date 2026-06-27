@@ -59,3 +59,25 @@ func TestTimeout_SkipsWebSocket(t *testing.T) {
 		t.Errorf("expected status 200 (timeout skipped for WebSocket), got: %d", rec.Code)
 	}
 }
+
+func TestTimeout_SkipsSourceDownload(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+			w.WriteHeader(http.StatusGatewayTimeout)
+		case <-time.After(20 * time.Millisecond):
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	// Wrap handler with a 5ms timeout, but call the /source endpoint
+	mw := apimw.Timeout(5 * time.Millisecond)(handler)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/123/source", nil)
+
+	mw.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 (timeout skipped for source download), got: %d", rec.Code)
+	}
+}
