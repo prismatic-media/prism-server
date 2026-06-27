@@ -457,7 +457,6 @@
                   <th class="px-6 py-3">Status</th>
                   <th class="px-6 py-3">Heartbeat</th>
                   <th class="px-6 py-3">HW Acceleration</th>
-                  <th class="px-6 py-3">Threads</th>
                   <th class="px-8 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -517,24 +516,7 @@
                       </select>
                     </div>
                   </td>
-                  <!-- Threads select -->
-                  <td class="px-6 py-5">
-                    <div class="relative w-fit">
-                      <select
-                        class="inline-select"
-                        [(ngModel)]="w.threads"
-                        (change)="updateWorker(w)"
-                        [disabled]="w.status === 'offline'"
-                      >
-                        <option [ngValue]="1">1</option>
-                        <option [ngValue]="2">2</option>
-                        <option [ngValue]="4">4</option>
-                        <option [ngValue]="8">8</option>
-                        <option [ngValue]="12">12</option>
-                        <option [ngValue]="16">16</option>
-                      </select>
-                    </div>
-                  </td>
+
                   <!-- Delete Action -->
                   <td class="px-8 py-5 text-right">
                     <div class="flex justify-end gap-2">

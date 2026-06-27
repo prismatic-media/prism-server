@@ -657,7 +657,6 @@ scratch_dir: /tmp/prism-scratch`;
   updateWorker(worker: TranscodeWorker): void {
     this.http
       .put<TranscodeWorker>(`/api/v1/workers/${worker.id}`, {
-        threads: worker.threads,
         hwaccel: worker.hwaccel,
       })
       .subscribe({

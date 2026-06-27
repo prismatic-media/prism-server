@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
@@ -72,46 +71,11 @@ func (h *WorkerAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateWorkerRequest struct {
-	Threads int    `json:"threads"`
 	HWAccel string `json:"hwaccel"`
 }
 
-func (req *updateWorkerRequest) UnmarshalJSON(data []byte) error {
-	type Alias updateWorkerRequest
-	aux := &struct {
-		Threads json.RawMessage `json:"threads"`
-		*Alias
-	}{
-		Alias: (*Alias)(req),
-	}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	if len(aux.Threads) > 0 {
-		var threadsInt int
-		if err := json.Unmarshal(aux.Threads, &threadsInt); err == nil {
-			req.Threads = threadsInt
-			return nil
-		}
-
-		var threadsStr string
-		if err := json.Unmarshal(aux.Threads, &threadsStr); err == nil {
-			val, err := strconv.Atoi(threadsStr)
-			if err != nil {
-				return errors.New("threads must be a valid integer")
-			}
-			req.Threads = val
-			return nil
-		}
-		return errors.New("threads must be an integer or a string containing an integer")
-	}
-
-	return nil
-}
-
 // @Summary Update Transcode Worker Settings
-// @Description Update concurrency limits (threads) or hardware acceleration configuration for a registered worker.
+// @Description Update hardware acceleration configuration for a registered worker.
 // @Tags Worker Administration
 // @Security BearerAuth
 // @Accept json
@@ -136,12 +100,7 @@ func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Threads <= 0 {
-		respondError(w, http.StatusBadRequest, "threads must be greater than 0")
-		return
-	}
-
-	err = sqlite.UpdateWorkerSettings(r.Context(), h.db, id, req.Threads, req.HWAccel)
+	err = sqlite.UpdateWorkerSettings(r.Context(), h.db, id, 1, req.HWAccel)
 	if errors.Is(err, sqlite.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "worker not found", err)
 		return
@@ -270,4 +229,3 @@ func (h *WorkerAdminHandler) DeleteEphemeralToken(w http.ResponseWriter, r *http
 
 	w.WriteHeader(http.StatusNoContent)
 }
-
