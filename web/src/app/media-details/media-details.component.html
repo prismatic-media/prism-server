@@ -183,7 +183,7 @@
                     {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
                   </span>
                   <span class="subjob-name label-mono">
-                    {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                    {{ sj.type === 'subtitles' ? 'Subtitles' : sj.type === 'whisper' ? 'Whisper Transcription' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
                   </span>
                 </div>
                 <div class="subjob-status-pct label-mono">
@@ -530,7 +530,7 @@
                     {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
                   </span>
                   <span class="ep-subjob-name label-mono">
-                    {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                    {{ sj.type === 'subtitles' ? 'Subtitles' : sj.type === 'whisper' ? 'Whisper Transcription' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
                   </span>
                 </div>
                 <div class="ep-subjob-status-pct label-mono">

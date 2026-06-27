@@ -468,8 +468,14 @@ func (h *MediaHandler) UploadSubtitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Trigger similarity matching and sync auto-alignment in the background
-	go RunSubtitleAlignment(context.Background(), h.db, h.bus, sub.ID)
+	// Trigger similarity matching and sync auto-alignment in the background only if Whisper transcription exists
+	hasWhisper, err := sqlite.HasWhisperTranscription(r.Context(), h.db, sub.MediaItemID)
+	if err == nil && hasWhisper {
+		go RunSubtitleAlignment(context.Background(), h.db, h.bus, sub.ID)
+	} else {
+		_ = sqlite.UpdateMediaSubtitleStatus(r.Context(), h.db, sub.ID, "pending")
+		sub.AlignmentStatus = "pending"
+	}
 
 	respondJSON(w, http.StatusCreated, sub)
 }
@@ -555,6 +561,12 @@ func (h *MediaHandler) SyncSubtitle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Auto sync fallback
+	hasWhisper, err := sqlite.HasWhisperTranscription(r.Context(), h.db, sub.MediaItemID)
+	if err != nil || !hasWhisper {
+		respondError(w, http.StatusBadRequest, "cannot auto-sync: Whisper transcription is not available for this media item yet.")
+		return
+	}
+
 	sub.AlignmentStatus = "processing"
 	err = sqlite.UpdateMediaSubtitleStatus(r.Context(), h.db, sub.ID, "processing")
 	if err != nil {

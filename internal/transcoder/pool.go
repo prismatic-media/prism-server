@@ -7,14 +7,19 @@
 package transcoder
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -89,15 +94,16 @@ func (h *Hub) Publish(evt ProgressEvent) {
 
 // Pool manages a fixed number of transcode worker goroutines.
 type Pool struct {
-	db           *sql.DB
-	mpdCache     *dash.Cache
-	eventBus     *events.Bus
-	hub          *Hub
-	workers      int
-	pollInterval atomic.Int64 // nanoseconds; read atomically by workers
-	wg           sync.WaitGroup
-	stopCh       chan struct{}
-	stopOnce     sync.Once
+	db            *sql.DB
+	mpdCache      *dash.Cache
+	eventBus      *events.Bus
+	hub           *Hub
+	workers       int
+	pollInterval  atomic.Int64 // nanoseconds; read atomically by workers
+	wg            sync.WaitGroup
+	stopCh        chan struct{}
+	stopOnce      sync.Once
+	OnWhisperDone func(ctx context.Context, mediaItemID uuid.UUID)
 }
 
 // NewPool creates a Pool. Call Start to begin processing.
@@ -561,6 +567,150 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 				continue
 			}
 		}
+	} else if j.Type == models.SubJobTypeWhisper {
+		tmpWav, err := os.CreateTemp("", "prism-local-whisper-*.wav")
+		if err != nil {
+			p.fail(ctx, j, fmt.Sprintf("creating temp wav file: %v", err))
+			return
+		}
+		tmpWav.Close()
+		defer os.Remove(tmpWav.Name())
+
+		// Extract mono 16kHz WAV from source file
+		ffmpegArgs := []string{
+			"-y",
+			"-i", item.FilePath,
+			"-ar", "16000",
+			"-ac", "1",
+			"-c:a", "pcm_s16le",
+			tmpWav.Name(),
+		}
+		ffmpegCmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
+		if out, err := ffmpegCmd.CombinedOutput(); err != nil {
+			p.fail(ctx, j, fmt.Sprintf("extracting audio via ffmpeg: %v (output: %s)", err, string(out)))
+			return
+		}
+
+		whisperBin := "whisper-cli"
+		whisperModel, _ := sqlite.GetSetting(ctx, p.db, "whisper_model")
+		if whisperModel == "" {
+			whisperModel = "base"
+		}
+		whisperLang, _ := sqlite.GetSetting(ctx, p.db, "whisper_default_language")
+		if whisperLang == "" {
+			whisperLang = "en"
+		}
+
+		modelFile, err := resolveAndDownloadModel(ctx, whisperModel)
+		if err != nil {
+			p.fail(ctx, j, fmt.Sprintf("resolving whisper model: %v", err))
+			return
+		}
+
+		tmpOutPrefix := filepath.Join(os.TempDir(), fmt.Sprintf("whisper-out-%s", uuid.NewString()))
+		tmpVTTFile := tmpOutPrefix + ".vtt"
+		defer os.Remove(tmpVTTFile)
+
+		args := []string{
+			"-m", modelFile,
+			"-f", tmpWav.Name(),
+			"-ovtt",
+			"-of", tmpOutPrefix,
+			"-l", whisperLang,
+			"--print-progress",
+		}
+
+		cmd := exec.CommandContext(ctx, whisperBin, args...)
+
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			p.fail(ctx, j, fmt.Sprintf("creating stdout pipe: %v", err))
+			return
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			p.fail(ctx, j, fmt.Sprintf("creating stderr pipe: %v", err))
+			return
+		}
+
+		if err := cmd.Start(); err != nil {
+			p.fail(ctx, j, fmt.Sprintf("starting whisper-cli: %v", err))
+			return
+		}
+
+		progressChan := make(chan float64, 100)
+
+		scanPipe := func(r io.Reader) {
+			scanner := bufio.NewScanner(r)
+			re := regexp.MustCompile(`progress\s*=\s*(\d+)%`)
+			for scanner.Scan() {
+				line := scanner.Text()
+				matches := re.FindStringSubmatch(line)
+				if len(matches) > 1 {
+					if pct, err := strconv.ParseFloat(matches[1], 64); err == nil {
+						progressChan <- pct
+					}
+				}
+			}
+		}
+
+		go scanPipe(stdout)
+		go scanPipe(stderr)
+
+		go func() {
+			for pct := range progressChan {
+				if pct > 99 {
+					pct = 99
+				}
+				_ = sqlite.UpdateSubJobProgress(ctx, p.db, j.ID, pct)
+				parentJob, err := sqlite.GetTranscodeJobByID(ctx, p.db, j.JobID)
+				if err == nil && parentJob != nil {
+					p.hub.Publish(ProgressEvent{
+						JobID:    j.JobID,
+						Progress: parentJob.Progress,
+						SubJobs:  parentJob.SubJobs,
+					})
+					if p.eventBus != nil {
+						p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
+							JobID:       j.JobID,
+							MediaItemID: parentJob.MediaItemID,
+							Progress:    parentJob.Progress,
+							SubJobs:     parentJob.SubJobs,
+						})
+					}
+				}
+			}
+		}()
+
+		err = cmd.Wait()
+		close(progressChan)
+
+		if err != nil {
+			p.fail(ctx, j, fmt.Sprintf("whisper-cli execution failed: %v", err))
+			return
+		}
+
+		// Read output VTT file and save to database
+		vttBytes, err := os.ReadFile(tmpVTTFile)
+		if err != nil {
+			p.fail(ctx, j, fmt.Sprintf("reading whisper VTT output: %v", err))
+			return
+		}
+
+		transcription := &models.WhisperTranscription{
+			MediaItemID: parentJob.MediaItemID,
+			Language:    whisperLang,
+			VTTContent:  string(vttBytes),
+		}
+		if err := sqlite.AddWhisperTranscription(ctx, p.db, transcription); err != nil {
+			p.fail(ctx, j, fmt.Sprintf("saving whisper transcription: %v", err))
+			return
+		}
+
+		// Notify that Whisper is done to trigger alignment
+		if p.OnWhisperDone != nil {
+			p.OnWhisperDone(ctx, parentJob.MediaItemID)
+		}
 	} else {
 		p.fail(ctx, j, fmt.Sprintf("unknown sub-job type: %s", j.Type))
 		return
@@ -939,5 +1089,54 @@ func RegenerateManifestForJob(ctx context.Context, db *sql.DB, jobID uuid.UUID, 
 		}
 	}
 	return nil
+}
+
+func resolveAndDownloadModel(ctx context.Context, modelName string) (string, error) {
+	// Derive the filename: ggml-[modelName].bin
+	if !strings.HasSuffix(modelName, ".bin") {
+		modelName = fmt.Sprintf("ggml-%s.bin", modelName)
+	}
+
+	targetDir := filepath.Join(os.TempDir(), "prism-models")
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return "", err
+	}
+
+	modelPath := filepath.Join(targetDir, modelName)
+	if _, err := os.Stat(modelPath); err == nil {
+		return modelPath, nil
+	}
+
+	// Model does not exist locally, download it!
+	slog.Info("downloading whisper model from huggingface", "model", modelName, "dest", modelPath)
+	url := fmt.Sprintf("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/%s", modelName)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download model, status code: %d", resp.StatusCode)
+	}
+
+	out, err := os.Create(modelPath)
+	if err != nil {
+		return "", err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return modelPath, nil
 }
 

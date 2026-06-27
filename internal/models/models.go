@@ -200,6 +200,7 @@ type TranscodeSubJob struct {
 const (
 	SubJobTypeVideo     = "video"
 	SubJobTypeSubtitles = "subtitles"
+	SubJobTypeWhisper   = "whisper"
 )
 
 // WatchHistory records playback position per user per item.
@@ -362,6 +363,15 @@ type MediaSubtitle struct {
 	SyncOffset      float64   `db:"sync_offset" json:"sync_offset"`
 	AlignmentStatus string    `db:"alignment_status" json:"alignment_status"`
 	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+}
+
+// WhisperTranscription holds the Whisper Speech-to-Text output for a media item.
+type WhisperTranscription struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	MediaItemID uuid.UUID `db:"media_item_id" json:"media_item_id"`
+	Language    string    `db:"language" json:"language"`
+	VTTContent  string    `db:"vtt_content" json:"vtt_content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
 

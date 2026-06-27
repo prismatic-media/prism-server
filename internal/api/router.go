@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"io/fs"
 	"net/http"
@@ -8,6 +9,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+
+	"log/slog"
+
+	"github.com/google/uuid"
 
 	"github.com/prismatic-media/prism-server/internal/api/handler"
 	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
@@ -21,6 +26,12 @@ import (
 
 // NewRouter wires up all routes and middleware.
 func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enricher, scanManager *scanner.Manager, pool *transcoder.Pool, bus *events.Bus) http.Handler {
+	pool.OnWhisperDone = func(ctx context.Context, mediaItemID uuid.UUID) {
+		if err := handler.AlignPendingSubtitles(ctx, db, bus, mediaItemID); err != nil {
+			slog.Error("failed to align pending subtitles after whisper completed", "media_item_id", mediaItemID, "error", err)
+		}
+	}
+
 	r := chi.NewRouter()
 
 	// Global middleware

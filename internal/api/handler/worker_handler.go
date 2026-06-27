@@ -63,11 +63,12 @@ func (h *WorkerHandler) Authenticate(next http.Handler) http.Handler {
 }
 
 type WorkerSubJob struct {
-	ID          uuid.UUID                `json:"id"`
-	JobID       uuid.UUID                `json:"job_id"`
-	MediaItemID uuid.UUID                `json:"media_item_id"`
-	Type        string                   `json:"type"` // "video" or "subtitles"
-	Profile     *models.TranscodeProfile `json:"profile,omitempty"`
+	ID           uuid.UUID                `json:"id"`
+	JobID        uuid.UUID                `json:"job_id"`
+	MediaItemID  uuid.UUID                `json:"media_item_id"`
+	Type         string                   `json:"type"` // "video", "subtitles", or "whisper"
+	Profile      *models.TranscodeProfile `json:"profile,omitempty"`
+	WhisperModel string                   `json:"whisper_model,omitempty"`
 }
 
 type heartbeatResponse struct {
@@ -182,12 +183,21 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		var whisperModel string
+		if claimedSubJob.Type == models.SubJobTypeWhisper {
+			whisperModel, _ = sqlite.GetSetting(r.Context(), h.db, "whisper_model")
+			if whisperModel == "" {
+				whisperModel = "base"
+			}
+		}
+
 		wSubJob = &WorkerSubJob{
-			ID:          claimedSubJob.ID,
-			JobID:       claimedSubJob.JobID,
-			MediaItemID: claimedSubJob.MediaItemID,
-			Type:        claimedSubJob.Type,
-			Profile:     prof,
+			ID:           claimedSubJob.ID,
+			JobID:        claimedSubJob.JobID,
+			MediaItemID:  claimedSubJob.MediaItemID,
+			Type:         claimedSubJob.Type,
+			Profile:      prof,
+			WhisperModel: whisperModel,
 		}
 	}
 
@@ -475,6 +485,89 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 
 	if err := unzipFile(tempFile.Name(), outputDir); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to extract transcode zip", err)
+		return
+	}
+
+	if subJob.Type == models.SubJobTypeWhisper {
+		entries, err := os.ReadDir(outputDir)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to read whisper output directory", err)
+			return
+		}
+		var vttFile string
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".vtt") {
+				vttFile = filepath.Join(outputDir, entry.Name())
+				break
+			}
+		}
+		if vttFile == "" {
+			respondError(w, http.StatusInternalServerError, "whisper output VTT not found in bundle")
+			return
+		}
+		vttBytes, err := os.ReadFile(vttFile)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to read whisper VTT file", err)
+			return
+		}
+		_ = os.Remove(vttFile)
+
+		whisperLang, _ := sqlite.GetSetting(r.Context(), h.db, "whisper_default_language")
+		if whisperLang == "" {
+			whisperLang = "en"
+		}
+
+		transcription := &models.WhisperTranscription{
+			MediaItemID: subJob.MediaItemID,
+			Language:    whisperLang,
+			VTTContent:  string(vttBytes),
+		}
+		if err := sqlite.AddWhisperTranscription(r.Context(), h.db, transcription); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to save whisper transcription", err)
+			return
+		}
+
+		_ = sqlite.UpdateSubJobStatus(r.Context(), h.db, subJob.ID, models.TranscodeStatusDone, nil)
+		_ = sqlite.UpdateSubJobProgress(r.Context(), h.db, subJob.ID, 100)
+
+		if h.pool.OnWhisperDone != nil {
+			h.pool.OnWhisperDone(r.Context(), subJob.MediaItemID)
+		}
+
+		parentJob, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, subJob.JobID)
+		if err == nil && parentJob != nil {
+			isDone := parentJob.Status == models.TranscodeStatusDone || parentJob.Status == models.TranscodeStatusFailed
+			var errStr string
+			if parentJob.ErrorMsg != nil {
+				errStr = *parentJob.ErrorMsg
+			}
+			h.pool.Hub().Publish(transcoder.ProgressEvent{
+				JobID:    parentJob.ID,
+				Progress: parentJob.Progress,
+				Done:     isDone,
+				Error:    errStr,
+				SubJobs:  parentJob.SubJobs,
+			})
+			if h.bus != nil {
+				h.bus.Publish(events.EventJobProgress, events.JobProgressPayload{
+					JobID:       parentJob.ID,
+					MediaItemID: parentJob.MediaItemID,
+					Progress:    parentJob.Progress,
+					Done:        isDone,
+					Error:       errStr,
+					SubJobs:     parentJob.SubJobs,
+				})
+				if isDone {
+					h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+						MediaItemID:     parentJob.MediaItemID,
+						LibraryID:       item.LibraryID,
+						TranscodeStatus: string(parentJob.Status),
+					})
+				}
+			}
+		}
+
+		respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 

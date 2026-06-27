@@ -159,7 +159,7 @@
                   {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
                 </span>
                 <span class="queue-subjob-name font-mono">
-                  {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                  {{ sj.type === 'subtitles' ? 'Subtitles' : sj.type === 'whisper' ? 'Whisper Transcription' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
                 </span>
               </div>
               <div class="queue-subjob-status-pct font-mono">
@@ -261,7 +261,7 @@
                   {{ sj.status === 'done' ? 'check_circle' : sj.status === 'failed' ? 'error' : sj.status === 'processing' ? 'sync' : 'hourglass_empty' }}
                 </span>
                 <span class="queue-subjob-name font-mono">
-                  {{ sj.type === 'subtitles' ? 'Subtitles' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
+                  {{ sj.type === 'subtitles' ? 'Subtitles' : sj.type === 'whisper' ? 'Whisper Transcription' : (sj.profile_name || (sj.height ? sj.height + 'p' : 'Video')) }}
                 </span>
               </div>
               <div class="queue-subjob-status-pct font-mono">

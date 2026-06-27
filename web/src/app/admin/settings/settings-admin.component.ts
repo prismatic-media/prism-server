@@ -21,8 +21,8 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
   thumbsDir = '';
   tmdbApiKey = '';
   castReceiverAppId = '';
-  whisperBinaryPath = '';
-  whisperModelPath = '';
+  whisperDefaultLanguage = 'en';
+  whisperModel = 'base';
 
   // Copy of settings for comparison
   private originalSettings: Record<string, string> = {};
@@ -69,8 +69,8 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
             thumbs_dir: this.thumbsDir.trim(),
             tmdb_api_key: this.tmdbApiKey.trim(),
             cast_receiver_app_id: this.castReceiverAppId.trim(),
-            whisper_binary_path: this.whisperBinaryPath.trim(),
-            whisper_model_path: this.whisperModelPath.trim(),
+            whisper_default_language: this.whisperDefaultLanguage.trim(),
+            whisper_model: this.whisperModel.trim(),
           };
 
           return this.http.put('/api/v1/settings', payload).pipe(
@@ -129,8 +129,8 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
     this.thumbsDir = settings['thumbs_dir'] || '';
     this.tmdbApiKey = settings['tmdb_api_key'] || '';
     this.castReceiverAppId = settings['cast_receiver_app_id'] || '';
-    this.whisperBinaryPath = settings['whisper_binary_path'] || '';
-    this.whisperModelPath = settings['whisper_model_path'] || '';
+    this.whisperDefaultLanguage = settings['whisper_default_language'] || 'en';
+    this.whisperModel = settings['whisper_model'] || 'base';
   }
 
   onSettingChange(immediate: boolean): void {

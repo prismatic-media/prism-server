@@ -111,31 +111,44 @@
             Subtitle Alignment (Local Whisper)
           </h4>
 
+
+
           <div class="flex flex-col gap-2">
-            <label class="text-sm font-medium text-on-surface">Whisper CLI Binary Path</label>
+            <label class="text-sm font-medium text-on-surface">Default Whisper Language</label>
             <input
               class="input-glass font-mono"
               type="text"
-              [(ngModel)]="whisperBinaryPath"
+              [(ngModel)]="whisperDefaultLanguage"
               (ngModelChange)="onSettingChange(false)"
-              placeholder="e.g. whisper-cli or whisper"
+              placeholder="e.g. en or es"
             />
             <p class="text-xs text-on-surface-variant">
-              Executable name or absolute path to the local Whisper CLI tool (defaults to 'whisper-cli').
+              The default ISO-2 code language for auto-generating speech-to-text transcriptions (defaults to 'en').
             </p>
           </div>
 
           <div class="flex flex-col gap-2">
-            <label class="text-sm font-medium text-on-surface">Whisper Model Path (.bin)</label>
-            <input
-              class="input-glass font-mono"
-              type="text"
-              [(ngModel)]="whisperModelPath"
+            <label class="text-sm font-medium text-on-surface">Whisper Model</label>
+            <select
+              class="input-glass"
+              [(ngModel)]="whisperModel"
               (ngModelChange)="onSettingChange(false)"
-              placeholder="e.g. /usr/local/share/whisper/models/ggml-base.bin"
-            />
+            >
+              <option value="tiny">tiny</option>
+              <option value="tiny.en">tiny.en</option>
+              <option value="base">base</option>
+              <option value="base.en">base.en</option>
+              <option value="small">small</option>
+              <option value="small.en">small.en</option>
+              <option value="medium">medium</option>
+              <option value="medium.en">medium.en</option>
+              <option value="large-v1">large-v1</option>
+              <option value="large-v2">large-v2</option>
+              <option value="large-v3">large-v3</option>
+              <option value="large-v3-turbo">large-v3-turbo</option>
+            </select>
             <p class="text-xs text-on-surface-variant">
-              Absolute path to the local GGML model file (.bin format) needed for speech-to-text transcription.
+              The Whisper model size/type to use for speech-to-text transcription.
             </p>
           </div>
         </div>

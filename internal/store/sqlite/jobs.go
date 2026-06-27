@@ -665,6 +665,16 @@ func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uui
 		return fmt.Errorf("creating subtitle sub-job: %w", err)
 	}
 
+	// Create whisper transcription sub-job
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO transcode_sub_jobs (id, job_id, worker_id, type, profile_id, status, progress, error_msg, started_at, finished_at, created_at)
+		VALUES (?, ?, NULL, ?, NULL, ?, 0, NULL, NULL, NULL, ?)`,
+		uuid.New().String(), jobID.String(), string(models.SubJobTypeWhisper), string(models.TranscodeStatusPending), now,
+	)
+	if err != nil {
+		return fmt.Errorf("creating whisper sub-job: %w", err)
+	}
+
 	return nil
 }
 

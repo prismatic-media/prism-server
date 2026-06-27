@@ -320,7 +320,7 @@ h6 {
   pointer-events: none;
   filter: blur(140px);
   background: #004d52;
-  opacity: 0.06;
+  opacity: 0.6;
 }
 
 .ambient-glow-2 {
@@ -329,7 +329,7 @@ h6 {
   pointer-events: none;
   filter: blur(120px);
   background: #3c222c;
-  opacity: 0.04;
+  opacity: 0.6;
 }
 
 /* --- Global Glass Card Style --- */
