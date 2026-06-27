@@ -3,7 +3,6 @@ package handler_test
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -28,18 +27,14 @@ func TestLogin_Success(t *testing.T) {
 	if resp["access_token"] == "" {
 		t.Error("expected non-empty access_token")
 	}
-	// Refresh cookie must be set.
-	var found bool
-	for _, c := range rec.Result().Cookies() {
-		if c.Name == "refresh_token" {
-			found = true
-			if !c.HttpOnly {
-				t.Error("refresh_token cookie should be HttpOnly")
-			}
-		}
+	if resp["refresh_token"] == "" {
+		t.Error("expected non-empty refresh_token")
 	}
-	if !found {
-		t.Error("expected refresh_token cookie to be set")
+	if resp["token_type"] != "Bearer" {
+		t.Errorf("token_type = %v, want Bearer", resp["token_type"])
+	}
+	if _, ok := resp["expires_in"]; !ok {
+		t.Error("expected expires_in to be present")
 	}
 }
 
@@ -102,13 +97,12 @@ func TestLogin_PasswordNotInResponse(t *testing.T) {
 	}
 }
 
-// TestRefresh_ValidCookie confirms a valid refresh cookie yields a new access token.
-func TestRefresh_ValidCookie(t *testing.T) {
+func TestRefresh_ValidToken(t *testing.T) {
 	db := openTestDB(t)
 	createUser(t, db, "dave", "dave@example.com", "pw", false)
 	router := newTestRouter(t, db)
 
-	// Login to get the cookie.
+	// Login to get the token.
 	loginRec := do(t, router, http.MethodPost, "/api/v1/auth/login",
 		jsonBody(map[string]string{"username": "dave", "password": "pw"}),
 		nil,
@@ -116,21 +110,25 @@ func TestRefresh_ValidCookie(t *testing.T) {
 	if loginRec.Code != http.StatusOK {
 		t.Fatalf("login status = %d", loginRec.Code)
 	}
-	var cookie *http.Cookie
-	for _, c := range loginRec.Result().Cookies() {
-		if c.Name == "refresh_token" {
-			cookie = c
-		}
+
+	var loginResp map[string]any
+	if err := json.NewDecoder(loginRec.Body).Decode(&loginResp); err != nil {
+		t.Fatalf("decode: %v", err)
 	}
-	if cookie == nil {
-		t.Fatal("no refresh_token cookie after login")
+	refreshToken, ok := loginResp["refresh_token"].(string)
+	if !ok || refreshToken == "" {
+		t.Fatal("no refresh_token in login response")
 	}
 
-	// Use the cookie to refresh.
-	rec := execWithCookie(t, router, http.MethodPost, "/api/v1/auth/refresh", cookie)
+	// Use the token to refresh.
+	rec := do(t, router, http.MethodPost, "/api/v1/auth/refresh",
+		jsonBody(map[string]string{"refresh_token": refreshToken}),
+		nil,
+	)
 	if rec.Code != http.StatusOK {
 		t.Errorf("refresh status = %d, want 200; body: %s", rec.Code, rec.Body)
 	}
+
 	var resp map[string]any
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -138,19 +136,23 @@ func TestRefresh_ValidCookie(t *testing.T) {
 	if resp["access_token"] == "" {
 		t.Error("expected access_token in refresh response")
 	}
+	newRefreshToken := resp["refresh_token"].(string)
+	if newRefreshToken == "" || newRefreshToken == refreshToken {
+		t.Error("expected a newly rotated refresh_token in refresh response")
+	}
 }
 
-func TestRefresh_NoCookie(t *testing.T) {
+func TestRefresh_MissingToken(t *testing.T) {
 	db := openTestDB(t)
 	router := newTestRouter(t, db)
 
-	rec := do(t, router, http.MethodPost, "/api/v1/auth/refresh", nil, nil)
+	rec := do(t, router, http.MethodPost, "/api/v1/auth/refresh", jsonBody(map[string]string{}), nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }
 
-func TestLogout_RevokesCookie(t *testing.T) {
+func TestLogout_RevokesToken(t *testing.T) {
 	db := openTestDB(t)
 	createUser(t, db, "eve", "eve@example.com", "pw", false)
 	router := newTestRouter(t, db)
@@ -159,37 +161,29 @@ func TestLogout_RevokesCookie(t *testing.T) {
 		jsonBody(map[string]string{"username": "eve", "password": "pw"}),
 		nil,
 	)
-	var cookie *http.Cookie
-	for _, c := range loginRec.Result().Cookies() {
-		if c.Name == "refresh_token" {
-			cookie = c
-		}
+	var loginResp map[string]any
+	if err := json.NewDecoder(loginRec.Body).Decode(&loginResp); err != nil {
+		t.Fatalf("decode: %v", err)
 	}
+	refreshToken := loginResp["refresh_token"].(string)
 
 	// Logout.
-	logoutRec := execWithCookie(t, router, http.MethodPost, "/api/v1/auth/logout", cookie)
+	logoutRec := do(t, router, http.MethodPost, "/api/v1/auth/logout",
+		jsonBody(map[string]string{"refresh_token": refreshToken}),
+		nil,
+	)
 	if logoutRec.Code != http.StatusNoContent {
 		t.Errorf("logout status = %d, want 204", logoutRec.Code)
 	}
 
 	// After logout, refresh should be rejected.
-	refreshRec := execWithCookie(t, router, http.MethodPost, "/api/v1/auth/refresh", cookie)
+	refreshRec := do(t, router, http.MethodPost, "/api/v1/auth/refresh",
+		jsonBody(map[string]string{"refresh_token": refreshToken}),
+		nil,
+	)
 	if refreshRec.Code != http.StatusUnauthorized {
 		t.Errorf("post-logout refresh status = %d, want 401", refreshRec.Code)
 	}
-}
-
-// execWithCookie sends a request with a single cookie attached.
-func execWithCookie(t *testing.T, h http.Handler, method, path string, cookie *http.Cookie) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(method, path, nil)
-	req.Header.Set("Content-Type", "application/json")
-	if cookie != nil {
-		req.AddCookie(cookie)
-	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	return rec
 }
 
 func contains(s, sub string) bool {

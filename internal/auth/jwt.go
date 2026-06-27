@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const accessTokenTTL = 8 * time.Hour
+const AccessTokenTTL = 8 * time.Hour
 
 // Claims is the JWT payload embedded in every access token.
 type Claims struct {
@@ -24,7 +24,7 @@ func IssueAccessToken(secret string, userID uuid.UUID, isAdmin bool) (string, er
 		IsAdmin: isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenTTL)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenTTL)),
 		},
 	}
 

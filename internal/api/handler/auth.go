@@ -35,14 +35,16 @@ type loginRequest struct {
 }
 
 type loginResponse struct {
-	AccessToken string      `json:"access_token"`
-	User        models.User `json:"user"`
+	AccessToken  string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
+	ExpiresIn    int         `json:"expires_in"`
+	TokenType    string      `json:"token_type"`
+	User         models.User `json:"user"`
 }
 
-// Login validates credentials, issues an access JWT in the response body and
-// a refresh token in an httpOnly cookie.
+// Login validates credentials and issues access and refresh tokens.
 // @Summary User Login
-// @Description Validates user credentials, sets refresh token cookie, and returns a JWT access token.
+// @Description Validates user credentials and returns both JWT access and refresh tokens.
 // @Tags Authentication
 // @Accept json
 // @Produce json
@@ -64,8 +66,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := sqlite.GetUserByUsername(r.Context(), h.db, req.Username)
 	if err != nil {
-		// Return the same error for "not found" and "wrong password" to
-		// prevent username enumeration.
 		respondError(w, http.StatusUnauthorized, "invalid credentials", err)
 		return
 	}
@@ -92,28 +92,50 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setRefreshCookie(w, rawToken, refreshTokenTTL)
 	user.PasswordHash = "" // never send the hash to clients
-	respondJSON(w, http.StatusOK, loginResponse{AccessToken: accessToken, User: *user})
+	respondJSON(w, http.StatusOK, loginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: rawToken,
+		ExpiresIn:    int(auth.AccessTokenTTL.Seconds()),
+		TokenType:    "Bearer",
+		User:         *user,
+	})
 }
 
-// Refresh issues a new access token given a valid refresh token cookie.
-// The refresh token itself is not rotated (stateless rotation can be added later).
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type refreshResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	TokenType    string `json:"token_type"`
+}
+
+// Refresh issues a new access token and a new refresh token using token rotation.
 // @Summary Refresh Access Token
-// @Description Issues a new JWT access token using the refresh token cookie.
+// @Description Issues a new JWT access token and rotated refresh token using the provided refresh token.
 // @Tags Authentication
+// @Accept json
 // @Produce json
-// @Success 200 {object} map[string]string "Returns new access_token"
+// @Param body body refreshRequest true "Refresh token payload"
+// @Success 200 {object} refreshResponse
+// @Failure 400 {object} map[string]string "Invalid request body"
 // @Failure 401 {object} map[string]string "Missing or invalid refresh token"
 // @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie(refreshCookieName)
-	if err != nil {
-		respondError(w, http.StatusUnauthorized, "missing refresh token", err)
+	var req refreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+	if req.RefreshToken == "" {
+		respondError(w, http.StatusUnauthorized, "missing refresh token")
 		return
 	}
 
-	stored, err := sqlite.GetRefreshTokenByHash(r.Context(), h.db, hashToken(cookie.Value))
+	stored, err := sqlite.GetRefreshTokenByHash(r.Context(), h.db, hashToken(req.RefreshToken))
 	if err != nil {
 		respondError(w, http.StatusUnauthorized, "invalid refresh token", err)
 		return
@@ -136,31 +158,52 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"access_token": accessToken})
+	newRawToken, newTokenHash, err := generateRefreshToken()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not generate refresh token", err)
+		return
+	}
+
+	if _, err := sqlite.CreateRefreshToken(r.Context(), h.db, user.ID, newTokenHash); err != nil {
+		respondError(w, http.StatusInternalServerError, "could not store refresh token", err)
+		return
+	}
+
+	_ = sqlite.RevokeRefreshToken(r.Context(), h.db, stored.ID)
+
+	respondJSON(w, http.StatusOK, refreshResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRawToken,
+		ExpiresIn:    int(auth.AccessTokenTTL.Seconds()),
+		TokenType:    "Bearer",
+	})
 }
 
-// Logout revokes the refresh token cookie.
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// Logout revokes the provided refresh token.
 // @Summary Logout User
-// @Description Revokes the active refresh token and clears the refresh token cookie.
+// @Description Revokes the provided active refresh token.
 // @Tags Authentication
+// @Accept json
 // @Success 204 "Successfully logged out"
 // @Router /auth/logout [post]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie(refreshCookieName)
-	if err != nil {
-		// No cookie — already logged out.
+	var req logoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	stored, err := sqlite.GetRefreshTokenByHash(r.Context(), h.db, hashToken(cookie.Value))
-	if err == nil {
-		// Best-effort; ignore revocation errors (token may be expired already).
-		_ = sqlite.RevokeRefreshToken(r.Context(), h.db, stored.ID)
+	if req.RefreshToken != "" {
+		stored, err := sqlite.GetRefreshTokenByHash(r.Context(), h.db, hashToken(req.RefreshToken))
+		if err == nil {
+			_ = sqlite.RevokeRefreshToken(r.Context(), h.db, stored.ID)
+		}
 	}
 
-	// Expire the cookie immediately.
-	setRefreshCookie(w, "", -1)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -181,16 +224,4 @@ func generateRefreshToken() (raw, hash string, err error) {
 func hashToken(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
-}
-
-func setRefreshCookie(w http.ResponseWriter, value string, ttl time.Duration) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     refreshCookieName,
-		Value:    value,
-		Path:     "/api/v1/auth",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   int(ttl.Seconds()),
-	})
 }

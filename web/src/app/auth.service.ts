@@ -13,6 +13,9 @@ export interface User {
 
 interface LoginResponse {
   access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
   user: User;
 }
 
@@ -24,6 +27,7 @@ export class AuthService {
   private router = inject(Router);
 
   private tokenKey = 'prism_access_token';
+  private refreshTokenKey = 'prism_refresh_token';
   private userKey = 'prism_user';
 
   private refreshObservable: Observable<any> | null = null;
@@ -75,6 +79,7 @@ export class AuthService {
     return this.http.post<LoginResponse>('/api/v1/auth/login', { username, password }).pipe(
       tap((response) => {
         localStorage.setItem(this.tokenKey, response.access_token);
+        localStorage.setItem(this.refreshTokenKey, response.refresh_token);
         localStorage.setItem(this.userKey, JSON.stringify(response.user));
         this.currentUserSubject.next(response.user);
       }),
@@ -86,9 +91,15 @@ export class AuthService {
       return this.refreshObservable;
     }
 
-    this.refreshObservable = this.http.post<any>('/api/v1/auth/refresh', {}).pipe(
+    const refreshToken = localStorage.getItem(this.refreshTokenKey);
+    if (!refreshToken) {
+      return throwError(() => new Error('No refresh token available'));
+    }
+
+    this.refreshObservable = this.http.post<any>('/api/v1/auth/refresh', { refresh_token: refreshToken }).pipe(
       tap((response) => {
         localStorage.setItem(this.tokenKey, response.access_token);
+        localStorage.setItem(this.refreshTokenKey, response.refresh_token);
         this.refreshObservable = null;
       }),
       catchError((err) => {
@@ -102,8 +113,9 @@ export class AuthService {
   }
 
   public logout(): void {
+    const refreshToken = localStorage.getItem(this.refreshTokenKey);
     // Fire-and-forget logout call to the server
-    this.http.post('/api/v1/auth/logout', {}).subscribe({
+    this.http.post('/api/v1/auth/logout', { refresh_token: refreshToken || '' }).subscribe({
       next: () => this.finalizeLogout(),
       error: () => this.finalizeLogout(), // Logout anyway on failure
     });
@@ -117,6 +129,7 @@ export class AuthService {
 
   private clearLocalStorage(): void {
     localStorage.removeItem(this.tokenKey);
+    localStorage.removeItem(this.refreshTokenKey);
     localStorage.removeItem(this.userKey);
   }
 }
