@@ -84,7 +84,7 @@ func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitle
 		sb.WriteString(`    </AdaptationSet>` + "\n")
 
 		// 2. Audio AdaptationSet (referencing same segments since they are multiplexed)
-		fmt.Fprintf(&sb, `    <AdaptationSet mimeType="audio/mp4" codecs="mp4a.40.2" segmentAlignment="true">`+"\n")
+		fmt.Fprintf(&sb, `    <AdaptationSet mimeType="audio/mp4" codecs="mp4a.40.2" lang="eng" segmentAlignment="true">`+"\n")
 		for _, r := range group {
 			bandwidth := r.AudioBitrateK * 1000
 			relDir := r.Name // relative path from MPD location
