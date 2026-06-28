@@ -126,7 +126,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   private eventSub?: Subscription;
   private castSub?: Subscription;
 
-  mediaType: 'movie' | 'tvshow' = 'movie';
+  mediaType: 'movie' | 'tvshow' | 'episode' = 'movie';
   id = '';
 
   // Movie Data
@@ -167,6 +167,8 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     const urlSegment = this.route.snapshot.url[0]?.path || '';
     if (urlSegment === 'tv-shows') {
       this.mediaType = 'tvshow';
+    } else if (urlSegment === 'episodes') {
+      this.mediaType = 'episode';
     } else {
       this.mediaType = 'movie';
     }
@@ -262,7 +264,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       },
     });
 
-    if (this.mediaType === 'movie') {
+    if (this.mediaType === 'movie' || this.mediaType === 'episode') {
       this.http.get<Movie>(`/api/v1/movies/${this.id}`).subscribe({
         next: (data) => {
           this.movie = data;
@@ -273,7 +275,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           if (!silent) {
-            this.error = 'Could not load movie details.';
+            this.error = this.mediaType === 'episode' ? 'Could not load episode details.' : 'Could not load movie details.';
             this.movie = null;
           }
           this.loading = false;
@@ -383,7 +385,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   }
 
   getPosterUrl(): string {
-    if (this.mediaType === 'movie' && this.movie) {
+    if ((this.mediaType === 'movie' || this.mediaType === 'episode') && this.movie) {
       if (this.movie.poster_path) {
         return `/api/v1/movies/${this.movie.id}/poster`;
       }
@@ -409,11 +411,30 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=400&auto=format&fit=crop';
   }
 
+  getBackLabel(): string {
+    if (this.mediaType === 'episode' && this.movie?.tv_show_title) {
+      return `Back to ${this.movie.tv_show_title}`;
+    }
+    return 'Back to Library';
+  }
+
   goBack(): void {
     if (this.mediaType === 'movie') {
       this.router.navigate(['/movies']);
+    } else if (this.mediaType === 'episode' && this.movie?.tv_show_id) {
+      this.router.navigate(['/tv-shows', this.movie.tv_show_id]);
     } else {
       this.router.navigate(['/tv-shows']);
+    }
+  }
+
+  goToEpisode(episode: Episode): void {
+    this.router.navigate(['/episodes', episode.id]);
+  }
+
+  navigateToShow(showId: string | undefined): void {
+    if (showId) {
+      this.router.navigate(['/tv-shows', showId]);
     }
   }
 
@@ -494,6 +515,12 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       if (this.movie.backdrop_path) {
         return `/api/v1/movies/${this.movie.id}/backdrop`;
       }
+    } else if (this.mediaType === 'episode' && this.movie) {
+      if (this.movie.backdrop_path) {
+        return `/api/v1/movies/${this.movie.id}/backdrop`;
+      } else if (this.movie.tv_show_id) {
+        return `/api/v1/tv-shows/${this.movie.tv_show_id}/backdrop`;
+      }
     } else if (this.mediaType === 'tvshow' && this.tvShow) {
       if (this.tvShow.backdrop_path) {
         return `/api/v1/tv-shows/${this.tvShow.id}/backdrop`;
@@ -504,7 +531,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
 
   getExtraPosterUrls(): string[] {
     const urls: string[] = [];
-    if (this.mediaType === 'movie' && this.movie && this.movie.extra_posters) {
+    if ((this.mediaType === 'movie' || this.mediaType === 'episode') && this.movie && this.movie.extra_posters) {
       for (let i = 0; i < this.movie.extra_posters.length; i++) {
         urls.push(`/api/v1/movies/${this.movie.id}/extra-posters/${i}`);
       }

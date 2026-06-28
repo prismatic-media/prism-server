@@ -558,6 +558,10 @@
   border-color: rgba(220, 228, 229, 0.1);
 }
 
+.episode-row.clickable-row {
+  cursor: pointer;
+}
+
 .ep-number {
   font-size: 13px;
   font-weight: 700;

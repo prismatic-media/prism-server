@@ -23,7 +23,7 @@
     <div class="details-top-bar">
       <button class="btn-back btn-glass" (click)="goBack()">
         <span class="material-symbols-outlined">arrow_back</span>
-        <span>Back to Library</span>
+        <span>{{ getBackLabel() }}</span>
       </button>
     </div>
 
@@ -41,7 +41,7 @@
             <img [src]="getPosterUrl()" alt="Poster" class="poster-img" />
             <div
               class="poster-badge"
-              *ngIf="mediaType === 'movie' && movie?.width && movie!.width >= 3840"
+              *ngIf="(mediaType === 'movie' || mediaType === 'episode') && movie?.width && movie!.width >= 3840"
             >
               4K Ultra HD
             </div>
@@ -54,10 +54,17 @@
             <span *ngIf="mediaType === 'movie'">{{ movie?.video_codec || 'N/A' }}</span>
             <span *ngIf="mediaType === 'movie'">/</span>
             <span *ngIf="mediaType === 'movie'">{{ movie?.audio_codec || 'N/A' }}</span>
+            <span *ngIf="mediaType === 'episode' && movie?.tv_show_title">
+              <span (click)="navigateToShow(movie?.tv_show_id)" class="hover:underline text-primary-dim" style="color: var(--surface-tint); cursor: pointer;">
+                {{ movie?.tv_show_title }}
+              </span>
+            </span>
+            <span *ngIf="mediaType === 'episode'">/</span>
+            <span *ngIf="mediaType === 'episode'">SEASON {{ movie?.season_number }}, EPISODE {{ movie?.episode_number }}</span>
             <span *ngIf="mediaType === 'tvshow'">TV SERIES</span>
           </nav>
 
-          <h2 class="media-title">{{ mediaType === 'movie' ? movie?.title : tvShow?.name }}</h2>
+          <h2 class="media-title">{{ (mediaType === 'movie' || mediaType === 'episode') ? movie?.title : tvShow?.name }}</h2>
 
           <div class="quick-meta-row">
             <span class="imdb-badge">
@@ -66,24 +73,24 @@
               <span class="imdb-text">IMDb</span>
             </span>
             <span class="meta-dot">&bull;</span>
-            <span>{{ mediaType === 'movie' ? movie?.year : tvShow?.first_air_year || 'N/A' }}</span>
-            <span class="meta-dot" *ngIf="mediaType === 'movie'">&bull;</span>
-            <span *ngIf="mediaType === 'movie'">{{ formatDuration(movie?.duration) }}</span>
-            <span class="meta-dot" *ngIf="mediaType === 'movie'">&bull;</span>
-            <span class="resolution-pill" *ngIf="mediaType === 'movie' && movie"
+            <span>{{ (mediaType === 'movie' || mediaType === 'episode') ? movie?.year : tvShow?.first_air_year || 'N/A' }}</span>
+            <span class="meta-dot" *ngIf="mediaType === 'movie' || mediaType === 'episode'">&bull;</span>
+            <span *ngIf="mediaType === 'movie' || mediaType === 'episode'">{{ formatDuration(movie?.duration) }}</span>
+            <span class="meta-dot" *ngIf="mediaType === 'movie' || mediaType === 'episode'">&bull;</span>
+            <span class="resolution-pill" *ngIf="(mediaType === 'movie' || mediaType === 'episode') && movie"
               >{{ movie.width }}x{{ movie.height }}</span
             >
           </div>
 
           <p class="media-overview">
             {{
-              (mediaType === 'movie' ? movie?.overview : tvShow?.overview) ||
+              ((mediaType === 'movie' || mediaType === 'episode') ? movie?.overview : tvShow?.overview) ||
                 'No overview description available for this item.'
             }}
           </p>
 
           <!-- Core Actions Block -->
-          <div class="hero-actions-container" *ngIf="mediaType === 'movie' && movie">
+          <div class="hero-actions-container" *ngIf="(mediaType === 'movie' || mediaType === 'episode') && movie">
             <button
               class="btn-primary btn-large"
               [disabled]="movie.bundle_status !== 'available'"
@@ -216,13 +223,13 @@
       </div>
     </section>
 
-    <!-- Bento Grid Section (For Movies) -->
-    <section class="bento-grid-section" *ngIf="mediaType === 'movie' && movie">
+    <!-- Bento Grid Section (For Movies / Episodes) -->
+    <section class="bento-grid-section" *ngIf="(mediaType === 'movie' || mediaType === 'episode') && movie">
       <div class="bento-grid">
         <!-- Cast Card -->
-        <div class="bento-card frosted-glass cast-card">
+        <div class="bento-card frosted-glass cast-card" *ngIf="mediaType === 'movie' || (mediaType === 'episode' && movie.cast && movie.cast.length > 0)">
           <div class="card-header">
-            <h3 class="card-title">Director & Cast</h3>
+            <h3 class="card-title">{{ mediaType === 'episode' ? 'Episode Cast' : 'Director & Cast' }}</h3>
           </div>
           <div
             class="cast-vertical-list"
@@ -407,7 +414,7 @@
             (mouseenter)="previewEpisode(ep)"
             (mouseleave)="restoreShowPreview()"
           >
-            <div class="episode-row">
+            <div class="episode-row clickable-row" (click)="goToEpisode(ep)">
               <div class="ep-number label-mono">E{{ ep.episode_number }}</div>
 
               <!-- Episode Still / Artwork -->
@@ -472,7 +479,7 @@
                     ep.transcode_status !== 'pending' &&
                     ep.transcode_status !== 'processing'
                   "
-                  (click)="triggerTranscode(ep)"
+                  (click)="triggerTranscode(ep, $event)"
                   title="Optimize Episode"
                 >
                   <span class="material-symbols-outlined">settings_input_component</span>

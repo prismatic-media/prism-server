@@ -45,6 +45,11 @@ export const routes: Routes = [
           import('./media-details/media-details.component').then((m) => m.MediaDetailsComponent),
       },
       {
+        path: 'episodes/:id',
+        loadComponent: () =>
+          import('./media-details/media-details.component').then((m) => m.MediaDetailsComponent),
+      },
+      {
         path: 'admin/library',
         loadComponent: () =>
           import('./admin/library/library-admin.component').then((m) => m.LibraryAdminComponent),
