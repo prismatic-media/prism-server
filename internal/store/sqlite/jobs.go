@@ -571,11 +571,19 @@ func populateJob(j *models.TranscodeJob, id, mediaItemID string, workerID sql.Nu
 }
 
 func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uuid.UUID) error {
-	// Fetch media item dimensions
+	// Fetch media item dimensions, file size, and duration to compute original bitrate
 	var width, height int
-	err := tx.QueryRowContext(ctx, "SELECT width, height FROM media_items WHERE id = ?", mediaItemID.String()).Scan(&width, &height)
+	var fileSize int64
+	var duration float64
+	err := tx.QueryRowContext(ctx, "SELECT width, height, file_size, duration FROM media_items WHERE id = ?", mediaItemID.String()).Scan(&width, &height, &fileSize, &duration)
 	if err != nil {
 		return fmt.Errorf("fetching media item: %w", err)
+	}
+
+	// Calculate overall source bitrate in kbps
+	var sourceBitrateK int
+	if duration > 0 {
+		sourceBitrateK = int((float64(fileSize) * 8) / (duration * 1000))
 	}
 
 	// Fetch active profiles
@@ -639,6 +647,11 @@ func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uui
 			profileIDVal = nil
 		}
 
+		videoBitrateK := prof.VideoBitrateK
+		if sourceBitrateK > 0 && videoBitrateK > sourceBitrateK {
+			videoBitrateK = sourceBitrateK
+		}
+
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO transcode_sub_jobs (
 				id, job_id, worker_id, type, profile_id,
@@ -647,7 +660,7 @@ func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uui
 			)
 			VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, ?)`,
 			uuid.New().String(), jobID.String(), string(models.SubJobTypeVideo), profileIDVal,
-			prof.Name, prof.Width, prof.Height, prof.VideoBitrateK, prof.AudioBitrateK, prof.Codec,
+			prof.Name, prof.Width, prof.Height, videoBitrateK, prof.AudioBitrateK, prof.Codec,
 			string(models.TranscodeStatusPending), now,
 		)
 		if err != nil {

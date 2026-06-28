@@ -762,5 +762,49 @@ func TestClaimNextSubJob_LocalWorkerPinningAndExhaustion(t *testing.T) {
 	}
 }
 
+func TestCreateTranscodeJob_CapsBitrate(t *testing.T) {
+	db := openTestDB(t)
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a media item with size 1,000,000 bytes and duration 800 seconds.
+	// Overall bitrate = (1,000,000 * 8) / (800 * 1000) = 10 kbps.
+	m := newMovieItem(lib.ID, "LowBitrateFilm", "/l/lowbitrate.mkv")
+	m.FileSize = 1000000
+	m.Duration = 800
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	j := &models.TranscodeJob{MediaItemID: m.ID}
+	if err := sqlite.CreateTranscodeJob(context.Background(), db, j); err != nil {
+		t.Fatalf("CreateTranscodeJob: %v", err)
+	}
+
+	subJobs, err := sqlite.ListTranscodeSubJobsByJob(context.Background(), db, j.ID)
+	if err != nil {
+		t.Fatalf("ListTranscodeSubJobsByJob: %v", err)
+	}
+
+	var hasVideoSubJob bool
+	for _, sj := range subJobs {
+		if sj.Type == string(models.SubJobTypeVideo) {
+			hasVideoSubJob = true
+			if sj.VideoBitrateK == nil {
+				t.Error("expected video sub-job to have non-nil VideoBitrateK")
+			} else if *sj.VideoBitrateK != 10 {
+				t.Errorf("expected video sub-job VideoBitrateK to be capped at 10, got %d", *sj.VideoBitrateK)
+			}
+		}
+	}
+
+	if !hasVideoSubJob {
+		t.Error("expected to generate at least one video sub-job")
+	}
+}
+
+
 
 

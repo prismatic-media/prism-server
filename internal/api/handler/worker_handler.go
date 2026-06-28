@@ -175,11 +175,34 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	var wSubJob *WorkerSubJob
 	if claimedSubJob != nil {
 		var prof *models.TranscodeProfile
-		if claimedSubJob.Type == models.SubJobTypeVideo && claimedSubJob.ProfileID != nil {
-			prof, err = sqlite.GetTranscodeProfile(r.Context(), h.db, *claimedSubJob.ProfileID)
-			if err != nil {
-				respondError(w, http.StatusInternalServerError, "failed to load profile for sub-job", err)
-				return
+		if claimedSubJob.Type == models.SubJobTypeVideo {
+			if claimedSubJob.ProfileID != nil {
+				prof, err = sqlite.GetTranscodeProfile(r.Context(), h.db, *claimedSubJob.ProfileID)
+				if err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to load profile for sub-job", err)
+					return
+				}
+			}
+			if prof == nil {
+				prof = &models.TranscodeProfile{}
+			}
+			if claimedSubJob.ProfileName != nil {
+				prof.Name = *claimedSubJob.ProfileName
+			}
+			if claimedSubJob.Width != nil {
+				prof.Width = *claimedSubJob.Width
+			}
+			if claimedSubJob.Height != nil {
+				prof.Height = *claimedSubJob.Height
+			}
+			if claimedSubJob.VideoBitrateK != nil {
+				prof.VideoBitrateK = *claimedSubJob.VideoBitrateK
+			}
+			if claimedSubJob.AudioBitrateK != nil {
+				prof.AudioBitrateK = *claimedSubJob.AudioBitrateK
+			}
+			if claimedSubJob.Codec != nil {
+				prof.Codec = *claimedSubJob.Codec
 			}
 		}
 
