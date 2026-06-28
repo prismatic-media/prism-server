@@ -67,6 +67,12 @@
   gap: 16px;
 }
 
+.setup-logo {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
 .prism-title {
   font-size: 32px;
   font-family: 'Space Grotesk', sans-serif;

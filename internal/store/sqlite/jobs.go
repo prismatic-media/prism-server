@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -571,20 +572,22 @@ func populateJob(j *models.TranscodeJob, id, mediaItemID string, workerID sql.Nu
 }
 
 func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uuid.UUID) error {
-	// Fetch media item dimensions, file size, and duration to compute original bitrate
+	// Fetch media item dimensions, file size, duration, and video codec to compute original bitrate
 	var width, height int
 	var fileSize int64
 	var duration float64
-	err := tx.QueryRowContext(ctx, "SELECT width, height, file_size, duration FROM media_items WHERE id = ?", mediaItemID.String()).Scan(&width, &height, &fileSize, &duration)
+	var videoCodec string
+	err := tx.QueryRowContext(ctx, "SELECT width, height, file_size, duration, video_codec FROM media_items WHERE id = ?", mediaItemID.String()).Scan(&width, &height, &fileSize, &duration, &videoCodec)
 	if err != nil {
 		return fmt.Errorf("fetching media item: %w", err)
 	}
 
-	// Calculate overall source bitrate in kbps
+	// Calculate overall source bitrate in kbps and determine efficiency multiplier
 	var sourceBitrateK int
 	if duration > 0 {
 		sourceBitrateK = int((float64(fileSize) * 8) / (duration * 1000))
 	}
+	sourceEff := getCodecEfficiency(videoCodec)
 
 	// Fetch active profiles
 	rows, err := tx.QueryContext(ctx, "SELECT id, name, width, height, video_bitrate_k, audio_bitrate_k, codec, is_active FROM transcode_profiles WHERE is_active = 1")
@@ -648,8 +651,15 @@ func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uui
 		}
 
 		videoBitrateK := prof.VideoBitrateK
-		if sourceBitrateK > 0 && videoBitrateK > sourceBitrateK {
-			videoBitrateK = sourceBitrateK
+		if sourceBitrateK > 0 {
+			targetEff := getCodecEfficiency(prof.Codec)
+			cappedSourceBitrate := int(float64(sourceBitrateK) * (targetEff / sourceEff))
+			if cappedSourceBitrate < 10 {
+				cappedSourceBitrate = 10
+			}
+			if videoBitrateK > cappedSourceBitrate {
+				videoBitrateK = cappedSourceBitrate
+			}
 		}
 
 		_, err = tx.ExecContext(ctx, `
@@ -689,6 +699,18 @@ func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uui
 	}
 
 	return nil
+}
+
+func getCodecEfficiency(codec string) float64 {
+	c := strings.ToLower(codec)
+	if strings.Contains(c, "av1") {
+		return 0.50
+	}
+	if strings.Contains(c, "hevc") || strings.Contains(c, "h265") || strings.Contains(c, "265") {
+		return 0.65
+	}
+	// Default to H.264 efficiency
+	return 1.0
 }
 
 // ClaimNextSubJob atomically claims the highest-priority pending sub-job.

@@ -762,46 +762,107 @@ func TestClaimNextSubJob_LocalWorkerPinningAndExhaustion(t *testing.T) {
 	}
 }
 
-func TestCreateTranscodeJob_CapsBitrate(t *testing.T) {
+func TestCreateTranscodeJob_CapsBitrateSmart(t *testing.T) {
 	db := openTestDB(t)
+	
+	// Activate H.264 and AV1 profiles to verify relative scaling
+	_, err := db.Exec("UPDATE transcode_profiles SET is_active = 1 WHERE name IN ('360p', '360p (AV1)')")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	lib := newLib("/l", models.MediaTypeMovie)
 	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
 		t.Fatal(err)
 	}
 
-	// Create a media item with size 1,000,000 bytes and duration 800 seconds.
-	// Overall bitrate = (1,000,000 * 8) / (800 * 1000) = 10 kbps.
-	m := newMovieItem(lib.ID, "LowBitrateFilm", "/l/lowbitrate.mkv")
-	m.FileSize = 1000000
-	m.Duration = 800
-	if err := sqlite.UpsertMediaItem(context.Background(), db, m); err != nil {
+	// Case 1: Source is H.264 at 100 kbps (10,000,000 bytes / 800 seconds)
+	m1 := newMovieItem(lib.ID, "LowBitrateH264", "/l/low_h264.mkv")
+	m1.FileSize = 10000000
+	m1.Duration = 800
+	m1.VideoCodec = "h264"
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m1); err != nil {
 		t.Fatal(err)
 	}
 
-	j := &models.TranscodeJob{MediaItemID: m.ID}
-	if err := sqlite.CreateTranscodeJob(context.Background(), db, j); err != nil {
-		t.Fatalf("CreateTranscodeJob: %v", err)
+	j1 := &models.TranscodeJob{MediaItemID: m1.ID}
+	if err := sqlite.CreateTranscodeJob(context.Background(), db, j1); err != nil {
+		t.Fatalf("CreateTranscodeJob 1: %v", err)
 	}
 
-	subJobs, err := sqlite.ListTranscodeSubJobsByJob(context.Background(), db, j.ID)
+	subJobs1, err := sqlite.ListTranscodeSubJobsByJob(context.Background(), db, j1.ID)
 	if err != nil {
-		t.Fatalf("ListTranscodeSubJobsByJob: %v", err)
+		t.Fatalf("ListTranscodeSubJobsByJob 1: %v", err)
 	}
 
-	var hasVideoSubJob bool
-	for _, sj := range subJobs {
+	var checkedH264, checkedAV1 bool
+	for _, sj := range subJobs1 {
 		if sj.Type == string(models.SubJobTypeVideo) {
-			hasVideoSubJob = true
-			if sj.VideoBitrateK == nil {
-				t.Error("expected video sub-job to have non-nil VideoBitrateK")
-			} else if *sj.VideoBitrateK != 10 {
-				t.Errorf("expected video sub-job VideoBitrateK to be capped at 10, got %d", *sj.VideoBitrateK)
+			if sj.Codec == nil || sj.VideoBitrateK == nil {
+				continue
+			}
+			if *sj.Codec == "h264" {
+				checkedH264 = true
+				// H.264 -> H.264: cap is 100 kbps
+				if *sj.VideoBitrateK != 100 {
+					t.Errorf("expected H264 profile target to be capped at 100, got %d", *sj.VideoBitrateK)
+				}
+			} else if *sj.Codec == "av1" {
+				checkedAV1 = true
+				// H.264 (1.0) -> AV1 (0.5): cap is 100 * 0.5 / 1.0 = 50 kbps
+				if *sj.VideoBitrateK != 50 {
+					t.Errorf("expected AV1 profile target to be capped at 50, got %d", *sj.VideoBitrateK)
+				}
 			}
 		}
 	}
+	if !checkedH264 || !checkedAV1 {
+		t.Errorf("expected to check both H.264 and AV1 sub-jobs for Case 1, got checkedH264=%v, checkedAV1=%v", checkedH264, checkedAV1)
+	}
 
-	if !hasVideoSubJob {
-		t.Error("expected to generate at least one video sub-job")
+	// Case 2: Source is AV1 at 50 kbps (5,000,000 bytes / 800 seconds)
+	m2 := newMovieItem(lib.ID, "LowBitrateAV1", "/l/low_av1.mkv")
+	m2.FileSize = 5000000
+	m2.Duration = 800
+	m2.VideoCodec = "av1"
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m2); err != nil {
+		t.Fatal(err)
+	}
+
+	j2 := &models.TranscodeJob{MediaItemID: m2.ID}
+	if err := sqlite.CreateTranscodeJob(context.Background(), db, j2); err != nil {
+		t.Fatalf("CreateTranscodeJob 2: %v", err)
+	}
+
+	subJobs2, err := sqlite.ListTranscodeSubJobsByJob(context.Background(), db, j2.ID)
+	if err != nil {
+		t.Fatalf("ListTranscodeSubJobsByJob 2: %v", err)
+	}
+
+	checkedH264 = false
+	checkedAV1 = false
+	for _, sj := range subJobs2 {
+		if sj.Type == string(models.SubJobTypeVideo) {
+			if sj.Codec == nil || sj.VideoBitrateK == nil {
+				continue
+			}
+			if *sj.Codec == "h264" {
+				checkedH264 = true
+				// AV1 (0.5) -> H.264 (1.0): cap is 50 * 1.0 / 0.5 = 100 kbps
+				if *sj.VideoBitrateK != 100 {
+					t.Errorf("expected H264 profile target to be capped at 100 for AV1 source, got %d", *sj.VideoBitrateK)
+				}
+			} else if *sj.Codec == "av1" {
+				checkedAV1 = true
+				// AV1 (0.5) -> AV1 (0.5): cap is 50 * 0.5 / 0.5 = 50 kbps
+				if *sj.VideoBitrateK != 50 {
+					t.Errorf("expected AV1 profile target to be capped at 50 for AV1 source, got %d", *sj.VideoBitrateK)
+				}
+			}
+		}
+	}
+	if !checkedH264 || !checkedAV1 {
+		t.Errorf("expected to check both H.264 and AV1 sub-jobs for Case 2, got checkedH264=%v, checkedAV1=%v", checkedH264, checkedAV1)
 	}
 }
 
