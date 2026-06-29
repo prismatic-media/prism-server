@@ -230,6 +230,7 @@ func (h *TVHandler) ServeShowPoster(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "poster file not found", err)
 		return
 	}
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, posterPath)
 }
 
@@ -272,6 +273,7 @@ func (h *TVHandler) ServeSeasonPoster(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "poster file not found", err)
 		return
 	}
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, posterPath)
 }
 
@@ -307,6 +309,7 @@ func (h *TVHandler) ServeShowBackdrop(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "backdrop file not found", err)
 		return
 	}
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, backdropPath)
 }
 
@@ -350,5 +353,6 @@ func (h *TVHandler) ServeShowExtraPoster(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusNotFound, "poster file not found", err)
 		return
 	}
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, posterPath)
 }

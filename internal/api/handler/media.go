@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,38 @@ import (
 	"github.com/prismatic-media/prism-server/pkg/ffmpeg"
 	"github.com/prismatic-media/prism-server/pkg/subtitle"
 )
+
+// PaginatedMoviesResponse holds a list of movies and the next page token.
+type PaginatedMoviesResponse struct {
+	Movies        []*models.MediaItem `json:"movies"`
+	NextPageToken string              `json:"next_page_token,omitempty"`
+}
+
+type PageToken struct {
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
+}
+
+func encodePageToken(offset, limit int) string {
+	token := PageToken{Offset: offset, Limit: limit}
+	b, err := json.Marshal(token)
+	if err != nil {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func decodePageToken(tokenStr string) (int, int, error) {
+	b, err := base64.RawURLEncoding.DecodeString(tokenStr)
+	if err != nil {
+		return 0, 0, err
+	}
+	var token PageToken
+	if err := json.Unmarshal(b, &token); err != nil {
+		return 0, 0, err
+	}
+	return token.Offset, token.Limit, nil
+}
 
 // MediaHandler handles media item queries and deletions.
 type MediaHandler struct {
@@ -88,6 +121,61 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 
 	libIDStr := r.URL.Query().Get("library_id")
 	allStr := r.URL.Query().Get("all")
+	pageSizeStr := r.URL.Query().Get("page_size")
+	pageTokenStr := r.URL.Query().Get("page_token")
+
+	// If page_size or page_token is supplied, we return paginated AIP-158 response
+	if pageSizeStr != "" || pageTokenStr != "" {
+		var limit, offset int
+		var err error
+
+		if pageTokenStr != "" {
+			offset, limit, err = decodePageToken(pageTokenStr)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, "invalid page token", err)
+				return
+			}
+		} else {
+			limit = 30
+			if pageSizeStr != "" {
+				if parsed, err := strconv.Atoi(pageSizeStr); err == nil && parsed > 0 {
+					limit = parsed
+				}
+			}
+			offset = 0
+		}
+
+		queryLimit := limit + 1
+		var items []*models.MediaItem
+
+		if libIDStr != "" {
+			libID, err := uuid.Parse(libIDStr)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, "invalid library_id", err)
+				return
+			}
+			items, err = sqlite.ListMediaItemsPaged(r.Context(), h.db, libID, queryLimit, offset)
+		} else {
+			items, err = sqlite.ListAllMediaItemsPaged(r.Context(), h.db, queryLimit, offset)
+		}
+
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not list media items", err)
+			return
+		}
+
+		nextPageToken := ""
+		if len(items) == queryLimit {
+			nextPageToken = encodePageToken(offset+limit, limit)
+			items = items[:limit]
+		}
+
+		respondJSON(w, http.StatusOK, PaginatedMoviesResponse{
+			Movies:        emptySlice(items),
+			NextPageToken: nextPageToken,
+		})
+		return
+	}
 
 	if libIDStr != "" {
 		libID, err := uuid.Parse(libIDStr)
@@ -231,6 +319,7 @@ func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "no poster available")
 		return
 	}
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, *item.PosterPath)
 }
 
@@ -256,6 +345,7 @@ func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "no backdrop available")
 		return
 	}
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, *item.BackdropPath)
 }
 
@@ -288,6 +378,7 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusNotFound, "extra poster index out of bounds")
 		return
 	}
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, item.ExtraPosters[index])
 }
 
