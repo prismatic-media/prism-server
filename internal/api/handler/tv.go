@@ -11,8 +11,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/prismatic-media/prism-server/internal/models"
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
+
+// PaginatedTVShowsResponse holds a list of TV shows and the next page token.
+type PaginatedTVShowsResponse struct {
+	TVShows       []*models.TVShow `json:"tv_shows"`
+	NextPageToken string           `json:"next_page_token,omitempty"`
+}
 
 // TVHandler handles TV show/season/episode browsing.
 type TVHandler struct {
@@ -35,7 +42,9 @@ func NewTVHandler(db *sql.DB) *TVHandler {
 // @Param library_id query string false "Library ID" format(uuid)
 // @Param sort query string false "Sort order" enum(recent)
 // @Param limit query integer false "Recent items count limit" default(20)
-// @Success 200 {array} models.TVShow
+// @Param page_size query integer false "Page size for pagination"
+// @Param page_token query string false "Page token for pagination"
+// @Success 200 {object} PaginatedTVShowsResponse
 // @Failure 400 {object} map[string]string "Invalid library ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Router /tv-shows [get]
@@ -48,6 +57,49 @@ func (h *TVHandler) ListShows(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respondJSON(w, http.StatusOK, emptySlice(shows))
+		return
+	}
+
+	pageSizeStr := r.URL.Query().Get("page_size")
+	pageTokenStr := r.URL.Query().Get("page_token")
+
+	if pageSizeStr != "" || pageTokenStr != "" {
+		var limit, offset int
+		var err error
+
+		if pageTokenStr != "" {
+			offset, limit, err = decodePageToken(pageTokenStr)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, "invalid page token", err)
+				return
+			}
+		} else {
+			limit = 30
+			if pageSizeStr != "" {
+				if parsed, err := strconv.Atoi(pageSizeStr); err == nil && parsed > 0 {
+					limit = parsed
+				}
+			}
+			offset = 0
+		}
+
+		queryLimit := limit + 1
+		shows, err := sqlite.ListAllTVShowsPaged(r.Context(), h.db, queryLimit, offset)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not list tv shows paged", err)
+			return
+		}
+
+		nextPageToken := ""
+		if len(shows) == queryLimit {
+			nextPageToken = encodePageToken(offset+limit, limit)
+			shows = shows[:limit]
+		}
+
+		respondJSON(w, http.StatusOK, PaginatedTVShowsResponse{
+			TVShows:       emptySlice(shows),
+			NextPageToken: nextPageToken,
+		})
 		return
 	}
 

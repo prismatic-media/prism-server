@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/prismatic-media/prism-server/internal/api/handler"
 	apimw "github.com/prismatic-media/prism-server/internal/api/middleware"
 	"github.com/prismatic-media/prism-server/internal/models"
@@ -36,10 +35,10 @@ func TestListMedia_Pagination(t *testing.T) {
 	// Insert 5 test movies
 	for i := 1; i <= 5; i++ {
 		m := &models.MediaItem{
-			LibraryID: lib.ID,
-			Title:     fmt.Sprintf("Movie %d", i),
-			MediaType: models.MediaTypeMovie,
-			FilePath:  fmt.Sprintf("/l/movie%d.mkv", i),
+			LibraryID:       lib.ID,
+			Title:           fmt.Sprintf("Movie %d", i),
+			MediaType:       models.MediaTypeMovie,
+			FilePath:        fmt.Sprintf("/l/movie%d.mkv", i),
 			TranscodeStatus: models.TranscodeStatusPending,
 		}
 		if err := sqlite.UpsertMediaItem(context.Background(), db, m); err != nil {

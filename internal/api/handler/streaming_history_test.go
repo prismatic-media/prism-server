@@ -35,18 +35,16 @@ func newStreamRouter(t *testing.T, h *handler.StreamHandler) http.Handler {
 	r.Get("/api/v1/stream/{media_id}/segments/*", h.ServeSegment)
 	return r
 }
-
 // newHistoryRouter builds a minimal chi router wired to HistoryHandler.
 func newHistoryRouter(t *testing.T, h *handler.HistoryHandler) http.Handler {
 	t.Helper()
 	r := chi.NewRouter()
 	r.Use(apimw.Authenticate(testSecret))
 	r.Get("/api/v1/history", h.GetHistory)
+	r.Get("/api/v1/history/{media_id}", h.GetHistoryForMedia)
 	r.Put("/api/v1/history/{media_id}", h.UpsertHistory)
 	return r
 }
-
-// --- StreamHandler tests ---
 
 func TestServeManifest_MediaNotFound(t *testing.T) {
 	db := openTestDB(t)
@@ -434,4 +432,58 @@ var _ = newHistoryRouter
 func init() {
 	// Use httptest.NewRecorder to confirm import is used.
 	_ = httptest.NewRecorder
+}
+
+func TestGetHistoryForMedia(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := &models.MediaItem{
+		LibraryID: lib.ID, Title: "GetOne", FilePath: "/l/getone.mkv",
+		MediaType: models.MediaTypeMovie, TranscodeStatus: models.TranscodeStatusPending,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	h := handler.NewHistoryHandler(db)
+	r := newHistoryRouter(t, h)
+
+	u := createUser(t, db, "histuser5", "h5@x.com", "pass", false)
+	tok := bearerToken(t, u.ID, false)
+
+	// Fetch history before any watch - should be 204
+	rec := do(t, r, http.MethodGet, "/api/v1/history/"+m.ID.String(), nil,
+		map[string]string{"Authorization": "Bearer " + tok})
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected 204 for empty history, got %d", rec.Code)
+	}
+
+	// Upsert progress
+	rec = do(t, r, http.MethodPut,
+		"/api/v1/history/"+m.ID.String(),
+		jsonBody(map[string]interface{}{"position": 120.5, "completed": false}),
+		map[string]string{"Authorization": "Bearer " + tok})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upsert status = %d", rec.Code)
+	}
+
+	// Fetch single item history - should be 200 and return history
+	rec = do(t, r, http.MethodGet, "/api/v1/history/"+m.ID.String(), nil,
+		map[string]string{"Authorization": "Bearer " + tok})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, want 200", rec.Code)
+	}
+
+	var hist models.WatchHistory
+	if err := json.NewDecoder(rec.Body).Decode(&hist); err != nil {
+		t.Fatal(err)
+	}
+	if hist.Position != 120.5 {
+		t.Errorf("expected position = 120.5, got %v", hist.Position)
+	}
 }

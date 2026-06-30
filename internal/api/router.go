@@ -163,6 +163,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			// Watch history (Phase 5)
 			r.Get("/history", historyH.GetHistory)
 			r.Get("/history:now-playing", historyH.GetNowPlaying)
+			r.Get("/history/{media_id}", historyH.GetHistoryForMedia)
 			r.Put("/history/{media_id}", historyH.UpsertHistory)
 
 			// Transcode jobs (Phase 4)

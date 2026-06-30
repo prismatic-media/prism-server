@@ -179,6 +179,29 @@ func ListRecentTVShows(ctx context.Context, db *sql.DB, limit int) ([]*models.TV
 	return shows, rows.Err()
 }
 
+// ListAllTVShowsPaged returns TV shows across all libraries with pagination.
+func ListAllTVShowsPaged(ctx context.Context, db *sql.DB, limit, offset int) ([]*models.TVShow, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, library_id, name, tmdb_id, overview, poster_path,
+		       first_air_year, director, cast_members, backdrop_path, extra_posters, created_at, updated_at
+		FROM tv_shows ORDER BY CASE WHEN LOWER(name) LIKE 'the %' THEN SUBSTR(name, 5) ELSE name END COLLATE NOCASE
+		LIMIT ? OFFSET ?`, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("listing paged tv shows: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var shows []*models.TVShow
+	for rows.Next() {
+		s, err := scanTVShowRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		shows = append(shows, s)
+	}
+	return shows, rows.Err()
+}
+
 
 func scanTVShow(row *sql.Row) (*models.TVShow, error) {
 	var s models.TVShow

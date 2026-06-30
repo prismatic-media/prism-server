@@ -183,3 +183,50 @@ func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, entry)
 }
+
+// GetHistoryForMedia handles GET /api/v1/history/{media_id}.
+// Returns the watch history for the authenticated user and a specific media item.
+// @Summary Get History for Media Item
+// @Description Retrieve watch history (playback position) for a single media item.
+// @Tags Playback & History
+// @Security BearerAuth
+// @Produce json
+// @Param media_id path string true "Media Item ID" format(uuid)
+// @Success 200 {object} models.WatchHistory
+// @Success 204 "No history for this item"
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 500 {object} map[string]string "Database error"
+// @Router /history/{media_id} [get]
+func (h *HistoryHandler) GetHistoryForMedia(w http.ResponseWriter, r *http.Request) {
+	claims := apimw.ClaimsFromContext(r.Context())
+	if claims == nil {
+		respondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "invalid user id in token", err)
+		return
+	}
+
+	mediaID, err := uuidParam(r, "media_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		return
+	}
+
+	entry, err := sqlite.GetWatchHistory(r.Context(), h.db, userID, mediaID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch watch history", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, entry)
+}
+
