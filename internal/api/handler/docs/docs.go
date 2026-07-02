@@ -222,7 +222,7 @@ const docTemplate = `{
         },
         "/auth/login": {
             "post": {
-                "description": "Validates user credentials, sets refresh token cookie, and returns a JWT access token.",
+                "description": "Validates user credentials and returns both JWT access and refresh tokens.",
                 "consumes": [
                     "application/json"
                 ],
@@ -274,7 +274,10 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
-                "description": "Revokes the active refresh token and clears the refresh token cookie.",
+                "description": "Revokes the provided active refresh token.",
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "Authentication"
                 ],
@@ -288,7 +291,10 @@ const docTemplate = `{
         },
         "/auth/refresh": {
             "post": {
-                "description": "Issues a new JWT access token using the refresh token cookie.",
+                "description": "Issues a new JWT access token and rotated refresh token using the provided refresh token.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -296,9 +302,26 @@ const docTemplate = `{
                     "Authentication"
                 ],
                 "summary": "Refresh Access Token",
+                "parameters": [
+                    {
+                        "description": "Refresh token payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.refreshRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "Returns new access_token",
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.refreshResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -413,6 +436,69 @@ const docTemplate = `{
             }
         },
         "/history/{media_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve watch history (playback position) for a single media item.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Playback \u0026 History"
+                ],
+                "summary": "Get History for Media Item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media Item ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.WatchHistory"
+                        }
+                    },
+                    "204": {
+                        "description": "No history for this item"
+                    },
+                    "400": {
+                        "description": "Invalid media ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Database error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {
@@ -2643,16 +2729,25 @@ const docTemplate = `{
                         "description": "Recent items count limit",
                         "name": "limit",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size for pagination",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Page token for pagination",
+                        "name": "page_token",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.TVShow"
-                            }
+                            "$ref": "#/definitions/handler.PaginatedTVShowsResponse"
                         }
                     },
                     "400": {
@@ -3398,7 +3493,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update concurrency limits (threads) or hardware acceleration configuration for a registered worker.",
+                "description": "Update hardware acceleration configuration for a registered worker.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3575,6 +3670,20 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.PaginatedTVShowsResponse": {
+            "type": "object",
+            "properties": {
+                "next_page_token": {
+                    "type": "string"
+                },
+                "tv_shows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TVShow"
+                    }
+                }
+            }
+        },
         "handler.WorkerSubJob": {
             "type": "object",
             "properties": {
@@ -3591,7 +3700,10 @@ const docTemplate = `{
                     "$ref": "#/definitions/models.TranscodeProfile"
                 },
                 "type": {
-                    "description": "\"video\" or \"subtitles\"",
+                    "description": "\"video\", \"subtitles\", or \"whisper\"",
+                    "type": "string"
+                },
+                "whisper_model": {
                     "type": "string"
                 }
             }
@@ -3676,6 +3788,15 @@ const docTemplate = `{
                 "access_token": {
                     "type": "string"
                 },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                },
                 "user": {
                     "$ref": "#/definitions/models.User"
                 }
@@ -3702,6 +3823,31 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.refreshRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.refreshResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "token_type": {
                     "type": "string"
                 }
             }
@@ -3842,9 +3988,6 @@ const docTemplate = `{
             "properties": {
                 "hwaccel": {
                     "type": "string"
-                },
-                "threads": {
-                    "type": "integer"
                 }
             }
         },

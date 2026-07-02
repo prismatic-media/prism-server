@@ -35,6 +35,15 @@ definitions:
       updated:
         type: integer
     type: object
+  handler.PaginatedTVShowsResponse:
+    properties:
+      next_page_token:
+        type: string
+      tv_shows:
+        items:
+          $ref: '#/definitions/models.TVShow'
+        type: array
+    type: object
   handler.WorkerSubJob:
     properties:
       id:
@@ -46,7 +55,9 @@ definitions:
       profile:
         $ref: '#/definitions/models.TranscodeProfile'
       type:
-        description: '"video" or "subtitles"'
+        description: '"video", "subtitles", or "whisper"'
+        type: string
+      whisper_model:
         type: string
     type: object
   handler.createEphemeralTokenRequest:
@@ -99,6 +110,12 @@ definitions:
     properties:
       access_token:
         type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
       user:
         $ref: '#/definitions/models.User'
     type: object
@@ -116,6 +133,22 @@ definitions:
       progress:
         type: number
       status:
+        type: string
+    type: object
+  handler.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  handler.refreshResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
         type: string
     type: object
   handler.registerWorkerRequest:
@@ -207,8 +240,6 @@ definitions:
     properties:
       hwaccel:
         type: string
-      threads:
-        type: integer
     type: object
   handler.upsertHistoryRequest:
     properties:
@@ -766,8 +797,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Validates user credentials, sets refresh token cookie, and returns
-        a JWT access token.
+      description: Validates user credentials and returns both JWT access and refresh
+        tokens.
       parameters:
       - description: Login credentials
         in: body
@@ -799,7 +830,9 @@ paths:
       - Authentication
   /auth/logout:
     post:
-      description: Revokes the active refresh token and clears the refresh token cookie.
+      consumes:
+      - application/json
+      description: Revokes the provided active refresh token.
       responses:
         "204":
           description: Successfully logged out
@@ -808,12 +841,26 @@ paths:
       - Authentication
   /auth/refresh:
     post:
-      description: Issues a new JWT access token using the refresh token cookie.
+      consumes:
+      - application/json
+      description: Issues a new JWT access token and rotated refresh token using the
+        provided refresh token.
+      parameters:
+      - description: Refresh token payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.refreshRequest'
       produces:
       - application/json
       responses:
         "200":
-          description: Returns new access_token
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.refreshResponse'
+        "400":
+          description: Invalid request body
           schema:
             additionalProperties:
               type: string
@@ -890,6 +937,47 @@ paths:
       tags:
       - Playback & History
   /history/{media_id}:
+    get:
+      description: Retrieve watch history (playback position) for a single media item.
+      parameters:
+      - description: Media Item ID
+        format: uuid
+        in: path
+        name: media_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WatchHistory'
+        "204":
+          description: No history for this item
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Database error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get History for Media Item
+      tags:
+      - Playback & History
     put:
       consumes:
       - application/json
@@ -2345,15 +2433,21 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: Page size for pagination
+        in: query
+        name: page_size
+        type: integer
+      - description: Page token for pagination
+        in: query
+        name: page_token
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/models.TVShow'
-            type: array
+            $ref: '#/definitions/handler.PaginatedTVShowsResponse'
         "400":
           description: Invalid library ID
           schema:
@@ -2873,8 +2967,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update concurrency limits (threads) or hardware acceleration configuration
-        for a registered worker.
+      description: Update hardware acceleration configuration for a registered worker.
       parameters:
       - description: Worker ID
         format: uuid
