@@ -251,7 +251,16 @@ func (h *TVHandler) ListEpisodes(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeShowPoster serves the cached poster image for a TV show.
-// GET /api/v1/tv/shows/{id}/poster
+// @Summary Serve TV Show Poster
+// @Description Serve the cached poster image file for a TV show.
+// @Tags TV Shows
+// @Produce image/*
+// @Param id path string true "Show ID" format(uuid)
+// @Success 200 {file} file "Poster image file"
+// @Failure 400 {object} map[string]string "Invalid show ID"
+// @Failure 404 {object} map[string]string "Show or poster not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /tv-shows/{id}/poster [get]
 func (h *TVHandler) ServeShowPoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -287,7 +296,17 @@ func (h *TVHandler) ServeShowPoster(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeSeasonPoster serves the poster for a TV season.
-// GET /api/v1/tv/shows/{id}/seasons/{number}/poster
+// @Summary Serve TV Season Poster
+// @Description Serve the cached poster image file for a TV show season.
+// @Tags TV Shows
+// @Produce image/*
+// @Param id path string true "Show ID" format(uuid)
+// @Param number path int true "Season number"
+// @Success 200 {file} file "Poster image file"
+// @Failure 400 {object} map[string]string "Invalid parameters"
+// @Failure 404 {object} map[string]string "Season or poster not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /tv-shows/{id}/seasons/{number}/poster [get]
 func (h *TVHandler) ServeSeasonPoster(w http.ResponseWriter, r *http.Request) {
 	showID, err := uuidParam(r, "id")
 	if err != nil {
@@ -330,7 +349,16 @@ func (h *TVHandler) ServeSeasonPoster(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeShowBackdrop serves the cached backdrop image for a TV show.
-// GET /api/v1/tv/shows/{id}/backdrop
+// @Summary Serve TV Show Backdrop
+// @Description Serve the cached backdrop image file for a TV show.
+// @Tags TV Shows
+// @Produce image/*
+// @Param id path string true "Show ID" format(uuid)
+// @Success 200 {file} file "Backdrop image file"
+// @Failure 400 {object} map[string]string "Invalid show ID"
+// @Failure 404 {object} map[string]string "Show or backdrop not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /tv-shows/{id}/backdrop [get]
 func (h *TVHandler) ServeShowBackdrop(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -366,7 +394,17 @@ func (h *TVHandler) ServeShowBackdrop(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeShowExtraPoster serves a cached extra poster image for a TV show by index.
-// GET /api/v1/tv/shows/{id}/extra-posters/{index}
+// @Summary Serve TV Show Extra Poster
+// @Description Serve a cached extra poster image by index for a TV show.
+// @Tags TV Shows
+// @Produce image/*
+// @Param id path string true "Show ID" format(uuid)
+// @Param index path int true "Zero-based index of the extra poster"
+// @Success 200 {file} file "Extra poster image file"
+// @Failure 400 {object} map[string]string "Invalid index or show ID"
+// @Failure 404 {object} map[string]string "Show or poster at index not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /tv-shows/{id}/extra-posters/{index} [get]
 func (h *TVHandler) ServeShowExtraPoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {

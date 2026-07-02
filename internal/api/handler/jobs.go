@@ -212,7 +212,16 @@ func (h *JobsHandler) PrioritizeJob(w http.ResponseWriter, r *http.Request) {
 }
 
 // JobProgress handles GET /api/v1/ws/jobs/{id} — upgrades to WebSocket and
-// streams ProgressEvents until the job completes or the client disconnects.
+// @Summary Websocket Job Progress Stream
+// @Description Establish a real-time WebSocket connection to track progress updates of a specific transcode job.
+// @Tags Jobs
+// @Security BearerAuth
+// @Param id path string true "Job ID" format(uuid)
+// @Success 101 {string} string "Upgraded to WebSocket connection"
+// @Failure 400 {object} map[string]string "Invalid job ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Router /jobs/{id}/progress [get]
 func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {

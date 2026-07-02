@@ -271,6 +271,16 @@ func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServePoster serves the cached poster image for a media item.
+// @Summary Serve Movie Poster
+// @Description Serve the cached poster image file for a movie.
+// @Tags Media Items
+// @Produce image/*
+// @Param id path string true "Media ID" format(uuid)
+// @Success 200 {file} file "Poster image file"
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 404 {object} map[string]string "Media item or poster not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /movies/{id}/poster [get]
 func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -297,6 +307,16 @@ func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeBackdrop serves the cached backdrop image for a media item.
+// @Summary Serve Movie Backdrop
+// @Description Serve the cached backdrop image file for a movie.
+// @Tags Media Items
+// @Produce image/*
+// @Param id path string true "Media ID" format(uuid)
+// @Success 200 {file} file "Backdrop image file"
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 404 {object} map[string]string "Media item or backdrop not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /movies/{id}/backdrop [get]
 func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -323,6 +343,17 @@ func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeExtraPoster serves a cached extra poster image for a media item by index.
+// @Summary Serve Movie Extra Poster
+// @Description Serve a cached extra poster image by index for a movie.
+// @Tags Media Items
+// @Produce image/*
+// @Param id path string true "Media ID" format(uuid)
+// @Param index path int true "Zero-based index of the extra poster"
+// @Success 200 {file} file "Extra poster image file"
+// @Failure 400 {object} map[string]string "Invalid index or media ID"
+// @Failure 404 {object} map[string]string "Media item or poster at index not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /movies/{id}/extra-posters/{index} [get]
 func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
@@ -462,7 +493,23 @@ func emptySlice[T any](s []T) []T {
 }
 
 // UploadSubtitle handles POST /api/v1/media/{id}/subtitles (Admin Only).
-// It accepts an SRT file, converts it to WebVTT via FFmpeg, and stores it in the database.
+// @Summary Upload Subtitle
+// @Description Upload a custom SRT subtitle file for a media item. The server converts it to WebVTT format and stores it in the database.
+// @Tags Subtitles
+// @Security BearerAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param media_id path string true "Media ID" format(uuid)
+// @Param file formData file true "SRT subtitle file to upload"
+// @Param language formData string true "3-letter language code (e.g. eng, spa)"
+// @Param label formData string true "Display label for the subtitle track"
+// @Success 201 {object} models.MediaSubtitle
+// @Failure 400 {object} map[string]string "Invalid parameters or file type"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Media item not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /media/{media_id}/subtitles [post]
 func (h *MediaHandler) UploadSubtitle(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "media_id")
 	if err != nil {
@@ -550,7 +597,22 @@ type SyncSubtitleRequest struct {
 }
 
 // SyncSubtitle handles POST /api/v1/media/subtitles/{id}/sync (Admin Only).
-// It can trigger automatic alignment or apply a manual timestamp shift.
+// @Summary Sync Subtitle
+// @Description Manually shift subtitle timestamps by an offset or trigger background alignment against reference transcript.
+// @Tags Subtitles
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param media_id path string true "Media ID" format(uuid)
+// @Param subtitle_id path string true "Subtitle ID" format(uuid)
+// @Param body body SyncSubtitleRequest true "Sync parameters"
+// @Success 202 {object} models.MediaSubtitle "Accepted background alignment or update complete"
+// @Failure 400 {object} map[string]string "Invalid parameters"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Subtitle or media not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /media/{media_id}/subtitles/{subtitle_id}:sync [post]
 func (h *MediaHandler) SyncSubtitle(w http.ResponseWriter, r *http.Request) {
 	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {
@@ -644,6 +706,18 @@ func (h *MediaHandler) SyncSubtitle(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListSubtitles handles GET /api/v1/media/{id}/subtitles.
+// @Summary List Subtitles
+// @Description Retrieve all custom/uploaded subtitle tracks for a given media item.
+// @Tags Subtitles
+// @Security BearerAuth
+// @Produce json
+// @Param media_id path string true "Media ID" format(uuid)
+// @Success 200 {array} models.MediaSubtitle
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Media item not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /media/{media_id}/subtitles [get]
 func (h *MediaHandler) ListSubtitles(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "media_id")
 	if err != nil {
@@ -672,6 +746,19 @@ func (h *MediaHandler) ListSubtitles(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteSubtitle handles DELETE /api/v1/media/subtitles/{id} (Admin Only).
+// @Summary Delete Subtitle
+// @Description Delete an uploaded custom subtitle track.
+// @Tags Subtitles
+// @Security BearerAuth
+// @Param media_id path string true "Media ID" format(uuid)
+// @Param subtitle_id path string true "Subtitle ID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid parameters"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Subtitle not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /media/{media_id}/subtitles/{subtitle_id} [delete]
 func (h *MediaHandler) DeleteSubtitle(w http.ResponseWriter, r *http.Request) {
 	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {

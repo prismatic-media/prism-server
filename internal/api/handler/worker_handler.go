@@ -91,7 +91,7 @@ type progressRequest struct {
 // @Success 200 {object} heartbeatResponse
 // @Failure 401 {object} map[string]string "Unauthorized"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /worker/heartbeat [post]
+// @Router /workers:heartbeat [post]
 func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	worker := WorkerFromContext(r.Context())
 	if worker == nil {
@@ -725,7 +725,7 @@ type registerWorkerResponse struct {
 // @Failure 400 {object} map[string]string "Invalid request or token name missing"
 // @Failure 401 {object} map[string]string "Invalid registration token"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /worker/register [post]
+// @Router /workers:register [post]
 func (h *WorkerHandler) RegisterWorker(w http.ResponseWriter, r *http.Request) {
 	var req registerWorkerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

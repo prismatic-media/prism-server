@@ -20,10 +20,13 @@ func NewEventsHandler(bus *events.Bus) *EventsHandler {
 }
 
 // ServeEvents handles GET /api/v1/ws/events.
-// It upgrades the connection, subscribes to the global event bus, and streams
-// all events until the client disconnects or the server shuts down.
-// Authentication is enforced at the router level by the Authenticate middleware
-// before this handler is called.
+// @Summary Websocket Event Stream
+// @Description Establish a real-time event WebSocket connection to receive system event pub-sub.
+// @Tags System Events
+// @Security BearerAuth
+// @Success 101 {string} string "Upgraded to WebSocket connection"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /ws/events [get]
 func (h *EventsHandler) ServeEvents(w http.ResponseWriter, r *http.Request) {
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
