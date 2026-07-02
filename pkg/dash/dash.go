@@ -24,6 +24,7 @@ type RenditionInfo struct {
 // SubtitleInfo describes an extracted subtitle track.
 type SubtitleInfo struct {
 	Language string // e.g. "eng"
+	Label    string // e.g. "English (SDH)"
 	VTTPath  string // absolute path to the .vtt file
 }
 
@@ -87,9 +88,13 @@ func GenerateMPD(outputDir, mpdPath string, renditions []RenditionInfo, subtitle
 	// Text adaptation sets (one per subtitle track).
 	for _, sub := range subtitles {
 		relVTT := filepath.Base(sub.VTTPath)
+		repID := strings.TrimSuffix(relVTT, ".vtt")
 		fmt.Fprintf(&sb, `    <AdaptationSet mimeType="text/vtt" lang=%q>`+"\n",
 			sub.Language)
-		fmt.Fprintf(&sb, `      <Representation id="sub_%s" bandwidth="0">`+"\n", sub.Language)
+		if sub.Label != "" {
+			fmt.Fprintf(&sb, `      <Label>%s</Label>`+"\n", sub.Label)
+		}
+		fmt.Fprintf(&sb, `      <Representation id=%q bandwidth="0">`+"\n", repID)
 		fmt.Fprintf(&sb, `        <BaseURL>segments/%s</BaseURL>`+"\n", relVTT)
 		sb.WriteString(`      </Representation>` + "\n")
 		sb.WriteString(`    </AdaptationSet>` + "\n")

@@ -1062,11 +1062,44 @@ func RegenerateManifestForJob(ctx context.Context, db *sql.DB, jobID uuid.UUID, 
 	if err == nil {
 		for _, entry := range entries {
 			if !entry.IsDir() && strings.HasPrefix(entry.Name(), "sub_") && strings.HasSuffix(entry.Name(), ".vtt") {
-				lang := strings.TrimPrefix(entry.Name(), "sub_")
+				filename := entry.Name()
+				lang := strings.TrimPrefix(filename, "sub_")
 				lang = strings.TrimSuffix(lang, ".vtt")
+				label := ""
+
+				// Check if it is a custom uploaded subtitle: sub_uploaded_[lang]_[uuid].vtt
+				if strings.HasPrefix(lang, "uploaded_") {
+					parts := strings.Split(lang, "_")
+					if len(parts) >= 3 {
+						uuidStr := parts[len(parts)-1]
+						for _, us := range uploadedSubs {
+							if us.ID.String() == uuidStr {
+								lang = us.Language
+								label = us.Label
+								break
+							}
+						}
+					}
+				}
+
+				// Fallback label generation if empty
+				if label == "" {
+					if lang == "eng" || lang == "en" {
+						label = "English"
+					} else if lang == "spa" || lang == "es" {
+						label = "Spanish"
+					} else if strings.HasPrefix(lang, "whisper_") {
+						label = fmt.Sprintf("Auto-generated (%s)", strings.TrimPrefix(lang, "whisper_"))
+						lang = strings.TrimPrefix(lang, "whisper_")
+					} else {
+						label = strings.ToUpper(lang)
+					}
+				}
+
 				subs = append(subs, dash.SubtitleInfo{
 					Language: lang,
-					VTTPath:  filepath.Join(outputDir, entry.Name()),
+					Label:    label,
+					VTTPath:  filepath.Join(outputDir, filename),
 				})
 			}
 		}
