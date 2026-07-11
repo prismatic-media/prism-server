@@ -189,11 +189,14 @@ func (h *LibraryHandler) ScanLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run scan in background so the HTTP response is immediate.
-	go func() {
-		// Context may be cancelled after response is sent — that is fine.
-		_ = h.manager.Scan(r.Context(), id)
-	}()
+	if err := h.manager.Scan(id); err != nil {
+		if errors.Is(err, scanner.ErrScannerNotFound) {
+			respondError(w, http.StatusNotFound, "library not found", err)
+		} else {
+			respondError(w, http.StatusInternalServerError, "could not trigger scan", err)
+		}
+		return
+	}
 
 	respondJSON(w, http.StatusAccepted, map[string]string{"status": "scan started"})
 }

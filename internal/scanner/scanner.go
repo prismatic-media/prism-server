@@ -38,12 +38,31 @@ var videoExtensions = map[string]struct{}{
 // Scanner manages library scanning and file-system watching for a single
 // library. Create one per library via New, then call Start to begin watching.
 type Scanner struct {
-	db       *sql.DB
-	library  *models.Library
-	enricher *metadata.Enricher
-	eventBus *events.Bus
-	watcher  *fsnotify.Watcher
-	mu       sync.Mutex
+	db         *sql.DB
+	library    *models.Library
+	enricher   *metadata.Enricher
+	eventBus   *events.Bus
+	watcher    *fsnotify.Watcher
+	mu         sync.Mutex
+	submitTask func(task)
+}
+
+type watchEventTask struct {
+	scanner *Scanner
+	event   fsnotify.Event
+	watcher *fsnotify.Watcher
+}
+
+func (t *watchEventTask) execute(ctx context.Context) {
+	t.scanner.handleEvent(ctx, t.event, t.watcher)
+}
+
+func (s *Scanner) queueTask(t task) {
+	if s.submitTask != nil {
+		s.submitTask(t)
+	} else {
+		t.execute(context.Background())
+	}
 }
 
 // New creates a Scanner for lib. enricher may be nil to skip metadata
@@ -140,7 +159,11 @@ func (s *Scanner) Start(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			s.handleEvent(ctx, event, w)
+			s.queueTask(&watchEventTask{
+				scanner: s,
+				event:   event,
+				watcher: w,
+			})
 		case err, ok := <-w.Errors:
 			if !ok {
 				return nil
@@ -277,21 +300,12 @@ func (s *Scanner) upsertFile(ctx context.Context, path string) error {
 			})
 		}
 		if s.enricher != nil && item.TMDBId == nil {
-			enricher := s.enricher
-			itemID := item.ID
-			go func() {
-				enricher.EnrichItem(context.Background(), item)
-				// After enrichment, notify clients if a poster is now available.
-				if updated, err := sqlite.GetMediaItemByID(context.Background(), s.db, itemID); err == nil && updated.PosterPath != nil {
-					if s.eventBus != nil {
-						s.eventBus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
-							MediaItemID: updated.ID,
-							LibraryID:   updated.LibraryID,
-							PosterPath:  *updated.PosterPath,
-						})
-					}
-				}
-			}()
+			s.queueTask(&enrichItemTask{
+				enricher: s.enricher,
+				db:       s.db,
+				bus:      s.eventBus,
+				item:     item,
+			})
 		}
 	}
 	return nil
@@ -388,22 +402,14 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 			})
 		}
 		if s.enricher != nil && item.TMDBId == nil {
-			enricher := s.enricher
-			showID := show.ID
-			seasonID := season.ID
-			itemCopy := item
-			go func() {
-				enricher.EnrichTVEpisode(context.Background(), itemCopy, showID, seasonID)
-				if updated, err := sqlite.GetMediaItemByID(context.Background(), s.db, itemCopy.ID); err == nil && updated.PosterPath != nil {
-					if s.eventBus != nil {
-						s.eventBus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
-							MediaItemID: updated.ID,
-							LibraryID:   updated.LibraryID,
-							PosterPath:  *updated.PosterPath,
-						})
-					}
-				}
-			}()
+			s.queueTask(&enrichTVEpisodeTask{
+				enricher: s.enricher,
+				db:       s.db,
+				bus:      s.eventBus,
+				item:     item,
+				showID:   show.ID,
+				seasonID: season.ID,
+			})
 		}
 	}
 	return nil

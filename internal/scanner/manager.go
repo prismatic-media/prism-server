@@ -26,16 +26,82 @@ type Manager struct {
 	ctx  context.Context
 	stop context.CancelFunc
 
-	mu       sync.Mutex
-	scanners map[uuid.UUID]*Scanner
-	cancels  map[uuid.UUID]context.CancelFunc
+	mu        sync.Mutex
+	scanners  map[uuid.UUID]*Scanner
+	cancels   map[uuid.UUID]context.CancelFunc
+	taskQueue []task
+	cond      *sync.Cond
+}
+
+// task represents a serialized operation to be executed by the manager's background worker.
+type task interface {
+	execute(ctx context.Context)
+}
+
+type scanTask struct {
+	manager   *Manager
+	libraryID uuid.UUID
+}
+
+func (t *scanTask) execute(ctx context.Context) {
+	t.manager.mu.Lock()
+	s, ok := t.manager.scanners[t.libraryID]
+	t.manager.mu.Unlock()
+	if !ok {
+		return
+	}
+	if err := s.ScanAll(ctx); err != nil {
+		slog.Warn("scan failed", "library_id", t.libraryID, "error", err)
+	}
+}
+
+type enrichItemTask struct {
+	enricher *metadata.Enricher
+	db       *sql.DB
+	bus      *events.Bus
+	item     *models.MediaItem
+}
+
+func (t *enrichItemTask) execute(ctx context.Context) {
+	t.enricher.EnrichItem(ctx, t.item)
+	if updated, err := sqlite.GetMediaItemByID(ctx, t.db, t.item.ID); err == nil && updated.PosterPath != nil {
+		if t.bus != nil {
+			t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
+				MediaItemID: updated.ID,
+				LibraryID:   updated.LibraryID,
+				PosterPath:  *updated.PosterPath,
+			})
+		}
+	}
+}
+
+type enrichTVEpisodeTask struct {
+	enricher *metadata.Enricher
+	db       *sql.DB
+	bus      *events.Bus
+	item     *models.MediaItem
+	showID   uuid.UUID
+	seasonID uuid.UUID
+}
+
+func (t *enrichTVEpisodeTask) execute(ctx context.Context) {
+	t.enricher.EnrichTVEpisode(ctx, t.item, t.showID, t.seasonID)
+	if updated, err := sqlite.GetMediaItemByID(ctx, t.db, t.item.ID); err == nil && updated.PosterPath != nil {
+		if t.bus != nil {
+			t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
+				MediaItemID: updated.ID,
+				LibraryID:   updated.LibraryID,
+				PosterPath:  *updated.PosterPath,
+			})
+		}
+	}
 }
 
 // NewManager creates a Manager. enricher may be nil to skip metadata
 // enrichment. Call StartAll to start watching all libraries in the DB.
 func NewManager(db *sql.DB, enricher *metadata.Enricher, bus *events.Bus) *Manager {
 	ctx, stop := context.WithCancel(context.Background())
-	return &Manager{
+	m := &Manager{
 		db:       db,
 		enricher: enricher,
 		eventBus: bus,
@@ -44,11 +110,45 @@ func NewManager(db *sql.DB, enricher *metadata.Enricher, bus *events.Bus) *Manag
 		scanners: make(map[uuid.UUID]*Scanner),
 		cancels:  make(map[uuid.UUID]context.CancelFunc),
 	}
+	m.cond = sync.NewCond(&m.mu)
+	go m.workerLoop()
+	return m
+}
+
+// submitTask registers a task to be processed sequentially by the background worker.
+func (m *Manager) submitTask(t task) {
+	m.mu.Lock()
+	m.taskQueue = append(m.taskQueue, t)
+	m.cond.Signal()
+	m.mu.Unlock()
+}
+
+func (m *Manager) workerLoop() {
+	for {
+		m.mu.Lock()
+		for len(m.taskQueue) == 0 && m.ctx.Err() == nil {
+			m.cond.Wait()
+		}
+
+		if m.ctx.Err() != nil {
+			m.mu.Unlock()
+			return
+		}
+
+		t := m.taskQueue[0]
+		m.taskQueue = m.taskQueue[1:]
+		m.mu.Unlock()
+
+		t.execute(m.ctx)
+	}
 }
 
 // Shutdown stops all scanners and releases resources. Call during server shutdown.
 func (m *Manager) Shutdown() {
 	m.stop()
+	m.mu.Lock()
+	m.cond.Broadcast()
+	m.mu.Unlock()
 }
 
 // StartAll loads all libraries from the DB, runs an initial scan, and starts
@@ -85,15 +185,16 @@ func (m *Manager) Remove(id uuid.UUID) {
 	}
 }
 
-// Scan triggers an immediate full scan of a library (blocking).
-func (m *Manager) Scan(ctx context.Context, id uuid.UUID) error {
+// Scan triggers an immediate full scan of a library (blocking-queue).
+func (m *Manager) Scan(id uuid.UUID) error {
 	m.mu.Lock()
-	s, ok := m.scanners[id]
+	_, ok := m.scanners[id]
 	m.mu.Unlock()
 	if !ok {
 		return ErrScannerNotFound
 	}
-	return s.ScanAll(ctx)
+	m.submitTask(&scanTask{manager: m, libraryID: id})
+	return nil
 }
 
 // add is the internal implementation of Add — must not hold m.mu on entry.
@@ -104,17 +205,14 @@ func (m *Manager) add(lib *models.Library) {
 		return
 	}
 	s := New(m.db, lib, m.enricher, m.eventBus)
+	s.submitTask = m.submitTask
 	watchCtx, cancel := context.WithCancel(m.ctx)
 	m.scanners[lib.ID] = s
 	m.cancels[lib.ID] = cancel
 	m.mu.Unlock()
 
-	// Initial scan (non-blocking).
-	go func() {
-		if err := s.ScanAll(watchCtx); err != nil {
-			slog.Warn("initial scan failed", "path", lib.Path, "error", err)
-		}
-	}()
+	// Initial scan (queued sequentially).
+	m.submitTask(&scanTask{manager: m, libraryID: lib.ID})
 
 	// File-system watcher (non-blocking).
 	go func() {

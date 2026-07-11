@@ -55,7 +55,10 @@ func newTestRouterPhase2(t *testing.T) (http.Handler, func()) {
 		r.With(apimw.RequireAdmin).Post("/api/v1/artifacts:writeSidecars", artifactH.HandleWriteSidecars)
 	})
 
-	cleanup := func() { _ = db.Close() }
+	cleanup := func() {
+		mgr.Shutdown()
+		_ = db.Close()
+	}
 	return r, cleanup
 }
 
