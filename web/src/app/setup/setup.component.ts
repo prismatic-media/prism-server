@@ -1,4 +1,4 @@
-import { Component, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component, inject, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -14,6 +14,7 @@ import { Router } from '@angular/router';
 export class SetupComponent {
   private http = inject(HttpClient);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   private lastFocusedElement: HTMLInputElement | null = null;
 
@@ -60,6 +61,7 @@ export class SetupComponent {
     if (!value) {
       if (field === 'thumbs') this.thumbsSuggestions = [];
       else this.segmentsSuggestions = [];
+      this.cdr.detectChanges();
       return;
     }
 
@@ -72,10 +74,12 @@ export class SetupComponent {
           } else {
             this.segmentsSuggestions = res.dirs || [];
           }
+          this.cdr.detectChanges();
         },
         error: () => {
           if (field === 'thumbs') this.thumbsSuggestions = [];
           else this.segmentsSuggestions = [];
+          this.cdr.detectChanges();
         },
       });
   }
@@ -89,12 +93,14 @@ export class SetupComponent {
       this.segmentsSuggestions = [];
     }
     this.activeInput = null;
+    this.cdr.detectChanges();
   }
 
   closeSuggestions() {
     // Delay to allow click event to register on suggestions before closing
     setTimeout(() => {
       this.activeInput = null;
+      this.cdr.detectChanges();
     }, 200);
   }
 

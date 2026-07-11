@@ -449,3 +449,76 @@ func TestListMediaItems_SortingIgnoreThe(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateMediaProbeAndEnrichmentStatus(t *testing.T) {
+	db := openTestDB(t)
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newMovieItem(lib.ID, "Matrix", "/l/matrix.mkv")
+	m.ProbeStatus = models.ProbeStatusPending
+	m.EnrichmentStatus = models.EnrichmentStatusPending
+
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Verify default values / upserted values
+	got, err := sqlite.GetMediaItemByID(context.Background(), db, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ProbeStatus != models.ProbeStatusPending {
+		t.Errorf("expected probe status pending, got %s", got.ProbeStatus)
+	}
+	if got.EnrichmentStatus != models.EnrichmentStatusPending {
+		t.Errorf("expected enrichment status pending, got %s", got.EnrichmentStatus)
+	}
+
+	// 2. Update statuses
+	if err := sqlite.UpdateMediaProbeStatus(context.Background(), db, m.ID, models.ProbeStatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.UpdateMediaEnrichmentStatus(context.Background(), db, m.ID, models.EnrichmentStatusDone); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. Verify updated values
+	got, err = sqlite.GetMediaItemByID(context.Background(), db, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ProbeStatus != models.ProbeStatusDone {
+		t.Errorf("expected probe status done, got %s", got.ProbeStatus)
+	}
+	if got.EnrichmentStatus != models.EnrichmentStatusDone {
+		t.Errorf("expected enrichment status done, got %s", got.EnrichmentStatus)
+	}
+
+	// 4. Test ListPendingProbes and ListPendingEnrichments
+	m2 := newMovieItem(lib.ID, "Arrival", "/l/arrival.mkv")
+	m2.ProbeStatus = models.ProbeStatusPending
+	m2.EnrichmentStatus = models.EnrichmentStatusPending
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m2); err != nil {
+		t.Fatal(err)
+	}
+
+	pendingProbes, err := sqlite.ListPendingProbes(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pendingProbes) != 1 || pendingProbes[0].ID != m2.ID {
+		t.Errorf("expected 1 pending probe for %s, got %d", m2.ID, len(pendingProbes))
+	}
+
+	pendingEnrichments, err := sqlite.ListPendingEnrichments(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pendingEnrichments) != 1 || pendingEnrichments[0].ID != m2.ID {
+		t.Errorf("expected 1 pending enrichment for %s, got %d", m2.ID, len(pendingEnrichments))
+	}
+}
+

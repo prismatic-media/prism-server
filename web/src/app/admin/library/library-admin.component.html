@@ -250,43 +250,11 @@
       <div class="form-group">
         <label class="form-label">Directory Path</label>
         <div class="path-input-group">
-          <input
-            type="text"
-            class="input-glass"
-            [(ngModel)]="newLibPath"
+          <app-directory-input
+            [(value)]="newLibPath"
             placeholder="e.g. /mnt/storage/movies"
-          />
-        </div>
-      </div>
-
-      <!-- File Browser / Autocomplete Section -->
-      <div class="fs-browser">
-        <div class="browser-header">
-          <span class="browser-title-text">Browse Filesystem</span>
-          <button
-            class="btn-browse-parent"
-            (click)="browseParentDir()"
-            [disabled]="browsingPath === '/'"
-          >
-            <span class="material-symbols-outlined">arrow_upward</span>
-            Up
-          </button>
-        </div>
-        <p class="current-path">
-          Current Path: <code class="current-path-code">{{ browsingPath }}</code>
-        </p>
-        <div class="browser-list" *ngIf="!isBrowsing">
-          <div *ngFor="let item of fsItems" class="browser-item" (click)="selectBrowsedPath(item)">
-            <span class="material-symbols-outlined folder-icon">folder</span>
-            <span class="item-text">{{ item }}</span>
-          </div>
-          <div *ngIf="fsItems.length === 0" class="empty-browser-state">
-            No subdirectories found.
-          </div>
-        </div>
-        <div *ngIf="isBrowsing" class="browser-loading">
-          <div class="spinner-small"></div>
-          <span>Browsing directory...</span>
+            inputClass="input-glass"
+          ></app-directory-input>
         </div>
       </div>
 

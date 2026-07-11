@@ -1,0 +1,23 @@
+<div class="directory-input-wrapper">
+  <input
+    type="text"
+    [id]="id"
+    [ngClass]="[inputClass, 'directory-input-field', theme === 'glass' ? 'theme-glass' : 'theme-borderless']"
+    [placeholder]="placeholder"
+    [ngModel]="value"
+    (ngModelChange)="onInput($event)"
+    (blur)="onBlur()"
+    (focus)="onFocus()"
+    autocomplete="off"
+  />
+  <ul *ngIf="showSuggestions && suggestions.length > 0" class="suggestions-dropdown frosted-glass">
+    <li
+      *ngFor="let suggestion of suggestions"
+      (mousedown)="selectSuggestion(suggestion)"
+      class="suggestion-item"
+    >
+      <span class="material-symbols-outlined folder-icon">folder</span>
+      <span class="suggestion-text">{{ suggestion }}</span>
+    </li>
+  </ul>
+</div>

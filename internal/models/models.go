@@ -27,6 +27,28 @@ const (
 	TranscodeStatusFailed     TranscodeStatus = "failed"
 )
 
+// ProbeStatus tracks the state of an ffprobe metadata task.
+type ProbeStatus string
+
+const (
+	ProbeStatusNone       ProbeStatus = "none"
+	ProbeStatusPending    ProbeStatus = "pending"
+	ProbeStatusProcessing ProbeStatus = "processing"
+	ProbeStatusDone       ProbeStatus = "done"
+	ProbeStatusFailed     ProbeStatus = "failed"
+)
+
+// EnrichmentStatus tracks the state of a TMDB metadata enrichment task.
+type EnrichmentStatus string
+
+const (
+	EnrichmentStatusNone       EnrichmentStatus = "none"
+	EnrichmentStatusPending    EnrichmentStatus = "pending"
+	EnrichmentStatusProcessing EnrichmentStatus = "processing"
+	EnrichmentStatusDone       EnrichmentStatus = "done"
+	EnrichmentStatusFailed     EnrichmentStatus = "failed"
+)
+
 // SourceStatus tracks file availability.
 const (
 	SourceStatusAvailable = "available"
@@ -132,6 +154,8 @@ type MediaItem struct {
 	SourceFingerprint *string             `db:"source_fingerprint" json:"source_fingerprint,omitempty"`
 	SourceStatus      string              `db:"source_status" json:"source_status"`
 	BundleStatus      string              `db:"bundle_status" json:"bundle_status"`
+	ProbeStatus       ProbeStatus         `db:"probe_status" json:"probe_status"`
+	EnrichmentStatus  EnrichmentStatus    `db:"enrichment_status" json:"enrichment_status"`
 	TranscodeSizes    *TranscodeSizesInfo `db:"transcode_sizes" json:"transcode_sizes,omitempty"`
 	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`

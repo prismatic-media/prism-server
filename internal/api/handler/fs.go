@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ func NewFsHandler() *FsHandler { return &FsHandler{} }
 //
 // Returns the immediate subdirectories that match the partial path so the
 // frontend can populate a path-autocomplete dropdown. Hidden directories
-// (names starting with ".") are omitted. Only accessible to admins.
+// (names starting with "." are omitted. Only accessible to admins.
 // @Summary Browse Directories
 // @Description Browse immediate subdirectories matching a partial path for autocomplete in the setup/admin panel.
 // @Tags Admin Configuration
@@ -35,10 +36,18 @@ func (h *FsHandler) BrowseDir(w http.ResponseWriter, r *http.Request) {
 	if raw == "" {
 		dir = "/"
 	} else {
-		// Normalise to an absolute path so the caller cannot accidentally
-		// request a relative path.
-		clean := filepath.Clean("/" + strings.TrimPrefix(filepath.ToSlash(raw), "/"))
-		if strings.HasSuffix(raw, "/") || raw == "/" {
+		// Normalise path separators to forward slashes robustly.
+		normalized := strings.ReplaceAll(filepath.ToSlash(raw), "\\", "/")
+
+		// Determine absolute clean path robustly.
+		var clean string
+		if filepath.IsAbs(normalized) || strings.HasPrefix(normalized, "/") {
+			clean = filepath.Clean(normalized)
+		} else {
+			clean = filepath.Clean("/" + strings.TrimPrefix(normalized, "/"))
+		}
+
+		if strings.HasSuffix(normalized, "/") || normalized == "/" {
 			// Trailing slash means "list the contents of this directory".
 			dir = clean
 		} else {
@@ -51,6 +60,7 @@ func (h *FsHandler) BrowseDir(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		slog.Warn("fs:browse failed to read directory", "dir", dir, "error", err)
 		// Return an empty list — the caller handles this gracefully.
 		respondJSON(w, http.StatusOK, map[string][]string{"dirs": {}})
 		return

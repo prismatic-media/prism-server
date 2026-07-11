@@ -67,7 +67,7 @@ func TestIntegration_DiscoveryDeduplication(t *testing.T) {
 	// 3. Scan the library first time
 	bus := events.NewBus()
 	s := New(db, lib, nil, bus)
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -110,7 +110,7 @@ func TestIntegration_DiscoveryDeduplication(t *testing.T) {
 	if err := os.Remove(moviePath); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -132,7 +132,7 @@ func TestIntegration_DiscoveryDeduplication(t *testing.T) {
 	}
 
 	// Run ScanAll. Deduplication should detect move and update path!
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -167,7 +167,7 @@ func TestIntegration_BundleOnlyLifecycle(t *testing.T) {
 
 	bus := events.NewBus()
 	s := New(db, lib, nil, bus)
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -183,7 +183,7 @@ func TestIntegration_BundleOnlyLifecycle(t *testing.T) {
 
 	// Remove source file and scan
 	_ = os.Remove(moviePath)
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -227,7 +227,7 @@ func TestIntegration_DBRebuild(t *testing.T) {
 	// Run scanner to create the MediaItem
 	bus := events.NewBus()
 	s := New(db, lib, nil, bus)
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -415,7 +415,7 @@ func TestIntegration_SegmentsFirstThenScan_ExistingID(t *testing.T) {
 	// 6. Scan the library. The scanner should discover the movie file,
 	// match it against the existing artifact record, and automatically link it.
 	s := New(db, lib, nil, bus)
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -528,7 +528,7 @@ func TestIntegration_ScanMatchesDiskBundle(t *testing.T) {
 	//    e. Link it to the media item.
 	bus := events.NewBus()
 	s := New(db, lib, nil, bus)
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 

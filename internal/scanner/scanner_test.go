@@ -72,7 +72,7 @@ func TestScanner_ScanAll_DiscoverFiles(t *testing.T) {
 	lib := newLibrary(t, db, dir)
 
 	s := scanner.New(db, lib, nil, nil) // empty ffprobePath = skip ffprobe
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatalf("ScanAll: %v", err)
 	}
 
@@ -91,7 +91,7 @@ func TestScanner_ScanAll_IgnoresNonVideo(t *testing.T) {
 	lib := newLibrary(t, db, dir)
 
 	s := scanner.New(db, lib, nil, nil)
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,7 +107,7 @@ func TestScanner_ScanAll_PrunesDeletedFiles(t *testing.T) {
 	lib := newLibrary(t, db, dir)
 
 	s := scanner.New(db, lib, nil, nil)
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,7 +117,7 @@ func TestScanner_ScanAll_PrunesDeletedFiles(t *testing.T) {
 	}
 
 	// Scan again — should prune the deleted item.
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,7 +137,7 @@ func TestScanner_ScanAll_Idempotent(t *testing.T) {
 
 	s := scanner.New(db, lib, nil, nil)
 	for i := 0; i < 3; i++ {
-		if err := s.ScanAll(context.Background()); err != nil {
+		if err := s.ScanAll(context.Background(), true); err != nil {
 			t.Fatalf("scan %d: %v", i, err)
 		}
 	}
@@ -160,7 +160,7 @@ func TestScanner_ScanAll_Optimize_EventEmission(t *testing.T) {
 	defer bus.Unsubscribe(subID)
 
 	// First scan: should discover the file and emit EventMediaCreated
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 
@@ -184,7 +184,7 @@ readLoop1:
 	}
 
 	// Second scan: should skip emission since the file is unchanged
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 
@@ -217,7 +217,7 @@ func TestScanner_ScanAll_RestoreMissingStatus(t *testing.T) {
 	s := scanner.New(db, lib, nil, bus)
 
 	// First scan to create the media item.
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 
@@ -243,7 +243,7 @@ func TestScanner_ScanAll_RestoreMissingStatus(t *testing.T) {
 	defer bus.Unsubscribe(subID)
 
 	// Second scan: should restore status to available and skip heavy processing/re-emission.
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 
@@ -276,7 +276,7 @@ func TestScanner_ScanAll_SubdirectoryRecurse(t *testing.T) {
 	lib := newLibrary(t, db, dir)
 
 	s := scanner.New(db, lib, nil, nil)
-	if err := s.ScanAll(context.Background()); err != nil {
+	if err := s.ScanAll(context.Background(), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -295,7 +295,7 @@ func TestScanner_Watch_PicksUpNewFile(t *testing.T) {
 	defer cancel()
 
 	s := scanner.New(db, lib, nil, nil)
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 

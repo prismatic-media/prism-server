@@ -24,7 +24,6 @@ import (
 	"github.com/prismatic-media/prism-server/internal/models"
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 	"github.com/prismatic-media/prism-server/pkg/events"
-	"github.com/prismatic-media/prism-server/pkg/ffmpeg"
 	"github.com/prismatic-media/prism-server/pkg/fingerprint"
 )
 
@@ -77,15 +76,16 @@ func New(db *sql.DB, lib *models.Library, enricher *metadata.Enricher, bus *even
 }
 
 // ScanAll walks the library path, upserts every video file found, and removes
+// ScanAll walks the library path, upserts every video file found, and removes
 // stale rows for files that no longer exist on disk.
-func (s *Scanner) ScanAll(ctx context.Context) error {
+func (s *Scanner) ScanAll(ctx context.Context, isManual bool) error {
 	slog.Info("scanning library", "path", s.library.Path, "media_type", s.library.MediaType)
 
 	var (
-		paths       []string
-		upserted    int
-		failed      int
-		skipped     int
+		paths    []string
+		upserted int
+		failed   int
+		skipped  int
 	)
 
 	err := filepath.WalkDir(s.library.Path, func(path string, d fs.DirEntry, err error) error {
@@ -98,7 +98,7 @@ func (s *Scanner) ScanAll(ctx context.Context) error {
 		}
 
 		paths = append(paths, path)
-		if err := s.upsertFile(ctx, path); err != nil {
+		if err := s.upsertFile(ctx, path, isManual); err != nil {
 			slog.Warn("failed to upsert file", "path", path, "error", err)
 			failed++
 		} else {
@@ -198,14 +198,14 @@ func (s *Scanner) handleEvent(ctx context.Context, event fsnotify.Event, w *fsno
 			return
 		}
 		if isVideoFile(path) {
-			if err := s.upsertFile(ctx, path); err != nil {
+			if err := s.upsertFile(ctx, path, false); err != nil {
 				slog.Warn("upsert on create failed", "path", path, "error", err)
 			}
 		}
 
 	case event.Has(fsnotify.Write):
 		if isVideoFile(path) {
-			if err := s.upsertFile(ctx, path); err != nil {
+			if err := s.upsertFile(ctx, path, false); err != nil {
 				slog.Warn("upsert on write failed", "path", path, "error", err)
 			}
 		}
@@ -228,7 +228,7 @@ func (s *Scanner) handleEvent(ctx context.Context, event fsnotify.Event, w *fsno
 }
 
 // upsertFile probes a video file with FFprobe and upserts its DB row.
-func (s *Scanner) upsertFile(ctx context.Context, path string) error {
+func (s *Scanner) upsertFile(ctx context.Context, path string, isManual bool) error {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -244,36 +244,72 @@ func (s *Scanner) upsertFile(ctx context.Context, path string) error {
 		if existing.TranscodeStatus != models.TranscodeStatusDone {
 			_, _ = s.tryLinkExistingItem(ctx, existing, path)
 		}
+
+		// Support retrying pending/failed tasks
+		shouldProbe := existing.ProbeStatus == models.ProbeStatusPending ||
+			(isManual && existing.ProbeStatus == models.ProbeStatusFailed)
+
+		shouldEnrich := existing.EnrichmentStatus == models.EnrichmentStatusPending ||
+			(isManual && existing.EnrichmentStatus == models.EnrichmentStatusFailed)
+
+		if shouldProbe {
+			if existing.ProbeStatus != models.ProbeStatusPending {
+				_ = sqlite.UpdateMediaProbeStatus(ctx, s.db, existing.ID, models.ProbeStatusPending)
+				existing.ProbeStatus = models.ProbeStatusPending
+			}
+			s.queueTask(&probeItemTask{
+				db:   s.db,
+				bus:  s.eventBus,
+				item: existing,
+			})
+		}
+
+		if shouldEnrich {
+			if existing.EnrichmentStatus != models.EnrichmentStatusPending {
+				_ = sqlite.UpdateMediaEnrichmentStatus(ctx, s.db, existing.ID, models.EnrichmentStatusPending)
+				existing.EnrichmentStatus = models.EnrichmentStatusPending
+			}
+			if existing.MediaType == models.MediaTypeEpisode {
+				if existing.TVShowID != nil && existing.TVSeasonID != nil {
+					s.queueTask(&enrichTVEpisodeTask{
+						enricher: s.enricher,
+						db:       s.db,
+						bus:      s.eventBus,
+						item:     existing,
+						showID:   *existing.TVShowID,
+						seasonID: *existing.TVSeasonID,
+					})
+				}
+			} else {
+				s.queueTask(&enrichItemTask{
+					enricher: s.enricher,
+					db:       s.db,
+					bus:      s.eventBus,
+					item:     existing,
+				})
+			}
+		}
+
 		return nil
 	}
 
 	// For TV show libraries, parse the filename as an episode and resolve the
 	// parent show + season records first.
 	if s.library.MediaType == models.MediaTypeTVShow {
-		return s.upsertTVEpisodeFile(ctx, path, fi.Size())
+		return s.upsertTVEpisodeFile(ctx, path, fi.Size(), isManual)
 	}
 
 	title := titleFromPath(path)
 
 	m := &models.MediaItem{
-		LibraryID:       s.library.ID,
-		Title:           title,
-		MediaType:       s.library.MediaType,
-		FilePath:        path,
-		FileSize:        fi.Size(),
-		TranscodeStatus: models.TranscodeStatusNone,
-	}
-
-	ffprobePath := "ffprobe"
-	probe, err := ffmpeg.Probe(ctx, ffprobePath, path)
-	if err != nil {
-		slog.Warn("ffprobe failed", "path", path, "error", err)
-	} else {
-		m.Duration = probe.Duration
-		m.Width = probe.Width
-		m.Height = probe.Height
-		m.VideoCodec = probe.VideoCodec
-		m.AudioCodec = probe.AudioCodec
+		LibraryID:        s.library.ID,
+		Title:            title,
+		MediaType:        s.library.MediaType,
+		FilePath:         path,
+		FileSize:         fi.Size(),
+		TranscodeStatus:  models.TranscodeStatusNone,
+		ProbeStatus:      models.ProbeStatusPending,
+		EnrichmentStatus: models.EnrichmentStatusPending,
 	}
 
 	// Generate fingerprint & handle deduplication
@@ -290,7 +326,7 @@ func (s *Scanner) upsertFile(ctx context.Context, path string) error {
 	}
 
 	// Fetch the canonical item so we have its DB-assigned ID for both the
-	// real-time event and (optionally) metadata enrichment.
+	// real-time event and metadata enrichment/probing.
 	if item, err := sqlite.GetMediaItemByPath(ctx, s.db, path); err == nil {
 		if s.eventBus != nil {
 			s.eventBus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{
@@ -299,14 +335,17 @@ func (s *Scanner) upsertFile(ctx context.Context, path string) error {
 				Title:       item.Title,
 			})
 		}
-		if s.enricher != nil && item.TMDBId == nil {
-			s.queueTask(&enrichItemTask{
-				enricher: s.enricher,
-				db:       s.db,
-				bus:      s.eventBus,
-				item:     item,
-			})
-		}
+		s.queueTask(&probeItemTask{
+			db:   s.db,
+			bus:  s.eventBus,
+			item: item,
+		})
+		s.queueTask(&enrichItemTask{
+			enricher: s.enricher,
+			db:       s.db,
+			bus:      s.eventBus,
+			item:     item,
+		})
 	}
 	return nil
 }
@@ -314,7 +353,7 @@ func (s *Scanner) upsertFile(ctx context.Context, path string) error {
 // upsertTVEpisodeFile handles upsert for a file inside a tvshow library.
 // It parses the filename, upserts the parent TVShow and TVSeason, then upserts
 // the episode as a MediaItem with type "episode".
-func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize int64) error {
+func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize int64, isManual bool) error {
 	// Optimize: if file already exists in DB with same size, skip redundant processing.
 	if existing, err := sqlite.GetMediaItemByPath(ctx, s.db, path); err == nil && existing != nil && existing.FileSize == fileSize && existing.TVShowID != nil && existing.TVSeasonID != nil {
 		if existing.SourceStatus != models.SourceStatusAvailable {
@@ -325,6 +364,41 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 		if existing.TranscodeStatus != models.TranscodeStatusDone {
 			_, _ = s.tryLinkExistingItem(ctx, existing, path)
 		}
+
+		// Support retrying pending/failed tasks
+		shouldProbe := existing.ProbeStatus == models.ProbeStatusPending ||
+			(isManual && existing.ProbeStatus == models.ProbeStatusFailed)
+
+		shouldEnrich := existing.EnrichmentStatus == models.EnrichmentStatusPending ||
+			(isManual && existing.EnrichmentStatus == models.EnrichmentStatusFailed)
+
+		if shouldProbe {
+			if existing.ProbeStatus != models.ProbeStatusPending {
+				_ = sqlite.UpdateMediaProbeStatus(ctx, s.db, existing.ID, models.ProbeStatusPending)
+				existing.ProbeStatus = models.ProbeStatusPending
+			}
+			s.queueTask(&probeItemTask{
+				db:   s.db,
+				bus:  s.eventBus,
+				item: existing,
+			})
+		}
+
+		if shouldEnrich {
+			if existing.EnrichmentStatus != models.EnrichmentStatusPending {
+				_ = sqlite.UpdateMediaEnrichmentStatus(ctx, s.db, existing.ID, models.EnrichmentStatusPending)
+				existing.EnrichmentStatus = models.EnrichmentStatusPending
+			}
+			s.queueTask(&enrichTVEpisodeTask{
+				enricher: s.enricher,
+				db:       s.db,
+				bus:      s.eventBus,
+				item:     existing,
+				showID:   *existing.TVShowID,
+				seasonID: *existing.TVSeasonID,
+			})
+		}
+
 		return nil
 	}
 
@@ -356,28 +430,18 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 	}
 
 	m := &models.MediaItem{
-		LibraryID:       s.library.ID,
-		Title:           info.EpisodeName,
-		MediaType:       models.MediaTypeEpisode,
-		FilePath:        path,
-		FileSize:        fileSize,
-		TVShowID:        &show.ID,
-		TVSeasonID:      &season.ID,
-		SeasonNumber:    &info.SeasonNumber,
-		EpisodeNumber:   &info.EpisodeNumber,
-		TranscodeStatus: models.TranscodeStatusNone,
-	}
-
-	ffprobePath := "ffprobe"
-	probe, err := ffmpeg.Probe(ctx, ffprobePath, path)
-	if err != nil {
-		slog.Warn("ffprobe failed", "path", path, "error", err)
-	} else {
-		m.Duration = probe.Duration
-		m.Width = probe.Width
-		m.Height = probe.Height
-		m.VideoCodec = probe.VideoCodec
-		m.AudioCodec = probe.AudioCodec
+		LibraryID:        s.library.ID,
+		Title:            info.EpisodeName,
+		MediaType:        models.MediaTypeEpisode,
+		FilePath:         path,
+		FileSize:         fileSize,
+		TVShowID:         &show.ID,
+		TVSeasonID:       &season.ID,
+		SeasonNumber:     &info.SeasonNumber,
+		EpisodeNumber:    &info.EpisodeNumber,
+		TranscodeStatus:  models.TranscodeStatusNone,
+		ProbeStatus:      models.ProbeStatusPending,
+		EnrichmentStatus: models.EnrichmentStatusPending,
 	}
 
 	// Generate fingerprint & handle deduplication
@@ -401,16 +465,19 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 				Title:       item.Title,
 			})
 		}
-		if s.enricher != nil && item.TMDBId == nil {
-			s.queueTask(&enrichTVEpisodeTask{
-				enricher: s.enricher,
-				db:       s.db,
-				bus:      s.eventBus,
-				item:     item,
-				showID:   show.ID,
-				seasonID: season.ID,
-			})
-		}
+		s.queueTask(&probeItemTask{
+			db:   s.db,
+			bus:  s.eventBus,
+			item: item,
+		})
+		s.queueTask(&enrichTVEpisodeTask{
+			enricher: s.enricher,
+			db:       s.db,
+			bus:      s.eventBus,
+			item:     item,
+			showID:   show.ID,
+			seasonID: season.ID,
+		})
 	}
 	return nil
 }

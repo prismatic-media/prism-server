@@ -6,6 +6,7 @@ import { RouterModule } from '@angular/router';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { EventService } from '../../event.service';
+import { DirectoryInputComponent } from '../../directory-input/directory-input.component';
 
 export interface Library {
   id: string;
@@ -28,7 +29,7 @@ export interface LibraryStats {
 @Component({
   selector: 'app-library-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, DirectoryInputComponent],
   templateUrl: './library-admin.component.html',
   styleUrl: './library-admin.component.css',
 })
@@ -59,11 +60,6 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
   newLibType: 'movie' | 'tvshow' | 'music' = 'movie';
   isSaving = false;
   modalError = '';
-
-  // Directory autocomplete / browsing (using /api/v1/fs/browse)
-  fsItems: string[] = [];
-  browsingPath = '';
-  isBrowsing = false;
 
   ngOnInit(): void {
     this.fetchData();
@@ -234,9 +230,6 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
     this.newLibPath = '';
     this.newLibType = 'movie';
     this.modalError = '';
-    this.fsItems = [];
-    this.browsingPath = '/';
-    this.browseDir(this.browsingPath);
   }
 
   closeAddModal(): void {
@@ -270,39 +263,5 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       },
     });
-  }
-
-  browseDir(path: string): void {
-    this.isBrowsing = true;
-    let targetPath = path;
-    if (targetPath !== '/' && !targetPath.endsWith('/')) {
-      targetPath += '/';
-    }
-    this.http.get<any>(`/api/v1/fs:browse?path=${encodeURIComponent(targetPath)}`).subscribe({
-      next: (res) => {
-        this.browsingPath = path;
-        this.fsItems = res && res.dirs ? res.dirs : [];
-        this.isBrowsing = false;
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.isBrowsing = false;
-        this.cdr.detectChanges();
-      },
-    });
-  }
-
-  selectBrowsedPath(path: string): void {
-    this.newLibPath = path;
-    // Browse nested directory
-    this.browseDir(path);
-  }
-
-  browseParentDir(): void {
-    if (this.browsingPath === '/' || !this.browsingPath) return;
-    const parts = this.browsingPath.split('/');
-    parts.pop();
-    const parent = parts.join('/') || '/';
-    this.browseDir(parent);
   }
 }

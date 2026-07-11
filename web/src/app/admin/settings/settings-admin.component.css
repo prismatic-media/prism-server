@@ -307,7 +307,7 @@ input:checked + .switch-slider:before {
 /* --- Table Styles --- */
 .table-container {
   width: 100%;
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .w-full {
@@ -664,5 +664,9 @@ input:checked + .switch-slider:before {
 
 /* Group hover trigger */
 .group:hover .group-hover\:text-primary {
+  color: var(--primary-fixed-dim);
+}
+
+.group:hover ::ng-deep .theme-borderless {
   color: var(--primary-fixed-dim);
 }

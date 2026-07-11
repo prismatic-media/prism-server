@@ -12,6 +12,7 @@ import (
 	"github.com/prismatic-media/prism-server/internal/models"
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 	"github.com/prismatic-media/prism-server/pkg/events"
+	"github.com/prismatic-media/prism-server/pkg/ffmpeg"
 )
 
 // Manager owns one Scanner per library and keeps them running.
@@ -41,6 +42,7 @@ type task interface {
 type scanTask struct {
 	manager   *Manager
 	libraryID uuid.UUID
+	isManual  bool
 }
 
 func (t *scanTask) execute(ctx context.Context) {
@@ -50,9 +52,42 @@ func (t *scanTask) execute(ctx context.Context) {
 	if !ok {
 		return
 	}
-	if err := s.ScanAll(ctx); err != nil {
+	if err := s.ScanAll(ctx, t.isManual); err != nil {
 		slog.Warn("scan failed", "library_id", t.libraryID, "error", err)
 	}
+}
+
+type probeItemTask struct {
+	db   *sql.DB
+	bus  *events.Bus
+	item *models.MediaItem
+}
+
+func (t *probeItemTask) execute(ctx context.Context) {
+	_ = sqlite.UpdateMediaProbeStatus(ctx, t.db, t.item.ID, models.ProbeStatusProcessing)
+
+	ffprobePath := "ffprobe"
+	probe, err := ffmpeg.Probe(ctx, ffprobePath, t.item.FilePath)
+	if err != nil {
+		slog.Warn("ffprobe failed inside task", "path", t.item.FilePath, "error", err)
+		_ = sqlite.UpdateMediaProbeStatus(ctx, t.db, t.item.ID, models.ProbeStatusFailed)
+		return
+	}
+
+	t.item.Duration = probe.Duration
+	t.item.Width = probe.Width
+	t.item.Height = probe.Height
+	t.item.VideoCodec = probe.VideoCodec
+	t.item.AudioCodec = probe.AudioCodec
+	t.item.ProbeStatus = models.ProbeStatusDone
+
+	if err := sqlite.UpsertMediaItem(ctx, t.db, t.item); err != nil {
+		slog.Warn("failed to upsert probed media item", "path", t.item.FilePath, "error", err)
+		_ = sqlite.UpdateMediaProbeStatus(ctx, t.db, t.item.ID, models.ProbeStatusFailed)
+		return
+	}
+
+	slog.Info("successfully probed media file", "path", t.item.FilePath, "duration", probe.Duration)
 }
 
 type enrichItemTask struct {
@@ -63,15 +98,33 @@ type enrichItemTask struct {
 }
 
 func (t *enrichItemTask) execute(ctx context.Context) {
+	_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusProcessing)
+
+	apiKey, _ := sqlite.GetSetting(ctx, t.db, "tmdb_api_key")
+	if apiKey == "" {
+		slog.Info("TMDB enrichment failed: no API key configured", "id", t.item.ID)
+		_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusFailed)
+		return
+	}
+
 	t.enricher.EnrichItem(ctx, t.item)
-	if updated, err := sqlite.GetMediaItemByID(ctx, t.db, t.item.ID); err == nil && updated.PosterPath != nil {
-		if t.bus != nil {
-			t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
-				MediaItemID: updated.ID,
-				LibraryID:   updated.LibraryID,
-				PosterPath:  *updated.PosterPath,
-			})
+
+	updated, err := sqlite.GetMediaItemByID(ctx, t.db, t.item.ID)
+	if err == nil {
+		if updated.TMDBId != nil {
+			_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusDone)
+			if updated.PosterPath != nil && t.bus != nil {
+				t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
+					MediaItemID: updated.ID,
+					LibraryID:   updated.LibraryID,
+					PosterPath:  *updated.PosterPath,
+				})
+			}
+		} else {
+			_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusFailed)
 		}
+	} else {
+		_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusFailed)
 	}
 }
 
@@ -85,15 +138,33 @@ type enrichTVEpisodeTask struct {
 }
 
 func (t *enrichTVEpisodeTask) execute(ctx context.Context) {
+	_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusProcessing)
+
+	apiKey, _ := sqlite.GetSetting(ctx, t.db, "tmdb_api_key")
+	if apiKey == "" {
+		slog.Info("TMDB episode enrichment failed: no API key configured", "id", t.item.ID)
+		_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusFailed)
+		return
+	}
+
 	t.enricher.EnrichTVEpisode(ctx, t.item, t.showID, t.seasonID)
-	if updated, err := sqlite.GetMediaItemByID(ctx, t.db, t.item.ID); err == nil && updated.PosterPath != nil {
-		if t.bus != nil {
-			t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
-				MediaItemID: updated.ID,
-				LibraryID:   updated.LibraryID,
-				PosterPath:  *updated.PosterPath,
-			})
+
+	updated, err := sqlite.GetMediaItemByID(ctx, t.db, t.item.ID)
+	if err == nil {
+		if updated.TMDBId != nil {
+			_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusDone)
+			if updated.PosterPath != nil && t.bus != nil {
+				t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
+					MediaItemID: updated.ID,
+					LibraryID:   updated.LibraryID,
+					PosterPath:  *updated.PosterPath,
+				})
+			}
+		} else {
+			_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusFailed)
 		}
+	} else {
+		_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusFailed)
 	}
 }
 
@@ -162,6 +233,43 @@ func (m *Manager) StartAll(ctx context.Context) error {
 	for _, lib := range libs {
 		m.add(lib)
 	}
+
+	// Recovery: query DB for pending tasks and queue them
+	probes, err := sqlite.ListPendingProbes(ctx, m.db)
+	if err == nil {
+		for _, item := range probes {
+			m.submitTask(&probeItemTask{
+				db:   m.db,
+				bus:  m.eventBus,
+				item: item,
+			})
+		}
+	}
+	enrichments, err := sqlite.ListPendingEnrichments(ctx, m.db)
+	if err == nil {
+		for _, item := range enrichments {
+			if item.MediaType == models.MediaTypeEpisode {
+				if item.TVShowID != nil && item.TVSeasonID != nil {
+					m.submitTask(&enrichTVEpisodeTask{
+						enricher: m.enricher,
+						db:       m.db,
+						bus:      m.eventBus,
+						item:     item,
+						showID:   *item.TVShowID,
+						seasonID: *item.TVSeasonID,
+					})
+				}
+			} else {
+				m.submitTask(&enrichItemTask{
+					enricher: m.enricher,
+					db:       m.db,
+					bus:      m.eventBus,
+					item:     item,
+				})
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -193,7 +301,7 @@ func (m *Manager) Scan(id uuid.UUID) error {
 	if !ok {
 		return ErrScannerNotFound
 	}
-	m.submitTask(&scanTask{manager: m, libraryID: id})
+	m.submitTask(&scanTask{manager: m, libraryID: id, isManual: true})
 	return nil
 }
 
@@ -212,7 +320,7 @@ func (m *Manager) add(lib *models.Library) {
 	m.mu.Unlock()
 
 	// Initial scan (queued sequentially).
-	m.submitTask(&scanTask{manager: m, libraryID: lib.ID})
+	m.submitTask(&scanTask{manager: m, libraryID: lib.ID, isManual: false})
 
 	// File-system watcher (non-blocking).
 	go func() {

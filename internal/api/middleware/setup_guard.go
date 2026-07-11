@@ -50,7 +50,8 @@ func isSetupPath(path string) bool {
 		strings.HasPrefix(path, "/setup/") ||
 		path == "/api/v1/setup" ||
 		strings.HasPrefix(path, "/api/v1/setup/") ||
-		path == "/api/v1/fs/browse"
+		path == "/api/v1/fs/browse" ||
+		path == "/api/v1/fs:browse"
 }
 
 // isStaticAsset returns true for file extensions that are always safe to serve

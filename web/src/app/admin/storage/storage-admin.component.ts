@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
+import { DirectoryInputComponent } from '../../directory-input/directory-input.component';
 
 export interface StorageArea {
   id: string;
@@ -26,7 +27,7 @@ export interface StorageResponse {
 @Component({
   selector: 'app-storage-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, DirectoryInputComponent],
   templateUrl: './storage-admin.component.html',
   styleUrl: './storage-admin.component.css',
 })
@@ -55,11 +56,6 @@ export class StorageAdminComponent implements OnInit {
   newEnabled = true;
   isSaving = false;
   modalError = '';
-
-  // Directory autocomplete / browsing
-  fsItems: string[] = [];
-  browsingPath = '/';
-  isBrowsing = false;
 
   // UI dropdown and editing states
   activeDropdownAreaId: string | null = null;
@@ -210,9 +206,6 @@ export class StorageAdminComponent implements OnInit {
     this.newPath = '';
     this.newEnabled = true;
     this.modalError = '';
-    this.fsItems = [];
-    this.browsingPath = '/';
-    this.browseDir(this.browsingPath);
   }
 
   closeAddModal(): void {
@@ -245,40 +238,6 @@ export class StorageAdminComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
-  }
-
-  // FS Browsing logic
-  browseDir(path: string): void {
-    this.isBrowsing = true;
-    let targetPath = path;
-    if (targetPath !== '/' && !targetPath.endsWith('/')) {
-      targetPath += '/';
-    }
-    this.http.get<any>(`/api/v1/fs:browse?path=${encodeURIComponent(targetPath)}`).subscribe({
-      next: (res) => {
-        this.browsingPath = path;
-        this.fsItems = res && res.dirs ? res.dirs : [];
-        this.isBrowsing = false;
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.isBrowsing = false;
-        this.cdr.detectChanges();
-      },
-    });
-  }
-
-  selectBrowsedPath(path: string): void {
-    this.newPath = path;
-    this.browseDir(path);
-  }
-
-  browseParentDir(): void {
-    if (this.browsingPath === '/' || !this.browsingPath) return;
-    const parts = this.browsingPath.split('/');
-    parts.pop();
-    const parent = parts.join('/') || '/';
-    this.browseDir(parent);
   }
 
   // UI helpers

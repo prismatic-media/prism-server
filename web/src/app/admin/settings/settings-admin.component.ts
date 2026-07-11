@@ -5,11 +5,12 @@ import { HttpClient } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
 import { Subject, Subscription, of, timer } from 'rxjs';
 import { debounce, switchMap, tap } from 'rxjs/operators';
+import { DirectoryInputComponent } from '../../directory-input/directory-input.component';
 
 @Component({
   selector: 'app-settings-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, DirectoryInputComponent],
   templateUrl: './settings-admin.component.html',
   styleUrls: ['./settings-admin.component.css'],
 })
@@ -39,10 +40,6 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
 
   showTmdbKey = false;
   showCastId = false;
-
-  // Path Autocomplete/Browser
-  thumbsSuggestions: string[] = [];
-  activeInput: 'thumbs' | null = null;
 
   ngOnInit(): void {
     this.fetchSettings();
@@ -149,41 +146,5 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
         return 'Changes save automatically';
     }
   }
-
-  onPathInput(value: string): void {
-    this.activeInput = 'thumbs';
-    if (!value) {
-      this.thumbsSuggestions = [];
-      this.cdr.detectChanges();
-      return;
-    }
-
-    this.http
-      .get<{ dirs: string[] }>(`/api/v1/fs:browse?path=${encodeURIComponent(value)}`)
-      .subscribe({
-        next: (res) => {
-          this.thumbsSuggestions = res.dirs || [];
-          this.cdr.detectChanges();
-        },
-        error: () => {
-          this.thumbsSuggestions = [];
-          this.cdr.detectChanges();
-        },
-      });
-  }
-
-  selectSuggestion(path: string): void {
-    this.thumbsDir = path;
-    this.thumbsSuggestions = [];
-    this.activeInput = null;
-    this.onSettingChange(true);
-    this.cdr.detectChanges();
-  }
-
-  closeSuggestions(): void {
-    setTimeout(() => {
-      this.activeInput = null;
-      this.cdr.detectChanges();
-    }, 200);
-  }
 }
+
