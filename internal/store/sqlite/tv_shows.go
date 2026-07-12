@@ -25,14 +25,15 @@ func UpsertTVShow(ctx context.Context, db *sql.DB, show *models.TVShow) error {
 
 	newID := uuid.New()
 
-	// ON CONFLICT DO UPDATE with a trivial self-assignment keeps RETURNING
-	// working on both insert and conflict paths.
 	row := db.QueryRowContext(ctx, `
-		INSERT INTO tv_shows (id, library_id, name, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(library_id, name) DO UPDATE SET updated_at = tv_shows.updated_at
+		INSERT INTO tv_shows (id, library_id, name, first_air_year, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(library_id, name) DO UPDATE SET 
+			first_air_year = COALESCE(tv_shows.first_air_year, excluded.first_air_year),
+			updated_at = tv_shows.updated_at
 		RETURNING id`,
 		newID.String(), show.LibraryID.String(), show.Name,
+		nullIntPtr(show.FirstAirYear),
 		show.CreatedAt.Format(time.RFC3339), show.UpdatedAt.Format(time.RFC3339),
 	)
 	var id string
@@ -74,7 +75,7 @@ func ListTVShows(ctx context.Context, db *sql.DB, libraryID uuid.UUID) ([]*model
 	return shows, rows.Err()
 }
 
-func UpdateTVShowMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID, firstAirYear int, overview, posterPath, director string, cast []models.CastMember, backdropPath string, extraPosters []string) error {
+func UpdateTVShowMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, name string, tmdbID, firstAirYear int, overview, posterPath, director string, cast []models.CastMember, backdropPath string, extraPosters []string) error {
 	now := time.Now().UTC()
 	var castStr, extraPostersStr sql.NullString
 	if len(cast) > 0 {
@@ -90,7 +91,8 @@ func UpdateTVShowMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID,
 
 	_, err := db.ExecContext(ctx, `
 		UPDATE tv_shows
-		SET tmdb_id        = ?,
+		SET name           = ?,
+		    tmdb_id        = ?,
 		    first_air_year = ?,
 		    overview       = ?,
 		    poster_path    = ?,
@@ -100,6 +102,7 @@ func UpdateTVShowMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID,
 		    extra_posters  = ?,
 		    updated_at     = ?
 		WHERE id = ?`,
+		name,
 		nullInt(tmdbID), nullInt(firstAirYear),
 		nullStr(overview), nullStr(posterPath),
 		nullStr(director), castStr,
@@ -111,6 +114,119 @@ func UpdateTVShowMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID,
 	}
 	return nil
 }
+
+// UpdateTVShowName updates only the name of a TV show.
+func UpdateTVShowName(ctx context.Context, db *sql.DB, id uuid.UUID, name string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+		UPDATE tv_shows
+		SET name = ?, updated_at = ?
+		WHERE id = ?`,
+		name, now.Format(time.RFC3339), id.String(),
+	)
+	if err != nil {
+		return fmt.Errorf("updating tv show name: %w", err)
+	}
+	return nil
+}
+
+// GetTVShowByTMDBId retrieves a TV show by library_id and tmdb_id.
+func GetTVShowByTMDBId(ctx context.Context, db *sql.DB, libraryID uuid.UUID, tmdbID int) (*models.TVShow, error) {
+	row := db.QueryRowContext(ctx, `
+		SELECT id, library_id, name, tmdb_id, overview, poster_path,
+		       first_air_year, director, cast_members, backdrop_path, extra_posters, created_at, updated_at
+		FROM tv_shows WHERE library_id = ? AND tmdb_id = ?`, libraryID.String(), tmdbID)
+	return scanTVShow(row)
+}
+
+// GetTVShowByName retrieves a TV show by library_id and name.
+func GetTVShowByName(ctx context.Context, db *sql.DB, libraryID uuid.UUID, name string) (*models.TVShow, error) {
+	row := db.QueryRowContext(ctx, `
+		SELECT id, library_id, name, tmdb_id, overview, poster_path,
+		       first_air_year, director, cast_members, backdrop_path, extra_posters, created_at, updated_at
+		FROM tv_shows WHERE library_id = ? AND name = ?`, libraryID.String(), name)
+	return scanTVShow(row)
+}
+
+// MergeTVShows merges one TV show into another. It moves all seasons and episodes to keepID,
+// merging seasons that have conflicting season numbers, and deletes removeID.
+func MergeTVShows(ctx context.Context, db *sql.DB, keepID, removeID uuid.UUID) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin merge transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// 1. Get all seasons of removeID
+	rows, err := tx.QueryContext(ctx, `SELECT id, season_number FROM tv_seasons WHERE tv_show_id = ?`, removeID.String())
+	if err != nil {
+		return fmt.Errorf("listing remove show seasons: %w", err)
+	}
+	type seasonInfo struct {
+		id           string
+		seasonNumber int
+	}
+	var removeSeasons []seasonInfo
+	for rows.Next() {
+		var s seasonInfo
+		if err := rows.Scan(&s.id, &s.seasonNumber); err != nil {
+			rows.Close()
+			return fmt.Errorf("scanning remove show season: %w", err)
+		}
+		removeSeasons = append(removeSeasons, s)
+	}
+	rows.Close()
+
+	for _, rs := range removeSeasons {
+		// Check if keepID already has this season number
+		var keepSeasonID string
+		err := tx.QueryRowContext(ctx, `SELECT id FROM tv_seasons WHERE tv_show_id = ? AND season_number = ?`, keepID.String(), rs.seasonNumber).Scan(&keepSeasonID)
+		if err == nil {
+			// A season with this number already exists under keepID.
+			// Update all media items pointing to rs.id to point to keepSeasonID and keepID
+			_, err = tx.ExecContext(ctx, `UPDATE media_items SET tv_show_id = ?, tv_season_id = ? WHERE tv_season_id = ?`, keepID.String(), keepSeasonID, rs.id)
+			if err != nil {
+				return fmt.Errorf("merging media items for season %d: %w", rs.seasonNumber, err)
+			}
+			// Delete the duplicate season record
+			_, err = tx.ExecContext(ctx, `DELETE FROM tv_seasons WHERE id = ?`, rs.id)
+			if err != nil {
+				return fmt.Errorf("deleting duplicate season %d: %w", rs.seasonNumber, err)
+			}
+		} else if errors.Is(err, sql.ErrNoRows) {
+			// No season with this number exists under keepID. Just update the tv_show_id of the season.
+			_, err = tx.ExecContext(ctx, `UPDATE tv_seasons SET tv_show_id = ? WHERE id = ?`, keepID.String(), rs.id)
+			if err != nil {
+				return fmt.Errorf("reassigning season %d to keep show: %w", rs.seasonNumber, err)
+			}
+			// Also update media items pointing to rs.id to have the correct tv_show_id
+			_, err = tx.ExecContext(ctx, `UPDATE media_items SET tv_show_id = ? WHERE tv_season_id = ?`, keepID.String(), rs.id)
+			if err != nil {
+				return fmt.Errorf("updating tv_show_id on media items for season %d: %w", rs.seasonNumber, err)
+			}
+		} else {
+			return fmt.Errorf("checking season existence under keep show: %w", err)
+		}
+	}
+
+	// 2. Reassign any leftover episode media items (in case of schema differences or weird records)
+	_, err = tx.ExecContext(ctx, `UPDATE media_items SET tv_show_id = ? WHERE tv_show_id = ?`, keepID.String(), removeID.String())
+	if err != nil {
+		return fmt.Errorf("reassigning remaining media items: %w", err)
+	}
+
+	// 3. Delete the duplicate tv show
+	_, err = tx.ExecContext(ctx, `DELETE FROM tv_shows WHERE id = ?`, removeID.String())
+	if err != nil {
+		return fmt.Errorf("deleting duplicate show: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit merge transaction: %w", err)
+	}
+	return nil
+}
+
 
 // ClearAllTVShowMetadata sets tmdb_id, first_air_year, overview, and poster_path to NULL
 // for every tv_shows row, forcing the enricher to re-fetch them.

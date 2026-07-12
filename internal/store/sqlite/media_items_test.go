@@ -355,7 +355,7 @@ func TestUpdateMediaMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, 27205, 2010, "A mind-bending thriller", "", "", nil, "", nil); err != nil {
+	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, "Inception", 27205, 2010, "A mind-bending thriller", "", "", nil, "", nil); err != nil {
 		t.Fatalf("UpdateMediaMetadata: %v", err)
 	}
 
@@ -390,7 +390,7 @@ func TestUpdateMediaMetadata_ZerosTreatedAsNull(t *testing.T) {
 	}
 
 	// Passing 0 tmdbID, 0 year, "" strings — all should store as NULL.
-	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, 0, 0, "", "", "", nil, "", nil); err != nil {
+	if err := sqlite.UpdateMediaMetadata(context.Background(), db, m.ID, "Test", 0, 0, "", "", "", nil, "", nil); err != nil {
 		t.Fatalf("UpdateMediaMetadata: %v", err)
 	}
 

@@ -287,3 +287,55 @@ func TestParseTitle_Underscores(t *testing.T) {
 		t.Errorf("year: got %d, want 1999", year)
 	}
 }
+
+func TestParseTVEpisode_WithYearInName(t *testing.T) {
+	info, ok := ParseTVEpisode("Bluey (2018) - s01e01 - Magic Xylophone.mp4")
+	if !ok {
+		t.Fatal("expected match")
+	}
+	if info.ShowName != "Bluey" {
+		t.Errorf("ShowName: got %q, want %q", info.ShowName, "Bluey")
+	}
+	if info.Year != 2018 {
+		t.Errorf("Year: got %d, want 2018", info.Year)
+	}
+}
+
+func TestShowNameFromPath(t *testing.T) {
+	tests := []struct {
+		filePath    string
+		libraryRoot string
+		wantName    string
+		wantYear    int
+	}{
+		{
+			filePath:    "/media/tv/Bluey (2018)/Season 1/Bluey (2018) - s01e01.mp4",
+			libraryRoot: "/media/tv",
+			wantName:    "Bluey",
+			wantYear:    2018,
+		},
+		{
+			filePath:    "/media/tv/Friends/Friends - s01e01.mp4",
+			libraryRoot: "/media/tv",
+			wantName:    "Friends",
+			wantYear:    0,
+		},
+		{
+			filePath:    "/media/tv/Bluey - s01e01.mp4",
+			libraryRoot: "/media/tv",
+			wantName:    "",
+			wantYear:    0,
+		},
+	}
+
+	for _, tc := range tests {
+		name, year := ShowNameFromPath(tc.filePath, tc.libraryRoot)
+		if name != tc.wantName {
+			t.Errorf("ShowNameFromPath(%q, %q) name: got %q, want %q", tc.filePath, tc.libraryRoot, name, tc.wantName)
+		}
+		if year != tc.wantYear {
+			t.Errorf("ShowNameFromPath(%q, %q) year: got %d, want %d", tc.filePath, tc.libraryRoot, year, tc.wantYear)
+		}
+	}
+}
+

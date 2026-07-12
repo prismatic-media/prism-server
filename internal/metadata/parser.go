@@ -33,9 +33,35 @@ var (
 // TVEpisodeInfo holds the structured fields parsed from a TV episode filename.
 type TVEpisodeInfo struct {
 	ShowName      string
+	Year          int
 	SeasonNumber  int
 	EpisodeNumber int
 	EpisodeName   string
+}
+
+// ShowNameFromPath walks up from the file path to find the first directory under the library root,
+// then extracts the show name and optional year from that folder name.
+// If the file is directly under the library root, it returns an empty show name.
+func ShowNameFromPath(filePath, libraryRoot string) (name string, year int) {
+	filePath = filepath.Clean(filePath)
+	libraryRoot = filepath.Clean(libraryRoot)
+
+	rel, err := filepath.Rel(libraryRoot, filePath)
+	if err != nil || strings.HasPrefix(rel, "..") || rel == "." {
+		return "", 0
+	}
+
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) <= 1 {
+		// File is directly in the library root
+		return "", 0
+	}
+
+	// The first component is the show-level folder name (e.g. "Bluey (2018)")
+	showFolderName := parts[0]
+
+	// Parse show name and year from the folder name using ParseTitle logic
+	return ParseTitle(showFolderName)
 }
 
 // ParseTVEpisode attempts to parse a TV episode filename. The directory
@@ -57,8 +83,10 @@ func ParseTVEpisode(filename string) (*TVEpisodeInfo, bool) {
 			if episodeName == "" {
 				episodeName = "Episode " + strconv.Itoa(episode)
 			}
+			showName, year := ParseTitle(m[1])
 			return &TVEpisodeInfo{
-				ShowName:      strings.TrimSpace(m[1]),
+				ShowName:      showName,
+				Year:          year,
 				SeasonNumber:  season,
 				EpisodeNumber: episode,
 				EpisodeName:   episodeName,

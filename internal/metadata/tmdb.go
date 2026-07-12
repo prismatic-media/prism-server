@@ -29,6 +29,7 @@ type TMDBResult struct {
 	Year       int
 	Overview   string
 	PosterPath string
+	Popularity float64
 }
 
 // TMDBEpisodeResult holds episode-level fields from the TMDB episode endpoint.
@@ -57,6 +58,7 @@ type Client struct {
 	httpClient *http.Client
 	baseURL    string
 	imageURL   string
+	limiter    *time.Ticker
 }
 
 // NewClient creates a TMDB client keyed by apiKey.
@@ -76,20 +78,37 @@ func (c *Client) SearchMovie(ctx context.Context, title string, year int) (*TMDB
 	if year != 0 {
 		params.Set("year", strconv.Itoa(year))
 	}
-	result, err := c.search(ctx, "/search/movie", params, "title", "release_date")
+	result, err := c.search(ctx, "/search/movie", params, "title", "release_date", year)
 	if err != nil {
 		return nil, fmt.Errorf("search movie %q (year=%d): %w", title, year, err)
 	}
 	return result, nil
 }
 
-// SearchTV queries the TMDB TV search endpoint.
-// Returns (nil, nil) when no results are found.
-func (c *Client) SearchTV(ctx context.Context, title string) (*TMDBResult, error) {
+// SearchMovieCandidates queries the TMDB movie search endpoint and returns all candidates on the first page,
+// filtering by year filter if non-zero.
+func (c *Client) SearchMovieCandidates(ctx context.Context, title string, year int) ([]TMDBResult, error) {
 	params := url.Values{"query": {title}, "api_key": {c.apiKey}}
-	result, err := c.search(ctx, "/search/tv", params, "name", "first_air_date")
+	if year != 0 {
+		params.Set("year", strconv.Itoa(year))
+	}
+	results, err := c.searchAll(ctx, "/search/movie", params, "title", "release_date", year)
 	if err != nil {
-		return nil, fmt.Errorf("search tv %q: %w", title, err)
+		return nil, fmt.Errorf("search movie candidates %q (year=%d): %w", title, year, err)
+	}
+	return results, nil
+}
+
+// SearchTV queries the TMDB TV search endpoint. Use year=0 for no year filter.
+// Returns (nil, nil) when no results are found.
+func (c *Client) SearchTV(ctx context.Context, title string, year int) (*TMDBResult, error) {
+	params := url.Values{"query": {title}, "api_key": {c.apiKey}}
+	if year != 0 {
+		params.Set("first_air_date_year", strconv.Itoa(year))
+	}
+	result, err := c.search(ctx, "/search/tv", params, "name", "first_air_date", year)
+	if err != nil {
+		return nil, fmt.Errorf("search tv %q (year=%d): %w", title, year, err)
 	}
 	return result, nil
 }
@@ -104,7 +123,7 @@ func (c *Client) GetTVSeason(ctx context.Context, showTMDBID, seasonNumber int) 
 		return nil, err
 	}
 	slog.Info("TMDB GET", "url", reqURL)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("TMDB request %s: %w", path, err)
 	}
@@ -149,7 +168,7 @@ func (c *Client) GetTVEpisode(ctx context.Context, showTMDBID, seasonNumber, epi
 		return nil, err
 	}
 	slog.Info("TMDB GET", "url", reqURL)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("TMDB request %s: %w", path, err)
 	}
@@ -209,7 +228,7 @@ func (c *Client) DownloadPoster(ctx context.Context, posterPath, destDir string)
 		return "", err
 	}
 	slog.Info("TMDB GET", "url", imageURL)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -234,21 +253,47 @@ func (c *Client) DownloadPoster(ctx context.Context, posterPath, destDir string)
 	return localPath, nil
 }
 
+// do wraps httpClient.Do and enforces TMDB API rate limits if a limiter is set.
+func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if strings.HasPrefix(req.URL.String(), c.baseURL) {
+		if c.limiter != nil {
+			select {
+			case <-c.limiter.C:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
+	return c.httpClient.Do(req)
+}
+
 // --- internal helpers ---
 
 type tmdbSearchResponse struct {
 	Results []json.RawMessage `json:"results"`
 }
 
-// search performs a parameterised TMDB search and unmarshals the first result.
-func (c *Client) search(ctx context.Context, path string, params url.Values, titleKey, dateKey string) (*TMDBResult, error) {
+// search performs a parameterised TMDB search, filtering results by yearFilter if non-zero.
+func (c *Client) search(ctx context.Context, path string, params url.Values, titleKey, dateKey string, yearFilter int) (*TMDBResult, error) {
+	results, err := c.searchAll(ctx, path, params, titleKey, dateKey, yearFilter)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, nil
+	}
+	return &results[0], nil
+}
+
+// searchAll performs a parameterised TMDB search, returning all results from the first page, filtered by yearFilter if non-zero.
+func (c *Client) searchAll(ctx context.Context, path string, params url.Values, titleKey, dateKey string, yearFilter int) ([]TMDBResult, error) {
 	reqURL := c.baseURL + path + "?" + params.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	slog.Info("TMDB GET", "url", reqURL)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("TMDB request %s: %w", path, err)
 	}
@@ -266,29 +311,44 @@ func (c *Client) search(ctx context.Context, path string, params url.Values, tit
 		return nil, nil
 	}
 
-	var raw map[string]any
-	if err := json.Unmarshal(sr.Results[0], &raw); err != nil {
-		return nil, err
+	var results []TMDBResult
+	for _, rawJSON := range sr.Results {
+		var raw map[string]any
+		if err := json.Unmarshal(rawJSON, &raw); err != nil {
+			continue
+		}
+
+		var resultYear int
+		if d, ok := raw[dateKey].(string); ok && len(d) >= 4 {
+			y, _ := strconv.Atoi(d[:4])
+			resultYear = y
+		}
+
+		if yearFilter != 0 && resultYear != yearFilter {
+			continue
+		}
+
+		r := TMDBResult{}
+		if id, ok := raw["id"].(float64); ok {
+			r.ID = int(id)
+		}
+		if t, ok := raw[titleKey].(string); ok {
+			r.Title = t
+		}
+		if o, ok := raw["overview"].(string); ok {
+			r.Overview = o
+		}
+		if p, ok := raw["poster_path"].(string); ok {
+			r.PosterPath = p
+		}
+		if pop, ok := raw["popularity"].(float64); ok {
+			r.Popularity = pop
+		}
+		r.Year = resultYear
+		results = append(results, r)
 	}
 
-	r := &TMDBResult{}
-	if id, ok := raw["id"].(float64); ok {
-		r.ID = int(id)
-	}
-	if t, ok := raw[titleKey].(string); ok {
-		r.Title = t
-	}
-	if o, ok := raw["overview"].(string); ok {
-		r.Overview = o
-	}
-	if p, ok := raw["poster_path"].(string); ok {
-		r.PosterPath = p
-	}
-	if d, ok := raw[dateKey].(string); ok && len(d) >= 4 {
-		y, _ := strconv.Atoi(d[:4])
-		r.Year = y
-	}
-	return r, nil
+	return results, nil
 }
 
 // TMDBMovieDetails holds movie details fetched via get movie endpoint.
@@ -302,6 +362,7 @@ type TMDBMovieDetails struct {
 	Director     string
 	Cast         []models.CastMember
 	ExtraPosters []string
+	Runtime      int
 }
 
 // TMDBTVDetails holds TV show details fetched via get tv endpoint.
@@ -326,7 +387,7 @@ func (c *Client) GetMovieDetails(ctx context.Context, tmdbID int) (*TMDBMovieDet
 		return nil, err
 	}
 	slog.Info("TMDB GET", "url", reqURL)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("TMDB movie details request %s: %w", path, err)
 	}
@@ -346,6 +407,7 @@ func (c *Client) GetMovieDetails(ctx context.Context, tmdbID int) (*TMDBMovieDet
 		Overview     string `json:"overview"`
 		PosterPath   string `json:"poster_path"`
 		BackdropPath string `json:"backdrop_path"`
+		Runtime      int    `json:"runtime"`
 		Credits      *struct {
 			Cast []struct {
 				Name        string  `json:"name"`
@@ -374,6 +436,7 @@ func (c *Client) GetMovieDetails(ctx context.Context, tmdbID int) (*TMDBMovieDet
 		Overview:     raw.Overview,
 		PosterPath:   raw.PosterPath,
 		BackdropPath: raw.BackdropPath,
+		Runtime:      raw.Runtime,
 	}
 
 	if len(raw.ReleaseDate) >= 4 {
@@ -436,7 +499,7 @@ func (c *Client) GetTVDetails(ctx context.Context, tmdbID int) (*TMDBTVDetails, 
 		return nil, err
 	}
 	slog.Info("TMDB GET", "url", reqURL)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("TMDB tv details request %s: %w", path, err)
 	}

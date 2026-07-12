@@ -38,12 +38,25 @@ import (
 
 // Main entry point for the Prism media server.
 func main() {
+	cfg := config.Load()
+
+	var level slog.Level
+	switch cfg.LogLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: level,
 	}))
 	slog.SetDefault(logger)
 
-	cfg := config.Load()
 
 	db, err := sqlite.Open(cfg.DBPath)
 	if err != nil {

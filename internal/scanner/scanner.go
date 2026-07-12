@@ -299,7 +299,7 @@ func (s *Scanner) upsertFile(ctx context.Context, path string, isManual bool) er
 		return s.upsertTVEpisodeFile(ctx, path, fi.Size(), isManual)
 	}
 
-	title := titleFromPath(path)
+	title, year := metadata.ParseTitle(path)
 
 	m := &models.MediaItem{
 		LibraryID:        s.library.ID,
@@ -310,6 +310,9 @@ func (s *Scanner) upsertFile(ctx context.Context, path string, isManual bool) er
 		TranscodeStatus:  models.TranscodeStatusNone,
 		ProbeStatus:      models.ProbeStatusPending,
 		EnrichmentStatus: models.EnrichmentStatusPending,
+	}
+	if year != 0 {
+		m.Year = &year
 	}
 
 	// Generate fingerprint & handle deduplication
@@ -411,10 +414,22 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 		return nil
 	}
 
+	showName, showYear := metadata.ShowNameFromPath(path, s.library.Path)
+	if showName == "" {
+		slog.Info("skipping file: TV episodes must be in a show-level subdirectory",
+			"path", path,
+			"library_path", s.library.Path,
+		)
+		return nil
+	}
+
 	// Upsert the parent TV show.
 	show := &models.TVShow{
 		LibraryID: s.library.ID,
-		Name:      info.ShowName,
+		Name:      showName,
+	}
+	if showYear != 0 {
+		show.FirstAirYear = &showYear
 	}
 	if err := sqlite.UpsertTVShow(ctx, s.db, show); err != nil {
 		return fmt.Errorf("upserting tv show: %w", err)
@@ -516,11 +531,35 @@ func (s *Scanner) processDeduplicationAndLinking(ctx context.Context, path strin
 	existing, err := sqlite.GetMediaItemByFingerprint(ctx, s.db, s.library.ID, fp)
 	if err == nil && existing != nil {
 		if existing.FilePath != path {
-			// Found moved file! Update the file path and set source status to available.
-			if err := sqlite.UpdateMediaItemFilePath(ctx, s.db, existing.ID, path); err != nil {
-				return false, fmt.Errorf("updating file path for moved item: %w", err)
+			// Found moved file! Update the file path, TV show/season, clear TMDB, set enrichment pending.
+			if err := sqlite.HandleMediaItemMove(ctx, s.db, existing.ID, path, m.Title, m.Year, m.TVShowID, m.TVSeasonID, m.SeasonNumber, m.EpisodeNumber); err != nil {
+				return false, fmt.Errorf("handling media item move: %w", err)
 			}
 			slog.Info("detected file move", "old_path", existing.FilePath, "new_path", path)
+
+			// Fetch the updated item so we can pass it to the tasks
+			updated, err := sqlite.GetMediaItemByID(ctx, s.db, existing.ID)
+			if err == nil && updated != nil {
+				if updated.MediaType == models.MediaTypeEpisode {
+					if updated.TVShowID != nil && updated.TVSeasonID != nil {
+						s.queueTask(&enrichTVEpisodeTask{
+							enricher: s.enricher,
+							db:       s.db,
+							bus:      s.eventBus,
+							item:     updated,
+							showID:   *updated.TVShowID,
+							seasonID: *updated.TVSeasonID,
+						})
+					}
+				} else {
+					s.queueTask(&enrichItemTask{
+						enricher: s.enricher,
+						db:       s.db,
+						bus:      s.eventBus,
+						item:     updated,
+					})
+				}
+			}
 			return true, nil
 		}
 		// Rescan of same file path: update the fingerprint in DB since we computed it

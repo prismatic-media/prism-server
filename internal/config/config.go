@@ -9,8 +9,9 @@ import (
 // Config holds startup-only configuration — values known before the database
 // is opened. All runtime settings live in the database settings table.
 type Config struct {
-	DBPath string
-	Port   int
+	DBPath   string
+	Port     int
+	LogLevel string
 }
 
 // RuntimeSettings holds settings loaded from the database at startup. These
@@ -27,16 +28,19 @@ type RuntimeSettings struct {
 // Load parses startup configuration from flags and environment variables.
 // Flag values take precedence over environment variables.
 //
-//	--db   / PRISM_DB    path to the SQLite database file (default: prism.db)
-//	--port / PRISM_PORT  HTTP listen port (default: 8080)
+//	--db        / PRISM_DB         path to the SQLite database file (default: prism.db)
+//	--port      / PRISM_PORT       HTTP listen port (default: 8080)
+//	--log-level / PRISM_LOG_LEVEL  log level: debug, info, warn, error (default: info)
 func Load() *Config {
 	cfg := &Config{
-		DBPath: envOrDefault("PRISM_DB", "prism.db"),
-		Port:   envIntOrDefault("PRISM_PORT", 8080),
+		DBPath:   envOrDefault("PRISM_DB", "prism.db"),
+		Port:     envIntOrDefault("PRISM_PORT", 8080),
+		LogLevel: envOrDefault("PRISM_LOG_LEVEL", "info"),
 	}
 
 	flag.StringVar(&cfg.DBPath, "db", cfg.DBPath, "path to SQLite database file (env: PRISM_DB)")
 	flag.IntVar(&cfg.Port, "port", cfg.Port, "HTTP listen port (env: PRISM_PORT)")
+	flag.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level: debug, info, warn, error (env: PRISM_LOG_LEVEL)")
 	flag.Parse()
 
 	return cfg

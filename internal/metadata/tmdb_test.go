@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -122,7 +123,7 @@ func TestSearchTV_Success(t *testing.T) {
 	c := NewClient("test-key")
 	c.baseURL = srv.URL
 
-	result, err := c.SearchTV(context.Background(), "Breaking Bad")
+	result, err := c.SearchTV(context.Background(), "Breaking Bad", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,6 +135,28 @@ func TestSearchTV_Success(t *testing.T) {
 	}
 	if result.Year != 2008 {
 		t.Errorf("Year: got %d, want 2008", result.Year)
+	}
+}
+
+func TestSearchTV_WithYear(t *testing.T) {
+	var requestedURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedURL = r.URL.String()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(tmdbTVResponse(1396, "Breaking Bad", "2008-01-20", "A teacher turns cook.", "/bbposter.jpg"))
+	}))
+	defer srv.Close()
+
+	c := NewClient("test-key")
+	c.baseURL = srv.URL
+
+	_, err := c.SearchTV(context.Background(), "Breaking Bad", 2008)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(requestedURL, "first_air_date_year=2008") {
+		t.Errorf("expected URL to contain first_air_date_year=2008, got %q", requestedURL)
 	}
 }
 
@@ -177,3 +200,119 @@ func TestDownloadPoster_EmptyPath(t *testing.T) {
 		t.Errorf("expected empty path, got %q", path)
 	}
 }
+
+func TestSearchTV_FiltersByYear(t *testing.T) {
+	// Return two shows: first is "Breaking Bad" (2010), second is "Breaking Bad" (2008).
+	// If we filter with 2008, it should choose the second show instead of the first show.
+	tvMultipleResp, _ := json.Marshal(map[string]any{
+		"results": []map[string]any{
+			{
+				"id":             float64(9999),
+				"name":           "Breaking Bad",
+				"first_air_date": "2010-01-20",
+				"overview":       "2010 version...",
+				"poster_path":    "",
+			},
+			{
+				"id":             float64(1396),
+				"name":           "Breaking Bad",
+				"first_air_date": "2008-01-20",
+				"overview":       "2008 version...",
+				"poster_path":    "",
+			},
+		},
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(tvMultipleResp)
+	}))
+	defer srv.Close()
+
+	c := NewClient("test-key")
+	c.baseURL = srv.URL
+
+	result, err := c.SearchTV(context.Background(), "Breaking Bad", 2008)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+	if result.ID != 1396 {
+		t.Errorf("expected to choose 2008 show (ID 1396), got ID %d", result.ID)
+	}
+}
+
+func TestSearchMovieCandidates(t *testing.T) {
+	movieMultipleResp, _ := json.Marshal(map[string]any{
+		"results": []map[string]any{
+			{
+				"id":           float64(100),
+				"title":        "Jurassic World",
+				"release_date": "2015-06-12",
+				"popularity":   85.5,
+			},
+			{
+				"id":           float64(200),
+				"title":        "Jurassic World Rebirth",
+				"release_date": "2025-07-02",
+				"popularity":   50.2,
+			},
+		},
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(movieMultipleResp)
+	}))
+	defer srv.Close()
+
+	c := NewClient("test-key")
+	c.baseURL = srv.URL
+
+	results, err := c.SearchMovieCandidates(context.Background(), "Jurassic World", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(results))
+	}
+	if results[0].ID != 100 || results[0].Popularity != 85.5 {
+		t.Errorf("unexpected first candidate: %+v", results[0])
+	}
+	if results[1].ID != 200 || results[1].Popularity != 50.2 {
+		t.Errorf("unexpected second candidate: %+v", results[1])
+	}
+}
+
+func TestGetMovieDetails_Runtime(t *testing.T) {
+	movieDetailsResp, _ := json.Marshal(map[string]any{
+		"id":           float64(100),
+		"title":        "Jurassic World",
+		"release_date": "2015-06-12",
+		"runtime":      124,
+		"overview":     "A new theme park...",
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(movieDetailsResp)
+	}))
+	defer srv.Close()
+
+	c := NewClient("test-key")
+	c.baseURL = srv.URL
+
+	details, err := c.GetMovieDetails(context.Background(), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if details == nil {
+		t.Fatal("expected details, got nil")
+	}
+	if details.Runtime != 124 {
+		t.Errorf("expected runtime 124, got %d", details.Runtime)
+	}
+}
+

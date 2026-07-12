@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -18,12 +19,16 @@ import (
 type Enricher struct {
 	db              *sql.DB
 	baseURLOverride string // non-empty in tests to redirect TMDB calls
+	limiter         *time.Ticker
 }
 
 // NewEnricher creates an Enricher. When no TMDB API key is configured in the
 // database, all Enrich* methods are no-ops (safe to call unconditionally).
 func NewEnricher(db *sql.DB) *Enricher {
-	return &Enricher{db: db}
+	return &Enricher{
+		db:      db,
+		limiter: time.NewTicker(25 * time.Millisecond),
+	}
 }
 
 // client returns a TMDB client configured with the current API key, or nil if
@@ -37,6 +42,7 @@ func (e *Enricher) client(ctx context.Context) *Client {
 	if e.baseURLOverride != "" {
 		c.baseURL = e.baseURLOverride
 	}
+	c.limiter = e.limiter
 	return c
 }
 
@@ -65,35 +71,122 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *models.MediaItem) {
 	title, year := ParseTitle(item.FilePath)
 
 	var (
-		result *TMDBResult
-		err    error
+		result       *TMDBResult
+		err          error
+		movieDetails *TMDBMovieDetails
 	)
 	switch item.MediaType {
 	case models.MediaTypeMovie:
-		result, err = c.SearchMovie(ctx, title, year)
+		candidates, sErr := c.SearchMovieCandidates(ctx, title, year)
+		if sErr == nil && len(candidates) == 0 && year != 0 {
+			slog.Info("no TMDB match with year, retrying without year filter", "title", title, "year", year)
+			candidates, sErr = c.SearchMovieCandidates(ctx, title, 0)
+		}
+		if sErr != nil {
+			slog.Warn("TMDB movie candidate search failed",
+				"id", item.ID,
+				"title", title,
+				"year", year,
+				"error", sErr,
+			)
+			return
+		}
+		if len(candidates) == 0 {
+			slog.Info("no TMDB match found",
+				"id", item.ID,
+				"title", title,
+				"year", year,
+				"file_path", item.FilePath,
+			)
+			return
+		}
+
+		// Phase 1: Preliminarily score candidates without runtime to select top 3 for details fetch
+		prelimScored := ScoreCandidates(title, 0.0, candidates, nil)
+
+		numRuntimeChecks := 3
+		if len(prelimScored) < numRuntimeChecks {
+			numRuntimeChecks = len(prelimScored)
+		}
+
+		runtimes := make(map[int]int)
+		detailsMap := make(map[int]*TMDBMovieDetails)
+		for i := 0; i < numRuntimeChecks; i++ {
+			candID := prelimScored[i].Candidate.ID
+			det, detErr := c.GetMovieDetails(ctx, candID)
+			if detErr == nil && det != nil {
+				runtimes[candID] = det.Runtime
+				detailsMap[candID] = det
+			}
+		}
+
+		// Phase 2: Final scoring with runtime checks included
+		finalScored := ScoreCandidates(title, item.Duration, candidates, runtimes)
+
+		// Log each candidate's score breakdown at DEBUG level
+		for _, sc := range finalScored {
+			slog.Debug("candidate match score",
+				"id", item.ID,
+				"query", title,
+				"candidate_title", sc.Candidate.Title,
+				"candidate_id", sc.Candidate.ID,
+				"title_score", sc.TitleScore,
+				"popularity_score", sc.PopularityScore,
+				"runtime_score", sc.RuntimeScore,
+				"composite_score", sc.CompositeScore,
+			)
+		}
+
+		best := finalScored[0]
+
+		// Log the winning match at INFO level with composite breakdown
+		slog.Info("winning TMDB match",
+			"id", item.ID,
+			"query", title,
+			"match_title", best.Candidate.Title,
+			"match_id", best.Candidate.ID,
+			"composite_score", best.CompositeScore,
+			"title_score", best.TitleScore,
+			"popularity_score", best.PopularityScore,
+			"runtime_score", best.RuntimeScore,
+		)
+
+		if best.CompositeScore < 0.4 {
+			slog.Warn("best TMDB match confidence below threshold",
+				"id", item.ID,
+				"title", title,
+				"match_title", best.Candidate.Title,
+				"composite_score", best.CompositeScore,
+			)
+			return
+		}
+
+		result = &best.Candidate
+		movieDetails = detailsMap[best.Candidate.ID]
+
 	case models.MediaTypeTVShow:
-		result, err = c.SearchTV(ctx, title)
+		result, err = c.SearchTV(ctx, title, 0)
+		if err != nil {
+			slog.Warn("TMDB search failed",
+				"id", item.ID,
+				"title", title,
+				"year", year,
+				"media_type", item.MediaType,
+				"error", err,
+			)
+			return
+		}
+		if result == nil {
+			slog.Info("no TMDB match found",
+				"id", item.ID,
+				"title", title,
+				"year", year,
+				"media_type", item.MediaType,
+				"file_path", item.FilePath,
+			)
+			return
+		}
 	default:
-		return
-	}
-	if err != nil {
-		slog.Warn("TMDB search failed",
-			"id", item.ID,
-			"title", title,
-			"year", year,
-			"media_type", item.MediaType,
-			"error", err,
-		)
-		return
-	}
-	if result == nil {
-		slog.Info("no TMDB match found",
-			"id", item.ID,
-			"title", title,
-			"year", year,
-			"media_type", item.MediaType,
-			"file_path", item.FilePath,
-		)
 		return
 	}
 
@@ -107,7 +200,12 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *models.MediaItem) {
 	localBackdrop := ""
 	var localExtraPosters []string
 
-	details, err := c.GetMovieDetails(ctx, result.ID)
+	var details *TMDBMovieDetails
+	if item.MediaType == models.MediaTypeMovie && movieDetails != nil {
+		details = movieDetails
+	} else {
+		details, err = c.GetMovieDetails(ctx, result.ID)
+	}
 	if err == nil && details != nil {
 		if td := e.thumbsDir(ctx); td != "" {
 			if details.PosterPath != "" {
@@ -129,7 +227,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *models.MediaItem) {
 		director = details.Director
 		cast = details.Cast
 		if err := sqlite.UpdateMediaMetadata(
-			ctx, e.db, item.ID,
+			ctx, e.db, item.ID, details.Title,
 			details.ID, details.Year, details.Overview, localPoster,
 			director, cast, localBackdrop, localExtraPosters,
 		); err != nil {
@@ -137,7 +235,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *models.MediaItem) {
 		}
 	} else {
 		if err := sqlite.UpdateMediaMetadata(
-			ctx, e.db, item.ID,
+			ctx, e.db, item.ID, result.Title,
 			result.ID, result.Year, result.Overview, localPoster,
 			"", nil, "", nil,
 		); err != nil {
@@ -158,7 +256,16 @@ func (e *Enricher) EnrichTVShow(ctx context.Context, show *models.TVShow) {
 		return
 	}
 
-	result, err := c.SearchTV(ctx, show.Name)
+	var year int
+	if show.FirstAirYear != nil {
+		year = *show.FirstAirYear
+	}
+
+	result, err := c.SearchTV(ctx, show.Name, year)
+	if err == nil && result == nil && year != 0 {
+		slog.Info("no TMDB match for TV show with year, retrying without year filter", "show", show.Name, "year", year)
+		result, err = c.SearchTV(ctx, show.Name, 0)
+	}
 	if err != nil {
 		slog.Warn("TMDB TV search failed",
 			"id", show.ID,
@@ -173,6 +280,28 @@ func (e *Enricher) EnrichTVShow(ctx context.Context, show *models.TVShow) {
 			"show", show.Name,
 		)
 		return
+	}
+
+	// TV Show Deduplication / Merging
+	var existing *models.TVShow
+	if existingShow, err := sqlite.GetTVShowByTMDBId(ctx, e.db, show.LibraryID, result.ID); err == nil && existingShow != nil {
+		existing = existingShow
+	} else if existingShow, err := sqlite.GetTVShowByName(ctx, e.db, show.LibraryID, result.Title); err == nil && existingShow != nil {
+		existing = existingShow
+	}
+
+	if existing != nil && existing.ID != show.ID {
+		slog.Info("merging duplicate TV show into existing canonical show",
+			"duplicate_id", show.ID,
+			"duplicate_name", show.Name,
+			"canonical_id", existing.ID,
+			"canonical_name", existing.Name,
+		)
+		if err := sqlite.MergeTVShows(ctx, e.db, existing.ID, show.ID); err != nil {
+			slog.Warn("merging TV shows failed", "keep", existing.ID, "remove", show.ID, "error", err)
+		} else {
+			*show = *existing
+		}
 	}
 
 	localPoster := ""
@@ -207,7 +336,7 @@ func (e *Enricher) EnrichTVShow(ctx context.Context, show *models.TVShow) {
 		director = details.Director
 		cast = details.Cast
 		if err := sqlite.UpdateTVShowMetadata(
-			ctx, e.db, show.ID,
+			ctx, e.db, show.ID, details.Name,
 			details.ID, details.Year, details.Overview, localPoster,
 			director, cast, localBackdrop, localExtraPosters,
 		); err != nil {
@@ -216,7 +345,7 @@ func (e *Enricher) EnrichTVShow(ctx context.Context, show *models.TVShow) {
 		}
 	} else {
 		if err := sqlite.UpdateTVShowMetadata(
-			ctx, e.db, show.ID,
+			ctx, e.db, show.ID, result.Title,
 			result.ID, result.Year, result.Overview, localPoster,
 			"", nil, "", nil,
 		); err != nil {
@@ -225,7 +354,7 @@ func (e *Enricher) EnrichTVShow(ctx context.Context, show *models.TVShow) {
 		}
 	}
 
-	// Refresh show so callers can read the newly set tmdb_id.
+	// Refresh show so callers can read the newly set tmdb_id and name.
 	updated, err := sqlite.GetTVShowByID(ctx, e.db, show.ID)
 	if err == nil {
 		*show = *updated
@@ -344,7 +473,7 @@ func (e *Enricher) EnrichTVEpisode(ctx context.Context, item *models.MediaItem, 
 		}
 	}
 
-	if err := sqlite.UpdateMediaMetadata(ctx, e.db, item.ID, epResult.ID, epResult.AirYear, epResult.Overview, localStill, "", nil, "", nil); err != nil {
+	if err := sqlite.UpdateMediaMetadata(ctx, e.db, item.ID, epResult.Name, epResult.ID, epResult.AirYear, epResult.Overview, localStill, "", nil, "", nil); err != nil {
 		slog.Warn("storing episode metadata failed", "id", item.ID, "error", err)
 	}
 }

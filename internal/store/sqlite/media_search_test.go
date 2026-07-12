@@ -33,7 +33,7 @@ func TestSearchMedia(t *testing.T) {
 		{Name: "Matthew McConaughey", Character: "Cooper"},
 		{Name: "Anne Hathaway", Character: "Brand"},
 	}
-	if err := sqlite.UpdateMediaMetadata(ctx, db, m1.ID, 157336, 2014, "A team of explorers travel through a wormhole in space.", "/posters/interstellar.jpg", "Christopher Nolan", cast1, "", nil); err != nil {
+	if err := sqlite.UpdateMediaMetadata(ctx, db, m1.ID, "Interstellar", 157336, 2014, "A team of explorers travel through a wormhole in space.", "/posters/interstellar.jpg", "Christopher Nolan", cast1, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -45,7 +45,7 @@ func TestSearchMedia(t *testing.T) {
 		{Name: "Keanu Reeves", Character: "Neo"},
 		{Name: "Laurence Fishburne", Character: "Morpheus"},
 	}
-	if err := sqlite.UpdateMediaMetadata(ctx, db, m2.ID, 603, 1999, "A computer hacker learns from mysterious rebels.", "/posters/matrix.jpg", "Lana Wachowski", cast2, "", nil); err != nil {
+	if err := sqlite.UpdateMediaMetadata(ctx, db, m2.ID, "The Matrix", 603, 1999, "A computer hacker learns from mysterious rebels.", "/posters/matrix.jpg", "Lana Wachowski", cast2, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -61,7 +61,7 @@ func TestSearchMedia(t *testing.T) {
 		{Name: "Bryan Cranston", Character: "Walter White"},
 		{Name: "Aaron Paul", Character: "Jesse Pinkman"},
 	}
-	if err := sqlite.UpdateTVShowMetadata(ctx, db, s1.ID, 1396, 2008, "A high school chemistry teacher starts producing meth.", "/posters/breaking_bad.jpg", "Vince Gilligan", cast3, "", nil); err != nil {
+	if err := sqlite.UpdateTVShowMetadata(ctx, db, s1.ID, "Breaking Bad", 1396, 2008, "A high school chemistry teacher starts producing meth.", "/posters/breaking_bad.jpg", "Vince Gilligan", cast3, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -76,7 +76,7 @@ func TestSearchMedia(t *testing.T) {
 		{Name: "Millie Bobby Brown", Character: "Eleven"},
 		{Name: "Winona Ryder", Character: "Joyce Byers"},
 	}
-	if err := sqlite.UpdateTVShowMetadata(ctx, db, s2.ID, 66732, 2016, "A young boy vanishes, a mother must confront terrifying forces.", "/posters/stranger_things.jpg", "The Duffer Brothers", cast4, "", nil); err != nil {
+	if err := sqlite.UpdateTVShowMetadata(ctx, db, s2.ID, "Stranger Things", 66732, 2016, "A young boy vanishes, a mother must confront terrifying forces.", "/posters/stranger_things.jpg", "The Duffer Brothers", cast4, "", nil); err != nil {
 		t.Fatal(err)
 	}
 

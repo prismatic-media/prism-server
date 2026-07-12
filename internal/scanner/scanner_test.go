@@ -15,6 +15,7 @@ import (
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 	"github.com/prismatic-media/prism-server/migrations"
 	"github.com/prismatic-media/prism-server/pkg/events"
+	"github.com/prismatic-media/prism-server/pkg/fingerprint"
 
 	gosql "database/sql"
 )
@@ -324,3 +325,80 @@ func TestScanner_Watch_PicksUpNewFile(t *testing.T) {
 	cancel()
 	t.Error("timed out waiting for new file to be detected by watcher")
 }
+
+func TestScanner_FileMove_ClearsTMDBAndTriggersEnrichment(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Create files on disk
+	dir := tmpLibDir(t, "new_name.mkv")
+	lib := newLibrary(t, db, dir)
+
+	// Pre-seed an item with the old path and an enrichment status / TMDB metadata
+	m := &models.MediaItem{
+		LibraryID:        lib.ID,
+		Title:            "Old Title",
+		MediaType:        models.MediaTypeMovie,
+		FilePath:         filepath.Join(dir, "old_name.mkv"), // different name on disk
+		FileSize:         1024,
+		TranscodeStatus:  models.TranscodeStatusNone,
+		ProbeStatus:      models.ProbeStatusPending,
+		EnrichmentStatus: models.EnrichmentStatusDone,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update with enriched TMDB metadata
+	var mockCast []models.CastMember
+	if err := sqlite.UpdateMediaMetadata(ctx, db, m.ID, "Old TMDB Title", 12345, 2010, "Overview text", "/posters/old.jpg", "Director A", mockCast, "", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now scan the directory. The scanner will encounter "new_name.mkv".
+	// Since we write "fake video: new_name.mkv" in tmpLibDir, it will have a different fingerprint.
+	// Wait, we need the fingerprints to match for it to detect a file move!
+	// So let's manually update the database's source_fingerprint to match the fingerprint of the new file.
+	fp, err := fingerprint.GenerateDeterministic(filepath.Join(dir, "new_name.mkv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = db.ExecContext(ctx, "UPDATE media_items SET source_fingerprint = ? WHERE id = ?", fp, m.ID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Run scanner
+	s := scanner.New(db, lib, nil, nil)
+	if err := s.ScanAll(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify database state of the item
+	updated, err := sqlite.GetMediaItemByID(ctx, db, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if updated.FilePath != filepath.Join(dir, "new_name.mkv") {
+		t.Errorf("expected FilePath to be updated to new name, got %s", updated.FilePath)
+	}
+
+	if updated.Title != "new_name" {
+		t.Errorf("expected Title to be updated to parsed filename title, got %s", updated.Title)
+	}
+
+	if updated.TMDBId != nil {
+		t.Errorf("expected TMDBId to be cleared (nil), got %d", *updated.TMDBId)
+	}
+
+	if updated.EnrichmentStatus != models.EnrichmentStatusPending {
+		t.Errorf("expected EnrichmentStatus to be pending, got %s", updated.EnrichmentStatus)
+	}
+
+	if updated.PosterPath != nil {
+		t.Errorf("expected PosterPath to be cleared, got %q", *updated.PosterPath)
+	}
+}
+

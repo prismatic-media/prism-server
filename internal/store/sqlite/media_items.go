@@ -390,7 +390,7 @@ func PruneStaleMediaItems(ctx context.Context, db *sql.DB, libraryID uuid.UUID, 
 // UpdateMediaMetadata writes TMDB-sourced fields back to the media_items row.
 // Passing 0 for tmdbID or year stores NULL in those columns.
 // Passing "" for overview or posterPath stores NULL.
-func UpdateMediaMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID, year int, overview, posterPath, director string, cast []models.CastMember, backdropPath string, extraPosters []string) error {
+func UpdateMediaMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, title string, tmdbID, year int, overview, posterPath, director string, cast []models.CastMember, backdropPath string, extraPosters []string) error {
 	now := time.Now().UTC()
 	var castStr, extraPostersStr sql.NullString
 	if len(cast) > 0 {
@@ -406,7 +406,8 @@ func UpdateMediaMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID, 
 
 	_, err := db.ExecContext(ctx, `
 		UPDATE media_items
-		SET tmdb_id       = ?,
+		SET title         = ?,
+		    tmdb_id       = ?,
 		    year          = ?,
 		    overview      = ?,
 		    poster_path   = ?,
@@ -416,6 +417,7 @@ func UpdateMediaMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID, 
 		    extra_posters = ?,
 		    updated_at    = ?
 		WHERE id = ?`,
+		title,
 		nullInt(tmdbID), nullInt(year),
 		nullStr(overview), nullStr(posterPath),
 		nullStr(director), castStr,
@@ -424,6 +426,21 @@ func UpdateMediaMetadata(ctx context.Context, db *sql.DB, id uuid.UUID, tmdbID, 
 	)
 	if err != nil {
 		return fmt.Errorf("updating media metadata: %w", err)
+	}
+	return nil
+}
+
+// UpdateMediaTitle updates only the title of a media item.
+func UpdateMediaTitle(ctx context.Context, db *sql.DB, id uuid.UUID, title string) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+		UPDATE media_items
+		SET title = ?, updated_at = ?
+		WHERE id = ?`,
+		title, now.Format(time.RFC3339), id.String(),
+	)
+	if err != nil {
+		return fmt.Errorf("updating media title: %w", err)
 	}
 	return nil
 }
@@ -842,6 +859,48 @@ func ListPendingEnrichments(ctx context.Context, db *sql.DB) ([]*models.MediaIte
 		items = append(items, m)
 	}
 	return items, rows.Err()
+}
+
+// HandleMediaItemMove updates the file path, clears TMDB metadata, resets TV parent IDs,
+// sets enrichment status to pending, and source status to available.
+func HandleMediaItemMove(ctx context.Context, db *sql.DB, id uuid.UUID, newPath, newTitle string, newYear *int, tvShowID, tvSeasonID *uuid.UUID, seasonNum, episodeNum *int) error {
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, `
+		UPDATE media_items
+		SET file_path         = ?,
+		    title             = ?,
+		    year              = ?,
+		    tv_show_id        = ?,
+		    tv_season_id      = ?,
+		    season_number     = ?,
+		    episode_number    = ?,
+		    tmdb_id           = NULL,
+		    overview          = NULL,
+		    poster_path       = NULL,
+		    director          = NULL,
+		    cast_members      = NULL,
+		    backdrop_path     = NULL,
+		    extra_posters     = NULL,
+		    source_status     = ?,
+		    enrichment_status = ?,
+		    updated_at        = ?
+		WHERE id = ?`,
+		newPath,
+		newTitle,
+		nullIntPtr(newYear),
+		nullUUID(tvShowID),
+		nullUUID(tvSeasonID),
+		nullIntPtr(seasonNum),
+		nullIntPtr(episodeNum),
+		models.SourceStatusAvailable,
+		models.EnrichmentStatusPending,
+		now.Format(time.RFC3339),
+		id.String(),
+	)
+	if err != nil {
+		return fmt.Errorf("handling media item move: %w", err)
+	}
+	return nil
 }
 
 
