@@ -24,6 +24,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
   castReceiverAppId = '';
   whisperDefaultLanguage = 'en';
   whisperModel = 'base';
+  whisperEnabled = false;
 
   // Copy of settings for comparison
   private originalSettings: Record<string, string> = {};
@@ -68,6 +69,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
             cast_receiver_app_id: this.castReceiverAppId.trim(),
             whisper_default_language: this.whisperDefaultLanguage.trim(),
             whisper_model: this.whisperModel.trim(),
+            whisper_enabled: String(this.whisperEnabled),
           };
 
           return this.http.put('/api/v1/settings', payload).pipe(
@@ -128,6 +130,7 @@ export class SettingsAdminComponent implements OnInit, OnDestroy {
     this.castReceiverAppId = settings['cast_receiver_app_id'] || '';
     this.whisperDefaultLanguage = settings['whisper_default_language'] || 'en';
     this.whisperModel = settings['whisper_model'] || 'base';
+    this.whisperEnabled = settings['whisper_enabled'] === 'true';
   }
 
   onSettingChange(immediate: boolean): void {

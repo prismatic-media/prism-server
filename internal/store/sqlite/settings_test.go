@@ -76,7 +76,12 @@ func TestGetAllSettings_OnlyConfigurable(t *testing.T) {
 	}
 
 	// All configurable keys must be present
-	for _, key := range []string{"thumbs_dir", "transcode_workers", "transcode_poll_interval", "storage_min_free_bytes", "auto_transcode_on_discovery", "tmdb_api_key", "cast_receiver_app_id"} {
+	for _, key := range []string{
+		"thumbs_dir", "transcode_workers", "transcode_poll_interval",
+		"storage_min_free_bytes", "auto_transcode_on_discovery",
+		"tmdb_api_key", "cast_receiver_app_id", "whisper_default_language",
+		"whisper_model", "whisper_enabled",
+	} {
 		if _, ok := settings[key]; !ok {
 			t.Errorf("missing expected key %q", key)
 		}

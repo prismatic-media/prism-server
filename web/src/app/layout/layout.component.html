@@ -1,5 +1,7 @@
+<div class="sidebar-backdrop" *ngIf="mobileSidebarOpen" (click)="toggleMobileSidebar()"></div>
+
 <!-- Sidebar Navigation -->
-<aside class="sidebar frosted-glass">
+<aside class="sidebar frosted-glass" [class.drawer-open]="mobileSidebarOpen">
   <div class="brand-header">
     <div class="brand-container">
       <img src="/prism-logo-animated.svg" class="brand-logo" alt="Prism Logo" />
@@ -70,7 +72,15 @@
 
 <!-- Top AppBar -->
 <header class="top-header frosted-glass">
-  <div class="search-container">
+  <!-- Hamburger Menu Button -->
+  <button class="hamburger-btn" (click)="toggleMobileSidebar()" title="Menu">
+    <span class="material-symbols-outlined">menu</span>
+  </button>
+
+  <div class="search-container" [class.mobile-search-active]="mobileSearchActive">
+    <button class="mobile-search-trigger" (click)="toggleMobileSearch()" title="Search">
+      <span class="material-symbols-outlined">search</span>
+    </button>
     <div class="search-bar">
       <span class="material-symbols-outlined search-icon">search</span>
       <input
@@ -129,6 +139,9 @@
         </ng-container>
       </div>
     </div>
+    <button class="mobile-search-close" (click)="toggleMobileSearch()" title="Close Search">
+      <span class="material-symbols-outlined">close</span>
+    </button>
   </div>
 
   <div class="header-actions">
@@ -241,7 +254,18 @@
 <div
   class="now-playing-bar frosted-glass active-playbar"
   *ngIf="(castService.isConnected$ | async) && (castService.currentMedia$ | async) as media"
+  (click)="toggleCastOverlay()"
 >
+  <!-- Mini progress bar container for mobile -->
+  <div class="mini-progress-bar-container">
+    <div
+      class="mini-progress-bar"
+      [style.width.%]="
+        getCastProgressPercent(castService.currentTime$ | async, castService.duration$ | async)
+      "
+    ></div>
+  </div>
+
   <!-- Left Column: Poster & Metadata -->
   <div class="bar-metadata">
     <img [src]="getCastPosterUrl(media)" class="bar-poster" alt="Poster" />
@@ -257,17 +281,17 @@
   </div>
 
   <!-- Center Column: Controls & Timeline -->
-  <div class="bar-controls-container">
+  <div class="bar-controls-container" (click)="$event.stopPropagation()">
     <div class="bar-buttons">
       <!-- Replay 10s -->
-      <button class="bar-control-btn" (click)="replayCast10s()" title="Back 10s">
+      <button class="bar-control-btn" (click)="$event.stopPropagation(); replayCast10s()" title="Back 10s">
         <span class="material-symbols-outlined">replay_10</span>
       </button>
 
       <!-- Play/Pause Toggle -->
       <button
         class="bar-play-btn"
-        (click)="toggleCastPlay()"
+        (click)="$event.stopPropagation(); toggleCastPlay()"
         [title]="(castService.isPlaying$ | async) ? 'Pause' : 'Play'"
       >
         <span class="material-symbols-outlined fill-icon text-2xl">
@@ -276,7 +300,7 @@
       </button>
 
       <!-- Forward 30s -->
-      <button class="bar-control-btn" (click)="forwardCast30s()" title="Forward 30s">
+      <button class="bar-control-btn" (click)="$event.stopPropagation(); forwardCast30s()" title="Forward 30s">
         <span class="material-symbols-outlined">forward_30</span>
       </button>
     </div>
@@ -291,6 +315,7 @@
           [max]="(castService.duration$ | async) || 0"
           [value]="(castService.currentTime$ | async) || 0"
           (input)="onCastTimelineChange($event)"
+          (click)="$event.stopPropagation()"
           class="bar-timeline-slider"
         />
         <div
@@ -305,9 +330,9 @@
   </div>
 
   <!-- Right Column: Volume & Disconnect -->
-  <div class="bar-actions">
+  <div class="bar-actions" (click)="$event.stopPropagation()">
     <div class="bar-volume-container">
-      <button class="bar-control-btn" (click)="toggleCastMute()" title="Mute/Unmute">
+      <button class="bar-control-btn" (click)="$event.stopPropagation(); toggleCastMute()" title="Mute/Unmute">
         <span class="material-symbols-outlined">
           {{
             (castService.isMuted$ | async) || (castService.volume$ | async) === 0
@@ -324,6 +349,7 @@
         max="100"
         [value]="(castService.isMuted$ | async) ? 0 : (castService.volume$ | async) || 0"
         (input)="onCastVolumeChange($event)"
+        (click)="$event.stopPropagation()"
         class="bar-volume-slider"
       />
     </div>
@@ -332,10 +358,95 @@
 
     <button
       class="bar-control-btn btn-disconnect"
-      (click)="disconnectCast()"
+      (click)="$event.stopPropagation(); disconnectCast()"
       title="Disconnect Chromecast"
     >
       <span class="material-symbols-outlined text-error">tv_off</span>
     </button>
+  </div>
+</div>
+
+<!-- Fullscreen Cast Control Overlay for Mobile -->
+<div class="cast-overlay-modal frosted-glass" *ngIf="castOverlayOpen && (castService.currentMedia$ | async) as media">
+  <div class="cast-overlay-header">
+    <button class="cast-overlay-close-btn" (click)="toggleCastOverlay()" title="Close Controls">
+      <span class="material-symbols-outlined">keyboard_arrow_down</span>
+    </button>
+    <span class="cast-overlay-header-title label-mono">NOW CASTING</span>
+    <button class="cast-overlay-disconnect-btn" (click)="disconnectCast(); toggleCastOverlay()" title="Disconnect Chromecast">
+      <span class="material-symbols-outlined text-error">tv_off</span>
+    </button>
+  </div>
+  
+  <div class="cast-overlay-content">
+    <div class="cast-overlay-poster-container">
+      <img [src]="getCastPosterUrl(media)" class="cast-overlay-poster" alt="Poster" />
+    </div>
+    
+    <div class="cast-overlay-meta">
+      <h2 class="cast-overlay-title">{{ media.title }}</h2>
+      <p class="cast-overlay-subtitle">
+        <span *ngIf="media.media_type === 'episode' && media.tv_show_title">{{ media.tv_show_title }}</span>
+        <span class="cast-device-info">Casting to {{ castService.deviceName$ | async }}</span>
+      </p>
+    </div>
+    
+    <div class="cast-overlay-controls">
+      <!-- Timeline Slider -->
+      <div class="cast-overlay-timeline">
+        <span class="time-label">{{ formatCastTime((castService.currentTime$ | async) || 0) }}</span>
+        <div class="bar-slider-wrapper">
+          <input
+            type="range"
+            min="0"
+            [max]="(castService.duration$ | async) || 0"
+            [value]="(castService.currentTime$ | async) || 0"
+            (input)="onCastTimelineChange($event)"
+            class="bar-timeline-slider"
+          />
+        </div>
+        <span class="time-label">{{ formatCastTime((castService.duration$ | async) || 0) }}</span>
+      </div>
+      
+      <!-- Playback buttons -->
+      <div class="cast-overlay-buttons">
+        <button class="bar-control-btn large" (click)="replayCast10s()" title="Back 10s">
+          <span class="material-symbols-outlined">replay_10</span>
+        </button>
+        
+        <button class="cast-overlay-play-btn" (click)="toggleCastPlay()">
+          <span class="material-symbols-outlined fill-icon">
+            {{ (castService.isPlaying$ | async) ? 'pause' : 'play_arrow' }}
+          </span>
+        </button>
+        
+        <button class="bar-control-btn large" (click)="forwardCast30s()" title="Forward 30s">
+          <span class="material-symbols-outlined">forward_30</span>
+        </button>
+      </div>
+      
+      <!-- Volume slider -->
+      <div class="cast-overlay-volume">
+        <button class="bar-control-btn" (click)="toggleCastMute()" title="Mute/Unmute">
+          <span class="material-symbols-outlined">
+            {{
+              (castService.isMuted$ | async) || (castService.volume$ | async) === 0
+                ? 'volume_off'
+                : ((castService.volume$ | async) || 0) < 50
+                  ? 'volume_down'
+                  : 'volume_up'
+            }}
+          </span>
+        </button>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          [value]="(castService.isMuted$ | async) ? 0 : (castService.volume$ | async) || 0"
+          (input)="onCastVolumeChange($event)"
+          class="bar-volume-slider"
+        />
+      </div>
+    </div>
   </div>
 </div>

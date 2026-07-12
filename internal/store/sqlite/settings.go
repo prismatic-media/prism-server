@@ -21,6 +21,7 @@ var configurableSettingKeys = map[string]struct{}{
 	"cast_receiver_app_id":        {},
 	"whisper_default_language":    {},
 	"whisper_model":               {},
+	"whisper_enabled":             {},
 }
 
 // IsConfigurableKey reports whether key is a user-configurable setting.
@@ -43,6 +44,7 @@ func settingDefaults() map[string]string {
 		"cast_receiver_app_id":        "",
 		"whisper_default_language":    "en",
 		"whisper_model":               "base",
+		"whisper_enabled":             "false",
 		"setup_complete":              "false",
 	}
 }

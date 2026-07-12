@@ -110,8 +110,24 @@
             <span class="material-symbols-outlined text-lg">speech_to_text</span>
             Subtitle Alignment (Local Whisper)
           </h4>
-
-
+          <div class="flex items-center justify-between">
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium text-on-surface">Enable Whisper Transcription</label>
+              <p class="text-xs text-on-surface-variant">
+                Auto-generate transcriptions and subtitles using a local Whisper model during optimization.
+              </p>
+            </div>
+            <div class="toggle-group">
+              <label class="toggle-container">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="whisperEnabled"
+                  (ngModelChange)="onSettingChange(false)"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
 
           <div class="flex flex-col gap-2">
             <label class="text-sm font-medium text-on-surface">Default Whisper Language</label>
@@ -121,6 +137,7 @@
               [(ngModel)]="whisperDefaultLanguage"
               (ngModelChange)="onSettingChange(false)"
               placeholder="e.g. en or es"
+              [disabled]="!whisperEnabled"
             />
             <p class="text-xs text-on-surface-variant">
               The default ISO-2 code language for auto-generating speech-to-text transcriptions (defaults to 'en').
@@ -133,6 +150,7 @@
               class="input-glass"
               [(ngModel)]="whisperModel"
               (ngModelChange)="onSettingChange(false)"
+              [disabled]="!whisperEnabled"
             >
               <option value="tiny">tiny</option>
               <option value="tiny.en">tiny.en</option>

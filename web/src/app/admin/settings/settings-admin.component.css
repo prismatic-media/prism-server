@@ -670,3 +670,67 @@ input:checked + .switch-slider:before {
 .group:hover ::ng-deep .theme-borderless {
   color: var(--primary-fixed-dim);
 }
+
+/* --- Disabled Inputs & Selects --- */
+.input-glass:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(8, 15, 16, 0.15);
+  border-color: rgba(255, 255, 255, 0.05);
+  color: var(--on-surface-variant);
+}
+
+/* --- Custom Checkbox Toggle --- */
+.toggle-group {
+  margin-top: 4px;
+}
+
+.toggle-container {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  gap: 12px;
+}
+
+.toggle-container input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.toggle-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: rgba(8, 15, 16, 0.6);
+  transition: 0.3s;
+  border-radius: 24px;
+  border: 1px solid var(--outline-variant);
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: '';
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--outline);
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-container input:checked + .toggle-slider {
+  background-color: rgba(45, 212, 191, 0.15);
+  border-color: var(--spectral-teal);
+}
+
+.toggle-container input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+  background-color: var(--spectral-teal);
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.6);
+}

@@ -484,6 +484,33 @@
 }
 
 @media (max-width: 768px) {
+  .movies-container {
+    padding: 0;
+  }
+  .library-header {
+    margin-bottom: 16px;
+  }
+  .library-title {
+    font-size: 24px !important;
+  }
+  .filters-bar {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .movies-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    column-gap: 12px;
+    row-gap: 24px;
+  }
+  .movie-metadata {
+    padding-top: 8px;
+  }
+  .movie-title {
+    font-size: 13px !important;
+  }
+  .movie-info-row {
+    font-size: 11px !important;
+  }
   .modal-content-grid {
     grid-template-columns: 1fr;
     padding: 24px;

@@ -40,6 +40,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   userDropdownOpen = false;
   castDropdownOpen = false;
+  mobileSidebarOpen = false;
+  mobileSearchActive = false;
+  castOverlayOpen = false;
 
   // Search state
   searchQuery = '';
@@ -53,6 +56,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
     this.routerSub = this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.restoreScrollForUrl(event.urlAfterRedirects);
+        this.mobileSidebarOpen = false;
+        this.mobileSearchActive = false;
+        this.cdr.detectChanges();
       }
     });
 
@@ -300,6 +306,27 @@ export class LayoutComponent implements OnInit, OnDestroy {
     if (media && media.id) {
       this.router.navigate(['/watch', media.id]);
     }
+  }
+
+  toggleMobileSidebar(): void {
+    this.mobileSidebarOpen = !this.mobileSidebarOpen;
+    this.mobileSearchActive = false;
+    this.cdr.detectChanges();
+  }
+
+  toggleMobileSearch(): void {
+    this.mobileSearchActive = !this.mobileSearchActive;
+    if (this.mobileSearchActive) {
+      this.mobileSidebarOpen = false;
+    } else {
+      this.clearSearch();
+    }
+    this.cdr.detectChanges();
+  }
+
+  toggleCastOverlay(): void {
+    this.castOverlayOpen = !this.castOverlayOpen;
+    this.cdr.detectChanges();
   }
 
   onScroll(event: Event): void {
