@@ -148,6 +148,69 @@ func GetMediaItemByID(ctx context.Context, db *sql.DB, id uuid.UUID) (*models.Me
 	return item, nil
 }
 
+// GetNextEpisode queries the next episode for a given TV show episode ID.
+func GetNextEpisode(ctx context.Context, db *sql.DB, currentID uuid.UUID) (*models.MediaItem, error) {
+	// 1. Get the current episode's show ID, season number, and episode number
+	var showIDStr, currentIDStr string
+	var seasonNum, episodeNum int
+	row := db.QueryRowContext(ctx, `
+		SELECT id, tv_show_id, season_number, episode_number 
+		FROM media_items 
+		WHERE id = ? AND media_type = 'episode'`, currentID.String())
+	err := row.Scan(&currentIDStr, &showIDStr, &seasonNum, &episodeNum)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("getting current episode: %w", err)
+	}
+
+	// 2. Query for the next episode in the same show
+	// - Either same season and higher episode number
+	// - Or higher season number
+	// Order by season number, then episode number, limit 1.
+	nextRow := db.QueryRowContext(ctx, `
+		SELECT id, library_id, title, media_type, file_path, file_size,
+		       duration, width, height, video_codec, audio_codec,
+		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
+		       tv_show_id, tv_season_id, season_number, episode_number,
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, probe_status, enrichment_status, transcode_sizes, created_at, updated_at
+		FROM media_items
+		WHERE tv_show_id = ?
+		  AND media_type = 'episode'
+		  AND (
+		    (season_number = ? AND episode_number > ?)
+		    OR
+		    (season_number > ?)
+		  )
+		ORDER BY season_number ASC, episode_number ASC
+		LIMIT 1`, showIDStr, seasonNum, episodeNum, seasonNum)
+
+	item, err := scanMediaItem(nextRow)
+	if err != nil {
+		return nil, err // Returns ErrNotFound if no next episode
+	}
+
+	// Populate transcode progress and subjobs if applicable
+	prog, err := GetMediaItemTranscodeProgress(ctx, db, item.ID)
+	if err == nil && prog != nil {
+		item.TranscodeProgress = prog
+	}
+	subJobs, err := GetMediaItemLatestJobSubJobs(ctx, db, item.ID)
+	if err == nil && subJobs != nil {
+		item.SubJobs = subJobs
+	}
+	// Fetch and set show title
+	if item.TVShowID != nil {
+		show, err := GetTVShowByID(ctx, db, *item.TVShowID)
+		if err == nil {
+			item.TVShowTitle = &show.Name
+		}
+	}
+
+	return item, nil
+}
+
 // GetMediaItemByPath looks up a media item by its file path.
 func GetMediaItemByPath(ctx context.Context, db *sql.DB, path string) (*models.MediaItem, error) {
 	row := db.QueryRowContext(ctx, `

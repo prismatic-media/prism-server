@@ -123,27 +123,36 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   draggedTime = 0;
   private timelineRect: DOMRect | null = null;
 
+  // Next Episode Autoplay properties
+  nextEpisode: MediaItem | null = null;
+  showAutoplayOverlay = false;
+  autoplayCountdown = 10;
+  private autoplayIntervalId: any = null;
+  private routeSub: Subscription | null = null;
+
   private fullscreenListener = () => {
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.detectChanges();
   };
 
   ngOnInit(): void {
-    this.mediaId = this.route.snapshot.paramMap.get('id') || '';
-    if (!this.mediaId) {
-      this.error = 'No media ID provided.';
-      this.loading = false;
-      return;
-    }
-
     const savedSize = localStorage.getItem('prism_subtitle_size');
     if (savedSize && ['small', 'medium', 'large', 'xlarge'].includes(savedSize)) {
       this.subtitleSize = savedSize as any;
     }
 
-    this.loadMedia();
-    this.resetControlsTimer();
     this.setupCastSubscriptions();
+
+    this.routeSub = this.route.paramMap.subscribe((params) => {
+      const newId = params.get('id') || '';
+      if (newId) {
+        this.onRouteIdChange(newId);
+      } else {
+        this.error = 'No media ID provided.';
+        this.loading = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   ngAfterViewInit(): void {
@@ -153,6 +162,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnDestroy(): void {
     this.clearHistoryInterval();
+    this.clearAutoplayCountdown();
     if (this.controlsTimer) {
       clearTimeout(this.controlsTimer);
     }
@@ -164,6 +174,9 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     }
     this.isStreamInitialized = false;
     this.resumePosition = null;
+    if (this.routeSub) {
+      this.routeSub.unsubscribe();
+    }
     this.castSubs.forEach((s) => s.unsubscribe());
   }
 
@@ -184,6 +197,11 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
         this.loading = false;
         this.cdr.detectChanges();
 
+        // Preload next episode if this is an episode
+        if (item.media_type === 'episode') {
+          this.preloadNextEpisode();
+        }
+
         // Initialize Player once details are loaded
         setTimeout(() => this.initializePlayer(), 0);
       },
@@ -193,6 +211,89 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  onRouteIdChange(newId: string): void {
+    if (this.player) {
+      this.saveHistory(true);
+      this.player.destroy();
+      this.player = null;
+    }
+    this.clearHistoryInterval();
+    this.clearAutoplayCountdown();
+    if (this.controlsTimer) {
+      clearTimeout(this.controlsTimer);
+    }
+    this.isStreamInitialized = false;
+    this.resumePosition = null;
+    this.nextEpisode = null;
+    this.isPlaying = false;
+
+    this.mediaId = newId;
+    this.loading = true;
+    this.error = '';
+    this.mediaItem = null;
+
+    this.loadMedia();
+    this.resetControlsTimer();
+  }
+
+  preloadNextEpisode(): void {
+    this.http.get<MediaItem>(`/api/v1/movies/${this.mediaId}/next`).subscribe({
+      next: (nextEp) => {
+        if (nextEp && nextEp.bundle_status === 'available') {
+          this.nextEpisode = nextEp;
+        }
+      },
+      error: () => {
+        this.nextEpisode = null;
+      }
+    });
+  }
+
+  onVideoEnded(): void {
+    if (!this.nextEpisode) return;
+    this.saveHistory(true);
+    this.startAutoplayCountdown();
+  }
+
+  startAutoplayCountdown(): void {
+    this.clearAutoplayCountdown();
+    this.autoplayCountdown = 10;
+    this.showAutoplayOverlay = true;
+
+    if (this.player && this.isPlaying) {
+      this.player.pause();
+    }
+
+    this.autoplayIntervalId = setInterval(() => {
+      this.autoplayCountdown--;
+      if (this.autoplayCountdown <= 0) {
+        this.clearAutoplayCountdown();
+        this.playNextEpisode();
+      }
+      this.cdr.detectChanges();
+    }, 1000);
+    this.cdr.detectChanges();
+  }
+
+  clearAutoplayCountdown(): void {
+    if (this.autoplayIntervalId) {
+      clearInterval(this.autoplayIntervalId);
+      this.autoplayIntervalId = null;
+    }
+    this.showAutoplayOverlay = false;
+  }
+
+  cancelAutoplay(): void {
+    this.clearAutoplayCountdown();
+  }
+
+  playNextEpisode(): void {
+    if (!this.nextEpisode) return;
+    const nextId = this.nextEpisode.id;
+    this.clearAutoplayCountdown();
+    this.router.navigate(['/watch', nextId]);
   }
 
   initializePlayer(): void {
@@ -237,6 +338,10 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
       this.volume = Math.round(videoEl.volume * 100);
       this.isMuted = videoEl.muted;
       this.cdr.detectChanges();
+    });
+
+    videoEl.addEventListener('ended', () => {
+      this.onVideoEnded();
     });
 
     // Check history and resume
@@ -879,6 +984,17 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   // --- Chromecast Handlers ---
 
   setupCastSubscriptions(): void {
+    this.castSubs.push(
+      this.castService.ended$.subscribe(() => {
+        if (
+          this.castService.isConnected$.value &&
+          this.castService.currentMedia$.value?.id === this.mediaId
+        ) {
+          this.onVideoEnded();
+        }
+      })
+    );
+
     this.castSubs.push(
       this.castService.isConnected$.subscribe((connected) => {
         if (connected) {

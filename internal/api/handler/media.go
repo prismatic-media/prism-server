@@ -241,6 +241,38 @@ func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, item)
 }
 
+// GetNextEpisode returns the next episode for a TV episode media item.
+// @Summary Get Next Episode
+// @Description Retrieve the next episode (MediaItem) in the show sequence (same season, or next season).
+// @Tags Media Items
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Current Media ID" format(uuid)
+// @Success 200 {object} models.MediaItem
+// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Next episode not found"
+// @Router /movies/{id}/next [get]
+func (h *MediaHandler) GetNextEpisode(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		return
+	}
+
+	item, err := sqlite.GetNextEpisode(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "next episode not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch next episode", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, item)
+}
+
 // DeleteMedia removes a media item (admin only).
 // @Summary Delete Media Item (Admin Only)
 // @Tags Media Items

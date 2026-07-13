@@ -148,6 +148,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			// Movies (Phase 2)
 			r.Get("/movies", mediaH.ListMedia)
 			r.Get("/movies/{id}", mediaH.GetMedia)
+			r.Get("/movies/{id}/next", mediaH.GetNextEpisode)
 			r.Get("/movies/{id}/transcode-sizes", mediaH.GetTranscodeSizes)
 			r.With(apimw.RequireAdmin).Delete("/movies/{id}", mediaH.DeleteMedia)
 

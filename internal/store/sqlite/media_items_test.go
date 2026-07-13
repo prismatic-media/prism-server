@@ -522,3 +522,109 @@ func TestUpdateMediaProbeAndEnrichmentStatus(t *testing.T) {
 	}
 }
 
+func TestGetNextEpisode(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/shows", models.MediaTypeTVShow)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	show := &models.TVShow{LibraryID: lib.ID, Name: "Test Show"}
+	if err := sqlite.UpsertTVShow(ctx, db, show); err != nil {
+		t.Fatal(err)
+	}
+
+	season1 := &models.TVSeason{TVShowID: show.ID, SeasonNumber: 1}
+	if err := sqlite.UpsertTVSeason(ctx, db, season1); err != nil {
+		t.Fatal(err)
+	}
+
+	season2 := &models.TVSeason{TVShowID: show.ID, SeasonNumber: 2}
+	if err := sqlite.UpsertTVSeason(ctx, db, season2); err != nil {
+		t.Fatal(err)
+	}
+
+	s1 := 1
+	s2 := 2
+	e1 := 1
+	e2 := 2
+
+	ep1 := &models.MediaItem{
+		LibraryID:       lib.ID,
+		Title:           "Episode 1",
+		MediaType:       models.MediaTypeEpisode,
+		FilePath:        "/shows/S01E01.mkv",
+		TVShowID:        &show.ID,
+		TVSeasonID:      &season1.ID,
+		SeasonNumber:    &s1,
+		EpisodeNumber:   &e1,
+		TranscodeStatus: models.TranscodeStatusDone,
+		BundleStatus:    models.BundleStatusAvailable,
+		SourceStatus:    models.SourceStatusAvailable,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, ep1); err != nil {
+		t.Fatal(err)
+	}
+
+	ep2 := &models.MediaItem{
+		LibraryID:       lib.ID,
+		Title:           "Episode 2",
+		MediaType:       models.MediaTypeEpisode,
+		FilePath:        "/shows/S01E02.mkv",
+		TVShowID:        &show.ID,
+		TVSeasonID:      &season1.ID,
+		SeasonNumber:    &s1,
+		EpisodeNumber:   &e2,
+		TranscodeStatus: models.TranscodeStatusDone,
+		BundleStatus:    models.BundleStatusAvailable,
+		SourceStatus:    models.SourceStatusAvailable,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, ep2); err != nil {
+		t.Fatal(err)
+	}
+
+	ep3 := &models.MediaItem{
+		LibraryID:       lib.ID,
+		Title:           "S2 Episode 1",
+		MediaType:       models.MediaTypeEpisode,
+		FilePath:        "/shows/S02E01.mkv",
+		TVShowID:        &show.ID,
+		TVSeasonID:      &season2.ID,
+		SeasonNumber:    &s2,
+		EpisodeNumber:   &e1,
+		TranscodeStatus: models.TranscodeStatusDone,
+		BundleStatus:    models.BundleStatusAvailable,
+		SourceStatus:    models.SourceStatusAvailable,
+	}
+	if err := sqlite.UpsertMediaItem(ctx, db, ep3); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test 1: Get next episode of ep1 (should be ep2 in same season)
+	next, err := sqlite.GetNextEpisode(ctx, db, ep1.ID)
+	if err != nil {
+		t.Fatalf("unexpected error finding next episode of ep1: %v", err)
+	}
+	if next.ID != ep2.ID {
+		t.Errorf("expected next episode of ep1 to be ep2 (%s), got %s", ep2.ID, next.ID)
+	}
+
+	// Test 2: Get next episode of ep2 (should be ep3 in next season)
+	next, err = sqlite.GetNextEpisode(ctx, db, ep2.ID)
+	if err != nil {
+		t.Fatalf("unexpected error finding next episode of ep2: %v", err)
+	}
+	if next.ID != ep3.ID {
+		t.Errorf("expected next episode of ep2 to be ep3 (%s), got %s", ep3.ID, next.ID)
+	}
+
+	// Test 3: Get next episode of ep3 (should return ErrNotFound)
+	_, err = sqlite.GetNextEpisode(ctx, db, ep3.ID)
+	if err == nil {
+		t.Error("expected error finding next episode of ep3, got nil")
+	}
+}
+
+

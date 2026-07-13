@@ -1,6 +1,6 @@
 import { Injectable, inject, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -8,6 +8,8 @@ import { BehaviorSubject } from 'rxjs';
 export class CastService {
   private http = inject(HttpClient);
   private zone = inject(NgZone);
+
+  public ended$ = new Subject<void>();
 
   private castContext: any = null;
   private remotePlayer: any = null;
@@ -198,6 +200,13 @@ export class CastService {
         } else {
           this.stopHistoryTimer();
           this.stopProgressTimer();
+
+          if (
+            playerState === chrome.cast.media.PlayerState.IDLE &&
+            this.remotePlayer.idleReason === chrome.cast.media.IdleReason.FINISHED
+          ) {
+            this.ended$.next();
+          }
         }
       });
     });
