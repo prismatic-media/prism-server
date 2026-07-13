@@ -219,6 +219,18 @@
               <span>OPTIMIZATION FAILED</span>
             </div>
           </div>
+
+          <!-- Core Actions Block for TV Show -->
+          <div class="hero-actions-container" *ngIf="mediaType === 'tvshow' && tvShow">
+            <button
+              class="btn-glass btn-large"
+              *ngIf="authService.isAdmin"
+              (click)="triggerTranscodeShow()"
+            >
+              <span class="material-symbols-outlined">settings_input_component</span>
+              <span>Optimize Entire Show</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -395,7 +407,17 @@
 
       <!-- Episodes List Card (Full Width) -->
       <div class="bento-card frosted-glass episodes-card" *ngIf="selectedSeason">
-        <h3 class="card-title">Episodes</h3>
+        <div class="card-header-row">
+          <h3 class="card-title">Episodes</h3>
+          <button
+            class="btn-glass"
+            *ngIf="authService.isAdmin"
+            (click)="triggerTranscodeSeason()"
+          >
+            <span class="material-symbols-outlined">settings_input_component</span>
+            <span>Optimize Season</span>
+          </button>
+        </div>
 
         <p class="season-overview-text" *ngIf="selectedSeason.overview">
           {{ selectedSeason.overview }}

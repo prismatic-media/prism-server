@@ -427,3 +427,47 @@ func SearchTVShows(ctx context.Context, db *sql.DB, query string) ([]*models.TVS
 	}
 	return shows, rows.Err()
 }
+
+// ListShowEpisodes returns all episode media items for a given TV show,
+// ordered by season_number, then episode_number.
+func ListShowEpisodes(ctx context.Context, db *sql.DB, showID uuid.UUID) ([]*models.MediaItem, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, library_id, title, media_type, file_path, file_size,
+		       duration, width, height, video_codec, audio_codec,
+		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
+		       tv_show_id, tv_season_id, season_number, episode_number,
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, probe_status, enrichment_status, transcode_sizes, created_at, updated_at
+		FROM media_items
+		WHERE tv_show_id = ? AND media_type = 'episode'
+		ORDER BY season_number, episode_number`, showID.String())
+	if err != nil {
+		return nil, fmt.Errorf("listing show episodes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []*models.MediaItem
+	for rows.Next() {
+		m, err := scanMediaItemRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	_ = rows.Close() // Close rows to release the DB connection under SetMaxOpenConns(1)
+
+	for _, m := range items {
+		prog, err := GetMediaItemTranscodeProgress(ctx, db, m.ID)
+		if err == nil && prog != nil {
+			m.TranscodeProgress = prog
+		}
+		subJobs, err := GetMediaItemLatestJobSubJobs(ctx, db, m.ID)
+		if err == nil && subJobs != nil {
+			m.SubJobs = subJobs
+		}
+	}
+	return items, nil
+}
+

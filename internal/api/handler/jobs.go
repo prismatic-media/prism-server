@@ -36,24 +36,26 @@ func NewJobsHandler(db *sql.DB, pool *transcoder.Pool) *JobsHandler {
 // CreateJobRequest is the payload for creating single or bulk transcode jobs.
 type CreateJobRequest struct {
 	MediaItemID *uuid.UUID `json:"media_item_id,omitempty"`
+	TVShowID    *uuid.UUID `json:"tv_show_id,omitempty"`
+	TVSeasonID  *uuid.UUID `json:"tv_season_id,omitempty"`
 	Force       *bool      `json:"force,omitempty"`
 	Filter      *string    `json:"filter,omitempty"`
 }
 
 // CreateJob handles POST /api/v1/jobs.
 // @Summary Create Transcode Job(s) (Admin Only)
-// @Description Creates a new transcode job for a specific media item, or bulk enqueues based on a filter.
+// @Description Creates a new transcode job for a specific media item, TV show, TV season, or bulk enqueues based on a filter.
 // @Tags Transcoding Jobs
 // @Security BearerAuth
 // @Accept json
 // @Produce json
 // @Param body body CreateJobRequest true "Job creation parameters"
 // @Success 202 {object} models.TranscodeJob "Returns the created transcode job (for single item)"
-// @Success 200 {object} map[string]int "Returns number of jobs enqueued (for bulk filter): {'enqueued': N}"
+// @Success 200 {object} map[string]int "Returns number of jobs enqueued (for bulk filter, show, or season): {'enqueued': N}"
 // @Failure 400 {object} map[string]string "Invalid input or parameters"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
-// @Failure 404 {object} map[string]string "Media item not found"
+// @Failure 404 {object} map[string]string "Media item, show, or season not found"
 // @Router /jobs [post]
 func (h *JobsHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	var req CreateJobRequest
@@ -87,7 +89,87 @@ func (h *JobsHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Bulk Filter Enqueue
+	// 2. TV Show Bulk Enqueue
+	if req.TVShowID != nil {
+		showID := *req.TVShowID
+		// Verify TV show exists
+		if _, err := sqlite.GetTVShowByID(r.Context(), h.db, showID); errors.Is(err, sqlite.ErrNotFound) {
+			respondError(w, http.StatusNotFound, "tv show not found", err)
+			return
+		} else if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not fetch tv show", err)
+			return
+		}
+
+		episodes, err := sqlite.ListShowEpisodes(r.Context(), h.db, showID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not fetch episodes for tv show", err)
+			return
+		}
+
+		force := false
+		if req.Force != nil {
+			force = *req.Force
+		}
+
+		enqueued := 0
+		for _, ep := range episodes {
+			if !force && ep.BundleStatus == models.BundleStatusAvailable && ep.TranscodeStatus == models.TranscodeStatusDone {
+				continue
+			}
+			_, err := h.pool.Enqueue(r.Context(), ep.ID, force)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to enqueue episode transcode", err)
+				return
+			}
+			enqueued++
+		}
+
+		respondJSON(w, http.StatusOK, map[string]int{"enqueued": enqueued})
+		return
+	}
+
+	// 3. TV Season Bulk Enqueue
+	if req.TVSeasonID != nil {
+		seasonID := *req.TVSeasonID
+		// Verify TV season exists
+		if _, err := sqlite.GetTVSeasonByID(r.Context(), h.db, seasonID); errors.Is(err, sqlite.ErrNotFound) {
+			respondError(w, http.StatusNotFound, "tv season not found", err)
+			return
+		} else if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not fetch tv season", err)
+			return
+		}
+
+		episodes, err := sqlite.ListSeasonEpisodes(r.Context(), h.db, seasonID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "could not fetch episodes for tv season", err)
+			return
+		}
+
+		force := false
+		if req.Force != nil {
+			force = *req.Force
+		}
+
+		enqueued := 0
+		for _, ep := range episodes {
+			if !force && ep.BundleStatus == models.BundleStatusAvailable && ep.TranscodeStatus == models.TranscodeStatusDone {
+				continue
+			}
+			_, err := h.pool.Enqueue(r.Context(), ep.ID, force)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to enqueue episode transcode", err)
+				return
+			}
+			enqueued++
+		}
+
+		respondJSON(w, http.StatusOK, map[string]int{"enqueued": enqueued})
+		return
+	}
+
+	// 4. Bulk Filter Enqueue
 	if req.Filter != nil {
 		filter := strings.TrimSpace(*req.Filter)
 		switch filter {
@@ -118,7 +200,7 @@ func (h *JobsHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondError(w, http.StatusBadRequest, "either media_item_id or filter is required")
+	respondError(w, http.StatusBadRequest, "either media_item_id, tv_show_id, tv_season_id, or filter is required")
 }
 
 // ListJobs handles GET /api/v1/jobs.

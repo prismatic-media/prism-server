@@ -492,6 +492,66 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     });
   }
 
+  triggerTranscodeShow(): void {
+    if (!this.tvShow) return;
+
+    if (!confirm('This will optimize all untranscoded episodes in this show. Continue?')) {
+      return;
+    }
+
+    this.http.post<any>('/api/v1/jobs', { tv_show_id: this.tvShow.id, force: false }).subscribe({
+      next: (res) => {
+        const count = res.enqueued || 0;
+        alert(`Successfully enqueued ${count} episode(s) for optimization.`);
+        // If the current season is loaded, update any non-done episodes to pending
+        this.episodes.forEach((ep) => {
+          if (ep.transcode_status !== 'done') {
+            ep.transcode_status = 'pending';
+          }
+        });
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
+      },
+    });
+  }
+
+  triggerTranscodeSeason(): void {
+    if (!this.selectedSeason) return;
+
+    const allDone = this.episodes.length > 0 && this.episodes.every((ep) => ep.transcode_status === 'done');
+    let force = false;
+    if (allDone) {
+      if (!confirm('All episodes in this season are already optimized. Do you want to re-optimize all of them?')) {
+        return;
+      }
+      force = true;
+    } else {
+      if (!confirm('This will optimize all untranscoded episodes in this season. Continue?')) {
+        return;
+      }
+    }
+
+    this.http.post<any>('/api/v1/jobs', { tv_season_id: this.selectedSeason.id, force }).subscribe({
+      next: (res) => {
+        const count = res.enqueued || 0;
+        alert(`Successfully enqueued ${count} episode(s) for optimization.`);
+        // Update local statuses for enqueued episodes to pending
+        this.episodes.forEach((ep) => {
+          if (force || ep.transcode_status !== 'done') {
+            ep.transcode_status = 'pending';
+          }
+        });
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
+      },
+    });
+  }
+
+
   formatDuration(seconds: number | undefined): string {
     if (!seconds) return 'N/A';
     const hrs = Math.floor(seconds / 3600);

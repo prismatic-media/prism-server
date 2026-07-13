@@ -1685,3 +1685,15 @@
   color: var(--error);
 }
 
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.card-header-row .card-title {
+  margin-bottom: 0 !important;
+}
+
+

@@ -34,6 +34,7 @@ interface MediaItem {
   backdrop_path?: string;
   season_number?: number;
   episode_number?: number;
+  tv_show_title?: string;
 }
 
 interface WatchHistory {
