@@ -184,34 +184,46 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   loadMedia(): void {
     this.http.get<MediaItem>(`/api/v1/movies/${this.mediaId}`).subscribe({
       next: (item) => {
-        this.mediaItem = item;
-
-        if (item.bundle_status !== 'available') {
-          this.error =
-            'This media item has not been optimized for streaming yet. Please initiate optimization from the details page.';
-          this.loading = false;
-          this.cdr.detectChanges();
-          return;
-        }
-
-        // Set loading to false and trigger change detection so #videoPlayer is rendered in DOM
-        this.loading = false;
-        this.cdr.detectChanges();
-
-        // Preload next episode if this is an episode
-        if (item.media_type === 'episode') {
-          this.preloadNextEpisode();
-        }
-
-        // Initialize Player once details are loaded
-        setTimeout(() => this.initializePlayer(), 0);
+        this.handleLoadedMedia(item);
       },
       error: (err) => {
-        this.error = 'Could not retrieve media details.';
-        this.loading = false;
-        this.cdr.detectChanges();
+        // Fallback: try fetching as an episode
+        this.http.get<MediaItem>(`/api/v1/episodes/${this.mediaId}`).subscribe({
+          next: (item) => {
+            this.handleLoadedMedia(item);
+          },
+          error: (episodeErr) => {
+            this.error = 'Could not retrieve media details.';
+            this.loading = false;
+            this.cdr.detectChanges();
+          }
+        });
       },
     });
+  }
+
+  handleLoadedMedia(item: MediaItem): void {
+    this.mediaItem = item;
+
+    if (item.bundle_status !== 'available') {
+      this.error =
+        'This media item has not been optimized for streaming yet. Please initiate optimization from the details page.';
+      this.loading = false;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // Set loading to false and trigger change detection so #videoPlayer is rendered in DOM
+    this.loading = false;
+    this.cdr.detectChanges();
+
+    // Preload next episode if this is an episode
+    if (item.media_type === 'episode') {
+      this.preloadNextEpisode();
+    }
+
+    // Initialize Player once details are loaded
+    setTimeout(() => this.initializePlayer(), 0);
   }
 
   onRouteIdChange(newId: string): void {
@@ -240,7 +252,11 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   preloadNextEpisode(): void {
-    this.http.get<MediaItem>(`/api/v1/movies/${this.mediaId}/next`).subscribe({
+    if (!this.mediaItem || !this.mediaItem.tv_show_id || this.mediaItem.season_number === undefined) {
+      return;
+    }
+    const url = `/api/v1/tv-shows/${this.mediaItem.tv_show_id}/seasons/${this.mediaItem.season_number}/episodes/${this.mediaId}/next`;
+    this.http.get<MediaItem>(url).subscribe({
       next: (nextEp) => {
         if (nextEp && nextEp.bundle_status === 'available') {
           this.nextEpisode = nextEp;

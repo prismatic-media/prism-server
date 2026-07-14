@@ -21,7 +21,7 @@ func TestListMedia_Pagination(t *testing.T) {
 	mediaH := handler.NewMediaHandler(db)
 	r := chi.NewRouter()
 	r.Use(apimw.Authenticate(testSecret))
-	r.Get("/api/v1/movies", mediaH.ListMedia)
+	r.Get("/api/v1/movies", mediaH.ListMovies)
 
 	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
 	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
@@ -51,7 +51,7 @@ func TestListMedia_Pagination(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", rec.Code)
 		}
-		var resp []models.MediaItem
+		var resp []models.Movie
 		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 			t.Fatal(err)
 		}

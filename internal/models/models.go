@@ -161,6 +161,181 @@ type MediaItem struct {
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
 }
 
+// Movie represents a movie resource in the API.
+type Movie struct {
+	ID                uuid.UUID           `json:"id"`
+	LibraryID         uuid.UUID           `json:"library_id"`
+	Title             string              `json:"title"`
+	FilePath          string              `json:"file_path"`
+	FileSize          int64               `json:"file_size"`
+	Duration          float64             `json:"duration"` // seconds
+	Width             int                 `json:"width"`
+	Height            int                 `json:"height"`
+	VideoCodec        string              `json:"video_codec"`
+	AudioCodec        string              `json:"audio_codec"`
+	TMDBId            *int                `json:"tmdb_id,omitempty"`
+	Year              *int                `json:"year,omitempty"`
+	Overview          *string             `json:"overview,omitempty"`
+	PosterPath        *string             `json:"poster_path,omitempty"`
+	Director          *string             `json:"director,omitempty"`
+	Cast              []CastMember        `json:"cast,omitempty"`
+	BackdropPath      *string             `json:"backdrop_path,omitempty"`
+	ExtraPosters      []string            `json:"extra_posters,omitempty"`
+	TranscodeStatus   TranscodeStatus     `json:"transcode_status"`
+	TranscodeProgress *float64            `json:"transcode_progress,omitempty"`
+	SubJobs           []*TranscodeSubJob  `json:"sub_jobs,omitempty"`
+	MPDPath           *string             `json:"mpd_path,omitempty"`
+	SourceFingerprint *string             `json:"source_fingerprint,omitempty"`
+	SourceStatus      string              `json:"source_status"`
+	BundleStatus      string              `json:"bundle_status"`
+	ProbeStatus       ProbeStatus         `json:"probe_status"`
+	EnrichmentStatus  EnrichmentStatus    `json:"enrichment_status"`
+	TranscodeSizes    *TranscodeSizesInfo `json:"transcode_sizes,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	UpdatedAt         time.Time           `json:"updated_at"`
+}
+
+// ToMovie converts a MediaItem to a Movie response model.
+func (m *MediaItem) ToMovie() *Movie {
+	if m == nil {
+		return nil
+	}
+	return &Movie{
+		ID:                m.ID,
+		LibraryID:         m.LibraryID,
+		Title:             m.Title,
+		FilePath:          m.FilePath,
+		FileSize:          m.FileSize,
+		Duration:          m.Duration,
+		Width:             m.Width,
+		Height:            m.Height,
+		VideoCodec:        m.VideoCodec,
+		AudioCodec:        m.AudioCodec,
+		TMDBId:            m.TMDBId,
+		Year:              m.Year,
+		Overview:          m.Overview,
+		PosterPath:        m.PosterPath,
+		Director:          m.Director,
+		Cast:              m.Cast,
+		BackdropPath:      m.BackdropPath,
+		ExtraPosters:      m.ExtraPosters,
+		TranscodeStatus:   m.TranscodeStatus,
+		TranscodeProgress: m.TranscodeProgress,
+		SubJobs:           m.SubJobs,
+		MPDPath:           m.MPDPath,
+		SourceFingerprint: m.SourceFingerprint,
+		SourceStatus:      m.SourceStatus,
+		BundleStatus:      m.BundleStatus,
+		ProbeStatus:       m.ProbeStatus,
+		EnrichmentStatus:  m.EnrichmentStatus,
+		TranscodeSizes:    m.TranscodeSizes,
+		CreatedAt:         m.CreatedAt,
+		UpdatedAt:         m.UpdatedAt,
+	}
+}
+
+// Episode represents an episode resource in the API.
+type Episode struct {
+	ID                uuid.UUID           `json:"id"`
+	LibraryID         uuid.UUID           `json:"library_id"`
+	Title             string              `json:"title"`
+	FilePath          string              `json:"file_path"`
+	FileSize          int64               `json:"file_size"`
+	Duration          float64             `json:"duration"` // seconds
+	Width             int                 `json:"width"`
+	Height            int                 `json:"height"`
+	VideoCodec        string              `json:"video_codec"`
+	AudioCodec        string              `json:"audio_codec"`
+	TMDBId            *int                `json:"tmdb_id,omitempty"`
+	Year              *int                `json:"year,omitempty"`
+	Overview          *string             `json:"overview,omitempty"`
+	PosterPath        *string             `json:"poster_path,omitempty"`
+	Director          *string             `json:"director,omitempty"`
+	Cast              []CastMember        `json:"cast,omitempty"`
+	BackdropPath      *string             `json:"backdrop_path,omitempty"`
+	ExtraPosters      []string            `json:"extra_posters,omitempty"`
+	TVShowID          uuid.UUID           `json:"tv_show_id"`
+	TVSeasonID        uuid.UUID           `json:"tv_season_id"`
+	SeasonNumber      int                 `json:"season_number"`
+	EpisodeNumber     int                 `json:"episode_number"`
+	TVShowTitle       string              `json:"tv_show_title"`
+	TranscodeStatus   TranscodeStatus     `json:"transcode_status"`
+	TranscodeProgress *float64            `json:"transcode_progress,omitempty"`
+	SubJobs           []*TranscodeSubJob  `json:"sub_jobs,omitempty"`
+	MPDPath           *string             `json:"mpd_path,omitempty"`
+	SourceFingerprint *string             `json:"source_fingerprint,omitempty"`
+	SourceStatus      string              `json:"source_status"`
+	BundleStatus      string              `json:"bundle_status"`
+	ProbeStatus       ProbeStatus         `json:"probe_status"`
+	EnrichmentStatus  EnrichmentStatus    `json:"enrichment_status"`
+	TranscodeSizes    *TranscodeSizesInfo `json:"transcode_sizes,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	UpdatedAt         time.Time           `json:"updated_at"`
+}
+
+// ToEpisode converts a MediaItem to an Episode response model.
+func (m *MediaItem) ToEpisode() *Episode {
+	if m == nil {
+		return nil
+	}
+	var tvShowID, tvSeasonID uuid.UUID
+	if m.TVShowID != nil {
+		tvShowID = *m.TVShowID
+	}
+	if m.TVSeasonID != nil {
+		tvSeasonID = *m.TVSeasonID
+	}
+	var seasonNumber, episodeNumber int
+	if m.SeasonNumber != nil {
+		seasonNumber = *m.SeasonNumber
+	}
+	if m.EpisodeNumber != nil {
+		episodeNumber = *m.EpisodeNumber
+	}
+	var tvShowTitle string
+	if m.TVShowTitle != nil {
+		tvShowTitle = *m.TVShowTitle
+	}
+
+	return &Episode{
+		ID:                m.ID,
+		LibraryID:         m.LibraryID,
+		Title:             m.Title,
+		FilePath:          m.FilePath,
+		FileSize:          m.FileSize,
+		Duration:          m.Duration,
+		Width:             m.Width,
+		Height:            m.Height,
+		VideoCodec:        m.VideoCodec,
+		AudioCodec:        m.AudioCodec,
+		TMDBId:            m.TMDBId,
+		Year:              m.Year,
+		Overview:          m.Overview,
+		PosterPath:        m.PosterPath,
+		Director:          m.Director,
+		Cast:              m.Cast,
+		BackdropPath:      m.BackdropPath,
+		ExtraPosters:      m.ExtraPosters,
+		TVShowID:          tvShowID,
+		TVSeasonID:        tvSeasonID,
+		SeasonNumber:      seasonNumber,
+		EpisodeNumber:     episodeNumber,
+		TVShowTitle:       tvShowTitle,
+		TranscodeStatus:   m.TranscodeStatus,
+		TranscodeProgress: m.TranscodeProgress,
+		SubJobs:           m.SubJobs,
+		MPDPath:           m.MPDPath,
+		SourceFingerprint: m.SourceFingerprint,
+		SourceStatus:      m.SourceStatus,
+		BundleStatus:      m.BundleStatus,
+		ProbeStatus:       m.ProbeStatus,
+		EnrichmentStatus:  m.EnrichmentStatus,
+		TranscodeSizes:    m.TranscodeSizes,
+		CreatedAt:         m.CreatedAt,
+		UpdatedAt:         m.UpdatedAt,
+	}
+}
+
 // TranscodeWorker represents a remote transcode worker.
 type TranscodeWorker struct {
 	ID            uuid.UUID  `db:"id" json:"id"`
@@ -236,6 +411,20 @@ type WatchHistory struct {
 	Completed   bool       `db:"completed" json:"completed"`
 	UpdatedAt   time.Time  `db:"updated_at" json:"updated_at"`
 	Media       *MediaItem `json:"media,omitempty"`
+}
+
+// WatchHistoryResponse is the API response type for watch history,
+// embedding either a Movie or an Episode polymorphically.
+type WatchHistoryResponse struct {
+	ID          uuid.UUID  `json:"id"`
+	UserID      uuid.UUID  `json:"user_id"`
+	MediaItemID uuid.UUID  `json:"media_item_id"`
+	Position    float64    `json:"position"`
+	Completed   bool       `json:"completed"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	MediaType   string     `json:"media_type"` // "movie" or "episode"
+	Movie       *Movie     `json:"movie,omitempty"`
+	Episode     *Episode   `json:"episode,omitempty"`
 }
 
 // RefreshToken is a persisted, hashed refresh token used for JWT rotation.

@@ -49,9 +49,9 @@ func newTestRouterPhase2(t *testing.T) (http.Handler, func()) {
 		r.With(apimw.RequireAdmin).Delete("/api/v1/libraries/{id}", libH.DeleteLibrary)
 		r.With(apimw.RequireAdmin).Post("/api/v1/libraries/{id}:scan", libH.ScanLibrary)
 
-		r.Get("/api/v1/movies", mediaH.ListMedia)
-		r.Get("/api/v1/movies/{id}", mediaH.GetMedia)
-		r.With(apimw.RequireAdmin).Delete("/api/v1/movies/{id}", mediaH.DeleteMedia)
+		r.Get("/api/v1/movies", mediaH.ListMovies)
+		r.Get("/api/v1/movies/{id}", mediaH.GetMovie)
+		r.With(apimw.RequireAdmin).Delete("/api/v1/movies/{id}", mediaH.DeleteMovie)
 		r.With(apimw.RequireAdmin).Post("/api/v1/artifacts:writeSidecars", artifactH.HandleWriteSidecars)
 	})
 
@@ -247,7 +247,7 @@ func TestListMedia_EmptyArray(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	var resp []any
+	var resp []models.Movie
 	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if len(resp) != 0 {
 		t.Errorf("want [], got %v", resp)
@@ -282,7 +282,7 @@ func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 	mediaH := handler.NewMediaHandler(db)
 	r := chi.NewRouter()
 	r.Use(apimw.Authenticate(testSecret))
-	r.Get("/api/v1/movies", mediaH.ListMedia)
+	r.Get("/api/v1/movies", mediaH.ListMovies)
 
 	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
 	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
@@ -292,7 +292,7 @@ func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 	if rec1.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec1.Code)
 	}
-	var resp1 []models.MediaItem
+	var resp1 []models.Movie
 	_ = json.NewDecoder(rec1.Body).Decode(&resp1)
 	if len(resp1) != 1 {
 		t.Errorf("expected 1 media item (movie), got %d", len(resp1))
@@ -300,15 +300,15 @@ func TestListMedia_IncludesEpisodesWithAll(t *testing.T) {
 		t.Errorf("expected Movie Title, got %s", resp1[0].Title)
 	}
 
-	// 2. With all=true, episode should be included
+	// 2. With all=true, episode should STILL be excluded
 	rec2 := do(t, r, http.MethodGet, "/api/v1/movies?all=true", nil, hdr)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec2.Code)
 	}
-	var resp2 []models.MediaItem
+	var resp2 []models.Movie
 	_ = json.NewDecoder(rec2.Body).Decode(&resp2)
-	if len(resp2) != 2 {
-		t.Errorf("expected 2 media items (movie + episode), got %d", len(resp2))
+	if len(resp2) != 1 {
+		t.Errorf("expected 1 media item (movie), got %d", len(resp2))
 	}
 }
 
@@ -347,8 +347,8 @@ func TestDeleteMedia_Success(t *testing.T) {
 	mediaH2 := handler.NewMediaHandler(db)
 	r2 := chi.NewRouter()
 	r2.Use(apimw.Authenticate(testSecret))
-	r2.With(apimw.RequireAdmin).Delete("/api/v1/movies/{id}", mediaH2.DeleteMedia)
-	r2.Get("/api/v1/movies/{id}", mediaH2.GetMedia)
+	r2.With(apimw.RequireAdmin).Delete("/api/v1/movies/{id}", mediaH2.DeleteMovie)
+	r2.Get("/api/v1/movies/{id}", mediaH2.GetMovie)
 
 	adminUser := createUser(t, db, "adm", "adm@x.com", "pw", true)
 	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}

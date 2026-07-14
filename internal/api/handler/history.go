@@ -16,8 +16,10 @@ import (
 // nowPlayingResponse bundles a watch-history entry with its media item so the
 // client needs only one request to render the Now Playing bar.
 type nowPlayingResponse struct {
-	History *models.WatchHistory `json:"history"`
-	Media   *models.MediaItem    `json:"media"`
+	History   *models.WatchHistoryResponse `json:"history"`
+	MediaType string                       `json:"media_type"`
+	Movie     *models.Movie                `json:"movie,omitempty"`
+	Episode   *models.Episode              `json:"episode,omitempty"`
 }
 
 // HistoryHandler manages watch-history reads and writes.
@@ -34,6 +36,29 @@ type upsertHistoryRequest struct {
 	Completed bool    `json:"completed"`
 }
 
+func toWatchHistoryResponse(h *models.WatchHistory) *models.WatchHistoryResponse {
+	if h == nil {
+		return nil
+	}
+	resp := &models.WatchHistoryResponse{
+		ID:          h.ID,
+		UserID:      h.UserID,
+		MediaItemID: h.MediaItemID,
+		Position:    h.Position,
+		Completed:   h.Completed,
+		UpdatedAt:   h.UpdatedAt,
+	}
+	if h.Media != nil {
+		resp.MediaType = string(h.Media.MediaType)
+		if h.Media.MediaType == models.MediaTypeMovie {
+			resp.Movie = h.Media.ToMovie()
+		} else if h.Media.MediaType == models.MediaTypeEpisode {
+			resp.Episode = h.Media.ToEpisode()
+		}
+	}
+	return resp
+}
+
 // GetHistory handles GET /api/v1/history.
 // Returns in-progress (not completed) watch history for the authenticated user.
 // @Summary Get User Playback History
@@ -41,7 +66,7 @@ type upsertHistoryRequest struct {
 // @Tags Playback & History
 // @Security BearerAuth
 // @Produce json
-// @Success 200 {array} models.WatchHistory
+// @Success 200 {array} models.WatchHistoryResponse
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Router /history [get]
 func (h *HistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
@@ -62,10 +87,11 @@ func (h *HistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "could not fetch watch history", err)
 		return
 	}
-	if items == nil {
-		items = []*models.WatchHistory{}
+	responses := make([]*models.WatchHistoryResponse, 0, len(items))
+	for _, item := range items {
+		responses = append(responses, toWatchHistoryResponse(item))
 	}
-	respondJSON(w, http.StatusOK, items)
+	respondJSON(w, http.StatusOK, responses)
 }
 
 // GetNowPlaying handles GET /api/v1/history/now-playing.
@@ -114,8 +140,15 @@ func (h *HistoryHandler) GetNowPlaying(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
 		return
 	}
+	entry.Media = media
 
-	respondJSON(w, http.StatusOK, &nowPlayingResponse{History: entry, Media: media})
+	whResp := toWatchHistoryResponse(entry)
+	respondJSON(w, http.StatusOK, &nowPlayingResponse{
+		History:   whResp,
+		MediaType: whResp.MediaType,
+		Movie:     whResp.Movie,
+		Episode:   whResp.Episode,
+	})
 }
 
 // UpsertHistory handles PUT /api/v1/history/{mediaID}.
@@ -192,7 +225,7 @@ func (h *HistoryHandler) UpsertHistory(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Produce json
 // @Param media_id path string true "Media Item ID" format(uuid)
-// @Success 200 {object} models.WatchHistory
+// @Success 200 {object} models.WatchHistoryResponse
 // @Success 204 "No history for this item"
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
@@ -227,6 +260,12 @@ func (h *HistoryHandler) GetHistoryForMedia(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	respondJSON(w, http.StatusOK, entry)
+	// Fetch media to populate the polymorphic fields
+	media, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID)
+	if err == nil {
+		entry.Media = media
+	}
+
+	respondJSON(w, http.StatusOK, toWatchHistoryResponse(entry))
 }
 

@@ -29,11 +29,6 @@ export interface Movie {
   mpd_path?: string;
   source_status: string;
   bundle_status: string;
-  tv_show_id?: string;
-  tv_season_id?: string;
-  season_number?: number;
-  episode_number?: number;
-  tv_show_title?: string;
   director?: string;
   cast?: { name: string; character: string; profile_path: string }[];
   backdrop_path?: string;
@@ -75,8 +70,11 @@ export interface Episode {
   height: number;
   video_codec: string;
   audio_codec: string;
+  tv_show_id: string;
+  tv_season_id: string;
   season_number: number;
   episode_number: number;
+  tv_show_title: string;
   transcode_status: string;
   transcode_progress?: number;
   sub_jobs?: any[];
@@ -84,6 +82,10 @@ export interface Episode {
   source_status: string;
   bundle_status: string;
   poster_path?: string;
+  director?: string;
+  cast?: { name: string; character: string; profile_path: string }[];
+  backdrop_path?: string;
+  extra_posters?: string[];
 }
 
 export interface WatchHistory {
@@ -130,7 +132,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   id = '';
 
   // Movie Data
-  movie: Movie | null = null;
+  movie: Movie | Episode | null = null;
 
   // Transcode Sizes
   transcodeSizes: TranscodeSizesInfo | null = null;
@@ -265,7 +267,8 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     });
 
     if (this.mediaType === 'movie' || this.mediaType === 'episode') {
-      this.http.get<Movie>(`/api/v1/movies/${this.id}`).subscribe({
+      const url = this.mediaType === 'episode' ? `/api/v1/episodes/${this.id}` : `/api/v1/movies/${this.id}`;
+      this.http.get<any>(url).subscribe({
         next: (data) => {
           this.movie = data;
           this.loading = false;
@@ -370,7 +373,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   loadTranscodeSizes(mediaId: string): void {
     this.transcodeSizesLoading = true;
     this.transcodeSizesError = '';
-    this.http.get<TranscodeSizesInfo>(`/api/v1/movies/${mediaId}/transcode-sizes`).subscribe({
+    this.http.get<TranscodeSizesInfo>(`/api/v1/media/${mediaId}/transcode-sizes`).subscribe({
       next: (info) => {
         this.transcodeSizes = info;
         this.transcodeSizesLoading = false;
@@ -387,7 +390,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   getPosterUrl(): string {
     if ((this.mediaType === 'movie' || this.mediaType === 'episode') && this.movie) {
       if (this.movie.poster_path) {
-        return `/api/v1/movies/${this.movie.id}/poster`;
+        return `/api/v1/media/${this.movie.id}/poster`;
       }
     } else if (this.mediaType === 'tvshow' && this.tvShow) {
       if (this.tvShow.poster_path) {
@@ -406,7 +409,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
 
   getEpisodeStillUrl(ep: Episode): string {
     if (ep && ep.poster_path) {
-      return `/api/v1/movies/${ep.id}/poster`;
+      return `/api/v1/media/${ep.id}/poster`;
     }
     return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=400&auto=format&fit=crop';
   }
@@ -573,11 +576,11 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   getBackdropUrl(): string {
     if (this.mediaType === 'movie' && this.movie) {
       if (this.movie.backdrop_path) {
-        return `/api/v1/movies/${this.movie.id}/backdrop`;
+        return `/api/v1/media/${this.movie.id}/backdrop`;
       }
     } else if (this.mediaType === 'episode' && this.movie) {
       if (this.movie.backdrop_path) {
-        return `/api/v1/movies/${this.movie.id}/backdrop`;
+        return `/api/v1/media/${this.movie.id}/backdrop`;
       } else if (this.movie.tv_show_id) {
         return `/api/v1/tv-shows/${this.movie.tv_show_id}/backdrop`;
       }
@@ -593,7 +596,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     const urls: string[] = [];
     if ((this.mediaType === 'movie' || this.mediaType === 'episode') && this.movie && this.movie.extra_posters) {
       for (let i = 0; i < this.movie.extra_posters.length; i++) {
-        urls.push(`/api/v1/movies/${this.movie.id}/extra-posters/${i}`);
+        urls.push(`/api/v1/media/${this.movie.id}/extra-posters/${i}`);
       }
     } else if (this.mediaType === 'tvshow' && this.tvShow && this.tvShow.extra_posters) {
       for (let i = 0; i < this.tvShow.extra_posters.length; i++) {

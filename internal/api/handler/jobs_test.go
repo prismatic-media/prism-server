@@ -36,7 +36,7 @@ func TestEnqueueTranscode_Success(t *testing.T) {
 	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.Get("/api/v1/movies/{id}", mediaH.GetMedia)
+		r.Get("/api/v1/movies/{id}", mediaH.GetMovie)
 		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
 		r.With(apimw.RequireAdmin).Get("/api/v1/jobs", jobsH.ListJobs)
 		r.With(apimw.RequireAdmin).Get("/api/v1/jobs/{id}", jobsH.GetJob)

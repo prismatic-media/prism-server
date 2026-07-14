@@ -29,8 +29,8 @@ import (
 
 // PaginatedMoviesResponse holds a list of movies and the next page token.
 type PaginatedMoviesResponse struct {
-	Movies        []*models.MediaItem `json:"movies"`
-	NextPageToken string              `json:"next_page_token,omitempty"`
+	Movies        []*models.Movie `json:"movies"`
+	NextPageToken string          `json:"next_page_token,omitempty"`
 }
 
 // MediaHandler handles media item queries and deletions.
@@ -48,22 +48,32 @@ func (h *MediaHandler) WithBus(bus *events.Bus) *MediaHandler {
 	return h
 }
 
-// ListMedia returns all media items. If a library_id query parameter is
+func toMovies(items []*models.MediaItem) []*models.Movie {
+	if items == nil {
+		return nil
+	}
+	movies := make([]*models.Movie, len(items))
+	for i, item := range items {
+		movies[i] = item.ToMovie()
+	}
+	return movies
+}
+
+// ListMovies returns all movie media items. If a library_id query parameter is
 // supplied, only items for that library are returned.
-// @Summary List Media Items
-// @Description Lists media items (movies, episodes) with filtering/sorting capabilities.
-// @Tags Media Items
+// @Summary List Movies
+// @Description Lists movie media items with filtering/sorting capabilities.
+// @Tags Movies
 // @Security BearerAuth
 // @Produce json
 // @Param library_id query string false "Library ID" format(uuid)
-// @Param media_type query string false "Media Type" enum(movie,episode)
 // @Param sort query string false "Sort order" enum(recent)
 // @Param limit query integer false "Recent items count limit" default(20)
-// @Success 200 {array} models.MediaItem
+// @Success 200 {array} models.Movie
 // @Failure 400 {object} map[string]string "Invalid library ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Router /movies [get]
-func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
+func (h *MediaHandler) ListMovies(w http.ResponseWriter, r *http.Request) {
 	qStr := r.URL.Query().Get("q")
 	if qStr != "" {
 		items, err := sqlite.SearchMovies(r.Context(), h.db, qStr)
@@ -71,7 +81,7 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusInternalServerError, "could not search movies", err)
 			return
 		}
-		respondJSON(w, http.StatusOK, emptySlice(items))
+		respondJSON(w, http.StatusOK, emptySlice(toMovies(items)))
 		return
 	}
 
@@ -88,12 +98,11 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusInternalServerError, "could not list recent media items", err)
 			return
 		}
-		respondJSON(w, http.StatusOK, emptySlice(items))
+		respondJSON(w, http.StatusOK, emptySlice(toMovies(items)))
 		return
 	}
 
 	libIDStr := r.URL.Query().Get("library_id")
-	allStr := r.URL.Query().Get("all")
 	pageSizeStr := r.URL.Query().Get("page_size")
 	pageTokenStr := r.URL.Query().Get("page_token")
 
@@ -144,7 +153,7 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 		}
 
 		respondJSON(w, http.StatusOK, PaginatedMoviesResponse{
-			Movies:        emptySlice(items),
+			Movies:        emptySlice(toMovies(items)),
 			NextPageToken: nextPageToken,
 		})
 		return
@@ -157,31 +166,23 @@ func (h *MediaHandler) ListMedia(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var items []*models.MediaItem
-		if allStr == "true" {
-			items, err = sqlite.ListMediaItemsAll(r.Context(), h.db, libID)
-		} else {
-			items, err = sqlite.ListMediaItems(r.Context(), h.db, libID)
-		}
+		items, err = sqlite.ListMediaItems(r.Context(), h.db, libID)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "could not list media items", err)
 			return
 		}
-		respondJSON(w, http.StatusOK, emptySlice(items))
+		respondJSON(w, http.StatusOK, emptySlice(toMovies(items)))
 		return
 	}
 
 	var items []*models.MediaItem
 	var err error
-	if allStr == "true" {
-		items, err = sqlite.ListAllMediaItemsAll(r.Context(), h.db)
-	} else {
-		items, err = sqlite.ListAllMediaItems(r.Context(), h.db)
-	}
+	items, err = sqlite.ListAllMediaItems(r.Context(), h.db)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "could not list media items", err)
 		return
 	}
-	respondJSON(w, http.StatusOK, emptySlice(items))
+	respondJSON(w, http.StatusOK, emptySlice(toMovies(items)))
 }
 
 // Search queries media items and TV shows matching a search string.
@@ -210,92 +211,79 @@ func (h *MediaHandler) Search(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, emptySlice(results))
 }
 
-// GetMedia returns a single media item by ID.
-// @Summary Get Media Item
-// @Tags Media Items
+// GetMovie returns a single movie by ID.
+// @Summary Get Movie
+// @Tags Movies
 // @Security BearerAuth
 // @Produce json
-// @Param id path string true "Media ID" format(uuid)
-// @Success 200 {object} models.MediaItem
-// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Param id path string true "Movie ID" format(uuid)
+// @Success 200 {object} models.Movie
+// @Failure 400 {object} map[string]string "Invalid movie ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
-// @Failure 404 {object} map[string]string "Media item not found"
+// @Failure 404 {object} map[string]string "Movie not found"
 // @Router /movies/{id} [get]
-func (h *MediaHandler) GetMedia(w http.ResponseWriter, r *http.Request) {
+func (h *MediaHandler) GetMovie(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		respondError(w, http.StatusBadRequest, "invalid movie id", err)
 		return
 	}
 
 	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
 	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found", err)
+		respondError(w, http.StatusNotFound, "movie not found", err)
 		return
 	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch media item", err)
+		respondError(w, http.StatusInternalServerError, "could not fetch movie", err)
 		return
 	}
 
-	respondJSON(w, http.StatusOK, item)
+	if item.MediaType != models.MediaTypeMovie {
+		respondError(w, http.StatusNotFound, "movie not found")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, item.ToMovie())
 }
 
-// GetNextEpisode returns the next episode for a TV episode media item.
-// @Summary Get Next Episode
-// @Description Retrieve the next episode (MediaItem) in the show sequence (same season, or next season).
-// @Tags Media Items
+// DeleteMovie removes a movie (admin only).
+// @Summary Delete Movie (Admin Only)
+// @Tags Movies
 // @Security BearerAuth
-// @Produce json
-// @Param id path string true "Current Media ID" format(uuid)
-// @Success 200 {object} models.MediaItem
-// @Failure 400 {object} map[string]string "Invalid media ID"
-// @Failure 401 {object} map[string]string "Unauthenticated"
-// @Failure 404 {object} map[string]string "Next episode not found"
-// @Router /movies/{id}/next [get]
-func (h *MediaHandler) GetNextEpisode(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id", err)
-		return
-	}
-
-	item, err := sqlite.GetNextEpisode(r.Context(), h.db, id)
-	if errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "next episode not found", err)
-		return
-	}
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not fetch next episode", err)
-		return
-	}
-
-	respondJSON(w, http.StatusOK, item)
-}
-
-// DeleteMedia removes a media item (admin only).
-// @Summary Delete Media Item (Admin Only)
-// @Tags Media Items
-// @Security BearerAuth
-// @Param id path string true "Media ID" format(uuid)
-// @Success 204 "Media item deleted successfully"
-// @Failure 400 {object} map[string]string "Invalid media ID"
+// @Param id path string true "Movie ID" format(uuid)
+// @Success 204 "Movie deleted successfully"
+// @Failure 400 {object} map[string]string "Invalid movie ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
-// @Failure 404 {object} map[string]string "Media item not found"
+// @Failure 404 {object} map[string]string "Movie not found"
 // @Router /movies/{id} [delete]
-func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
+func (h *MediaHandler) DeleteMovie(w http.ResponseWriter, r *http.Request) {
 	id, err := uuidParam(r, "id")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid media id", err)
+		respondError(w, http.StatusBadRequest, "invalid movie id", err)
+		return
+	}
+
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "movie not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch movie", err)
+		return
+	}
+	if item.MediaType != models.MediaTypeMovie {
+		respondError(w, http.StatusNotFound, "movie not found")
 		return
 	}
 
 	if err := sqlite.DeleteMediaItem(r.Context(), h.db, id); errors.Is(err, sqlite.ErrNotFound) {
-		respondError(w, http.StatusNotFound, "media item not found", err)
+		respondError(w, http.StatusNotFound, "movie not found", err)
 		return
 	} else if err != nil {
-		respondError(w, http.StatusInternalServerError, "could not delete media item", err)
+		respondError(w, http.StatusInternalServerError, "could not delete movie", err)
 		return
 	}
 
@@ -304,23 +292,25 @@ func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
 
 // ServePoster serves the cached poster image for a media item.
 // @Summary Serve Movie Poster
-// @Description Serve the cached poster image file for a movie.
+// ServePoster serves the cached poster image for a media item.
+// @Summary Serve Media Poster
+// @Description Serve the cached poster image file for a movie or episode.
 // @Tags Media Items
 // @Produce image/*
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Success 200 {file} file "Poster image file"
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 404 {object} map[string]string "Media item or poster not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /movies/{id}/poster [get]
+// @Router /media/{media_id}/poster [get]
 func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
-	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID)
 	if errors.Is(err, sqlite.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
@@ -339,24 +329,24 @@ func (h *MediaHandler) ServePoster(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeBackdrop serves the cached backdrop image for a media item.
-// @Summary Serve Movie Backdrop
-// @Description Serve the cached backdrop image file for a movie.
+// @Summary Serve Media Backdrop
+// @Description Serve the cached backdrop image file for a movie or episode.
 // @Tags Media Items
 // @Produce image/*
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Success 200 {file} file "Backdrop image file"
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 404 {object} map[string]string "Media item or backdrop not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /movies/{id}/backdrop [get]
+// @Router /media/{media_id}/backdrop [get]
 func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
-	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID)
 	if errors.Is(err, sqlite.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
@@ -375,19 +365,19 @@ func (h *MediaHandler) ServeBackdrop(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeExtraPoster serves a cached extra poster image for a media item by index.
-// @Summary Serve Movie Extra Poster
-// @Description Serve a cached extra poster image by index for a movie.
+// @Summary Serve Media Extra Poster
+// @Description Serve a cached extra poster image by index for a movie or episode.
 // @Tags Media Items
 // @Produce image/*
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Param index path int true "Zero-based index of the extra poster"
 // @Success 200 {file} file "Extra poster image file"
 // @Failure 400 {object} map[string]string "Invalid index or media ID"
 // @Failure 404 {object} map[string]string "Media item or poster at index not found"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /movies/{id}/extra-posters/{index} [get]
+// @Router /media/{media_id}/extra-posters/{index} [get]
 func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
@@ -400,7 +390,7 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID)
 	if errors.Is(err, sqlite.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "media item not found", err)
 		return
@@ -424,20 +414,20 @@ func (h *MediaHandler) ServeExtraPoster(w http.ResponseWriter, r *http.Request) 
 // @Tags Media Items
 // @Security BearerAuth
 // @Produce json
-// @Param id path string true "Media ID" format(uuid)
+// @Param media_id path string true "Media ID" format(uuid)
 // @Success 200 {object} models.TranscodeSizesInfo
 // @Failure 400 {object} map[string]string "Invalid media ID"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Media item not found"
-// @Router /movies/{id}/transcode-sizes [get]
+// @Router /media/{media_id}/transcode-sizes [get]
 func (h *MediaHandler) GetTranscodeSizes(w http.ResponseWriter, r *http.Request) {
-	id, err := uuidParam(r, "id")
+	mediaID, err := uuidParam(r, "media_id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid media id", err)
 		return
 	}
 
-	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, id)
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, mediaID)
 	if errors.Is(err, sqlite.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "media item not found", err)
 		return

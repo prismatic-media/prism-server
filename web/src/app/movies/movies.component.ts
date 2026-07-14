@@ -26,11 +26,6 @@ export interface Movie {
   mpd_path?: string;
   source_status: string;
   bundle_status: string;
-  tv_show_id?: string;
-  tv_season_id?: string;
-  season_number?: number;
-  episode_number?: number;
-  tv_show_title?: string;
 }
 
 @Component({

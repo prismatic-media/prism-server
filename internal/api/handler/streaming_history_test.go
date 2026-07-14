@@ -479,7 +479,7 @@ func TestGetHistoryForMedia(t *testing.T) {
 		t.Fatalf("GET status = %d, want 200", rec.Code)
 	}
 
-	var hist models.WatchHistory
+	var hist models.WatchHistoryResponse
 	if err := json.NewDecoder(rec.Body).Decode(&hist); err != nil {
 		t.Fatal(err)
 	}

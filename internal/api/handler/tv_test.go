@@ -99,3 +99,105 @@ func TestListShows_Pagination(t *testing.T) {
 		}
 	})
 }
+
+func TestEpisodes_Routes(t *testing.T) {
+	db := openTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	tvH := handler.NewTVHandler(db)
+	r := chi.NewRouter()
+	r.Use(apimw.Authenticate(testSecret))
+	r.Get("/api/v1/tv-shows/{id}/seasons/{number}/episodes", tvH.ListEpisodes)
+	r.Get("/api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}", tvH.GetEpisode)
+	r.Get("/api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}/next", tvH.GetNextEpisode)
+	r.With(apimw.RequireAdmin).Delete("/api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}", tvH.DeleteEpisode)
+
+	adminUser := createUser(t, db, "adm_tv2", "adm_tv2@x.com", "pw", true)
+	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
+
+	// Create library
+	lib := &models.Library{Path: "/l_tv2", MediaType: models.MediaTypeTVShow}
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert show & season
+	show := &models.TVShow{LibraryID: lib.ID, Name: "Show X"}
+	if err := sqlite.UpsertTVShow(context.Background(), db, show); err != nil {
+		t.Fatal(err)
+	}
+	season := &models.TVSeason{TVShowID: show.ID, SeasonNumber: 1}
+	if err := sqlite.UpsertTVSeason(context.Background(), db, season); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert 2 test episodes
+	ep1Val, ep2Val := 1, 2
+	seaNum := 1
+	ep1 := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Ep 1", MediaType: models.MediaTypeEpisode,
+		FilePath: "/l_tv2/ep1.mkv", TVShowID: &show.ID, TVSeasonID: &season.ID,
+		SeasonNumber: &seaNum, EpisodeNumber: &ep1Val,
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, ep1); err != nil {
+		t.Fatal(err)
+	}
+	ep2 := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Ep 2", MediaType: models.MediaTypeEpisode,
+		FilePath: "/l_tv2/ep2.mkv", TVShowID: &show.ID, TVSeasonID: &season.ID,
+		SeasonNumber: &seaNum, EpisodeNumber: &ep2Val,
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, ep2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test ListEpisodes
+	listUrl := fmt.Sprintf("/api/v1/tv-shows/%s/seasons/1/episodes", show.ID)
+	rec := do(t, r, http.MethodGet, listUrl, nil, hdr)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body)
+	}
+	var listResp []models.Episode
+	if err := json.NewDecoder(rec.Body).Decode(&listResp); err != nil {
+		t.Fatal(err)
+	}
+	if len(listResp) != 2 {
+		t.Errorf("expected 2 episodes, got %d", len(listResp))
+	}
+
+	// Test GetEpisode
+	getUrl := fmt.Sprintf("/api/v1/tv-shows/%s/seasons/1/episodes/%s", show.ID, ep1.ID)
+	rec2 := do(t, r, http.MethodGet, getUrl, nil, hdr)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec2.Code, rec2.Body)
+	}
+	var epResp models.Episode
+	if err := json.NewDecoder(rec2.Body).Decode(&epResp); err != nil {
+		t.Fatal(err)
+	}
+	if epResp.Title != "Ep 1" {
+		t.Errorf("expected Ep 1, got %q", epResp.Title)
+	}
+
+	// Test GetNextEpisode
+	nextUrl := fmt.Sprintf("/api/v1/tv-shows/%s/seasons/1/episodes/%s/next", show.ID, ep1.ID)
+	rec3 := do(t, r, http.MethodGet, nextUrl, nil, hdr)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec3.Code, rec3.Body)
+	}
+	var nextResp models.Episode
+	if err := json.NewDecoder(rec3.Body).Decode(&nextResp); err != nil {
+		t.Fatal(err)
+	}
+	if nextResp.Title != "Ep 2" {
+		t.Errorf("expected Ep 2, got %q", nextResp.Title)
+	}
+
+	// Test DeleteEpisode
+	delUrl := fmt.Sprintf("/api/v1/tv-shows/%s/seasons/1/episodes/%s", show.ID, ep1.ID)
+	rec4 := do(t, r, http.MethodDelete, delUrl, nil, hdr)
+	if rec4.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec4.Code, rec4.Body)
+	}
+}
+

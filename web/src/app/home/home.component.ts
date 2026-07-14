@@ -90,7 +90,13 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.stats.showsCount = res.allShows?.length || 0;
         this.recentMovies = res.recentMovies || [];
         this.recentShows = res.recentShows || [];
-        this.continueWatching = res.continueWatching || [];
+        this.continueWatching = (res.continueWatching || []).map((item: any) => {
+          const media = item.media_type === 'movie' ? item.movie : item.episode;
+          return {
+            ...item,
+            media: media
+          };
+        });
         this.loading = false;
         this.cdr.detectChanges();
       },
@@ -303,7 +309,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   getContinueWatchingPosterUrl(item: WatchHistory): string {
     if (item.media?.poster_path) {
-      return `/api/v1/movies/${item.media.id}/poster`;
+      return `/api/v1/media/${item.media.id}/poster`;
     }
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
   }

@@ -109,9 +109,9 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 
 		// Poster and backdrop images are served unauthenticated so <img> tags work without
 		// custom headers.
-		r.Get("/movies/{id}/poster", mediaH.ServePoster)
-		r.Get("/movies/{id}/backdrop", mediaH.ServeBackdrop)
-		r.Get("/movies/{id}/extra-posters/{index}", mediaH.ServeExtraPoster)
+		r.Get("/media/{media_id}/poster", mediaH.ServePoster)
+		r.Get("/media/{media_id}/backdrop", mediaH.ServeBackdrop)
+		r.Get("/media/{media_id}/extra-posters/{index}", mediaH.ServeExtraPoster)
 		r.Get("/tv-shows/{id}/poster", tvH.ServeShowPoster)
 		r.Get("/tv-shows/{id}/backdrop", tvH.ServeShowBackdrop)
 		r.Get("/tv-shows/{id}/extra-posters/{index}", tvH.ServeShowExtraPoster)
@@ -146,11 +146,12 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Post("/libraries/{id}:scan", libH.ScanLibrary)
 
 			// Movies (Phase 2)
-			r.Get("/movies", mediaH.ListMedia)
-			r.Get("/movies/{id}", mediaH.GetMedia)
-			r.Get("/movies/{id}/next", mediaH.GetNextEpisode)
-			r.Get("/movies/{id}/transcode-sizes", mediaH.GetTranscodeSizes)
-			r.With(apimw.RequireAdmin).Delete("/movies/{id}", mediaH.DeleteMedia)
+			r.Get("/movies", mediaH.ListMovies)
+			r.Get("/movies/{id}", mediaH.GetMovie)
+			r.With(apimw.RequireAdmin).Delete("/movies/{id}", mediaH.DeleteMovie)
+
+			// Shared media operations (Phase 5 / Phase 2)
+			r.Get("/media/{media_id}/transcode-sizes", mediaH.GetTranscodeSizes)
 
 			// Subtitles (polymorphic)
 			r.Get("/media/{media_id}/subtitles", mediaH.ListSubtitles)
@@ -181,6 +182,11 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.Get("/tv-shows/{id}", tvH.GetShow)
 			r.Get("/tv-shows/{id}/seasons", tvH.ListSeasons)
 			r.Get("/tv-shows/{id}/seasons/{number}/episodes", tvH.ListEpisodes)
+			r.Get("/tv-shows/{id}/seasons/{number}/episodes/{episode_id}", tvH.GetEpisode)
+			r.Get("/tv-shows/{id}/seasons/{number}/episodes/{episode_id}/next", tvH.GetNextEpisode)
+			r.With(apimw.RequireAdmin).Delete("/tv-shows/{id}/seasons/{number}/episodes/{episode_id}", tvH.DeleteEpisode)
+			r.Get("/episodes/{episode_id}", tvH.GetEpisodeByID)
+			r.With(apimw.RequireAdmin).Delete("/episodes/{episode_id}", tvH.DeleteEpisodeByID)
 
 			// WebSocket for global real-time events — any authenticated user.
 			r.Get("/ws/events", eventsH.ServeEvents)

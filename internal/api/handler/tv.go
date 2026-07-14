@@ -207,13 +207,13 @@ func (h *TVHandler) ListSeasons(w http.ResponseWriter, r *http.Request) {
 // ListEpisodes returns all episodes for a specific season.
 // GET /api/v1/tv/shows/{id}/seasons/{number}/episodes
 // @Summary List Episodes
-// @Description Retrieve all episodes (returned as MediaItems) for a specific season of a show.
+// @Description Retrieve all episodes (returned as Episodes) for a specific season of a show.
 // @Tags TV Shows
 // @Security BearerAuth
 // @Produce json
 // @Param id path string true "TV Show ID" format(uuid)
 // @Param number path integer true "Season Number"
-// @Success 200 {array} models.MediaItem
+// @Success 200 {array} models.Episode
 // @Failure 400 {object} map[string]string "Invalid inputs"
 // @Failure 401 {object} map[string]string "Unauthenticated"
 // @Failure 404 {object} map[string]string "Season not found"
@@ -247,8 +247,20 @@ func (h *TVHandler) ListEpisodes(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "could not list episodes", err)
 		return
 	}
-	respondJSON(w, http.StatusOK, emptySlice(episodes))
+	respondJSON(w, http.StatusOK, emptySlice(toEpisodes(episodes)))
 }
+
+func toEpisodes(items []*models.MediaItem) []*models.Episode {
+	if items == nil {
+		return nil
+	}
+	episodes := make([]*models.Episode, len(items))
+	for i, item := range items {
+		episodes[i] = item.ToEpisode()
+	}
+	return episodes
+}
+
 
 // ServeShowPoster serves the cached poster image for a TV show.
 // @Summary Serve TV Show Poster
@@ -446,3 +458,262 @@ func (h *TVHandler) ServeShowExtraPoster(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, posterPath)
 }
+
+// GetEpisode returns a single TV episode.
+// GET /api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}
+// @Summary Get Episode
+// @Description Retrieve a specific episode details.
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "TV Show ID" format(uuid)
+// @Param number path integer true "Season Number"
+// @Param episode_id path string true "Episode ID" format(uuid)
+// @Success 200 {object} models.Episode
+// @Failure 400 {object} map[string]string "Invalid inputs"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Episode not found"
+// @Router /tv-shows/{id}/seasons/{number}/episodes/{episode_id} [get]
+func (h *TVHandler) GetEpisode(w http.ResponseWriter, r *http.Request) {
+	showID, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
+		return
+	}
+
+	seasonNumStr := chi.URLParam(r, "number")
+	seasonNum, err := strconv.Atoi(seasonNumStr)
+	if err != nil || seasonNum < 1 {
+		respondError(w, http.StatusBadRequest, "invalid season number", err)
+		return
+	}
+
+	episodeID, err := uuidParam(r, "episode_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid episode id", err)
+		return
+	}
+
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, episodeID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "episode not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch episode", err)
+		return
+	}
+
+	if item.MediaType != models.MediaTypeEpisode || item.TVShowID == nil || *item.TVShowID != showID || item.SeasonNumber == nil || *item.SeasonNumber != seasonNum {
+		respondError(w, http.StatusNotFound, "episode not found")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, item.ToEpisode())
+}
+
+// GetNextEpisode returns the next episode for a TV episode.
+// GET /api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}/next
+// @Summary Get Next Episode
+// @Description Retrieve the next episode in the show sequence.
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "TV Show ID" format(uuid)
+// @Param number path integer true "Season Number"
+// @Param episode_id path string true "Current Episode ID" format(uuid)
+// @Success 200 {object} models.Episode
+// @Failure 400 {object} map[string]string "Invalid inputs"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Next episode not found"
+// @Router /tv-shows/{id}/seasons/{number}/episodes/{episode_id}/next [get]
+func (h *TVHandler) GetNextEpisode(w http.ResponseWriter, r *http.Request) {
+	showID, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
+		return
+	}
+
+	seasonNumStr := chi.URLParam(r, "number")
+	seasonNum, err := strconv.Atoi(seasonNumStr)
+	if err != nil || seasonNum < 1 {
+		respondError(w, http.StatusBadRequest, "invalid season number", err)
+		return
+	}
+
+	episodeID, err := uuidParam(r, "episode_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid episode id", err)
+		return
+	}
+
+	// Verify current episode exists and belongs to the show/season
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, episodeID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "episode not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch episode", err)
+		return
+	}
+	if item.MediaType != models.MediaTypeEpisode || item.TVShowID == nil || *item.TVShowID != showID || item.SeasonNumber == nil || *item.SeasonNumber != seasonNum {
+		respondError(w, http.StatusNotFound, "episode not found")
+		return
+	}
+
+	nextItem, err := sqlite.GetNextEpisode(r.Context(), h.db, episodeID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "next episode not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch next episode", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, nextItem.ToEpisode())
+}
+
+// DeleteEpisode removes a TV episode (admin only).
+// DELETE /api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}
+// @Summary Delete Episode (Admin Only)
+// @Tags TV Shows
+// @Security BearerAuth
+// @Param id path string true "TV Show ID" format(uuid)
+// @Param number path integer true "Season Number"
+// @Param episode_id path string true "Episode ID" format(uuid)
+// @Success 204 "Episode deleted successfully"
+// @Failure 400 {object} map[string]string "Invalid inputs"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
+// @Failure 404 {object} map[string]string "Episode not found"
+// @Router /tv-shows/{id}/seasons/{number}/episodes/{episode_id} [delete]
+func (h *TVHandler) DeleteEpisode(w http.ResponseWriter, r *http.Request) {
+	showID, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid show id", err)
+		return
+	}
+
+	seasonNumStr := chi.URLParam(r, "number")
+	seasonNum, err := strconv.Atoi(seasonNumStr)
+	if err != nil || seasonNum < 1 {
+		respondError(w, http.StatusBadRequest, "invalid season number", err)
+		return
+	}
+
+	episodeID, err := uuidParam(r, "episode_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid episode id", err)
+		return
+	}
+
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, episodeID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "episode not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch episode", err)
+		return
+	}
+	if item.MediaType != models.MediaTypeEpisode || item.TVShowID == nil || *item.TVShowID != showID || item.SeasonNumber == nil || *item.SeasonNumber != seasonNum {
+		respondError(w, http.StatusNotFound, "episode not found")
+		return
+	}
+
+	if err := sqlite.DeleteMediaItem(r.Context(), h.db, episodeID); errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "episode not found", err)
+		return
+	} else if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not delete episode", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetEpisodeByID returns a single TV episode by ID.
+// GET /api/v1/episodes/{episode_id}
+// @Summary Get Episode by ID
+// @Description Retrieve a specific episode by its ID.
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Param episode_id path string true "Episode ID" format(uuid)
+// @Success 200 {object} models.Episode
+// @Failure 400 {object} map[string]string "Invalid input"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 404 {object} map[string]string "Episode not found"
+// @Router /episodes/{episode_id} [get]
+func (h *TVHandler) GetEpisodeByID(w http.ResponseWriter, r *http.Request) {
+	episodeID, err := uuidParam(r, "episode_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid episode id", err)
+		return
+	}
+
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, episodeID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "episode not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch episode", err)
+		return
+	}
+
+	if item.MediaType != models.MediaTypeEpisode {
+		respondError(w, http.StatusNotFound, "episode not found")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, item.ToEpisode())
+}
+
+// DeleteEpisodeByID removes a TV episode by ID (admin only).
+// DELETE /api/v1/episodes/{episode_id}
+// @Summary Delete Episode by ID (Admin Only)
+// @Tags TV Shows
+// @Security BearerAuth
+// @Param episode_id path string true "Episode ID" format(uuid)
+// @Success 204 "Episode deleted successfully"
+// @Failure 400 {object} map[string]string "Invalid input"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Episode not found"
+// @Router /episodes/{episode_id} [delete]
+func (h *TVHandler) DeleteEpisodeByID(w http.ResponseWriter, r *http.Request) {
+	episodeID, err := uuidParam(r, "episode_id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid episode id", err)
+		return
+	}
+
+	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, episodeID)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "episode not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not fetch episode", err)
+		return
+	}
+	if item.MediaType != models.MediaTypeEpisode {
+		respondError(w, http.StatusNotFound, "episode not found")
+		return
+	}
+
+	if err := sqlite.DeleteMediaItem(r.Context(), h.db, episodeID); errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "episode not found", err)
+		return
+	} else if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not delete episode", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+
