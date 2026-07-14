@@ -132,7 +132,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   id = '';
 
   // Movie Data
-  movie: Movie | Episode | null = null;
+  movie: any | null = null;
 
   // Transcode Sizes
   transcodeSizes: TranscodeSizesInfo | null = null;

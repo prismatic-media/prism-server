@@ -35,6 +35,7 @@ interface MediaItem {
   season_number?: number;
   episode_number?: number;
   tv_show_title?: string;
+  tv_show_id?: string;
 }
 
 interface WatchHistory {

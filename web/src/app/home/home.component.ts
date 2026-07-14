@@ -15,7 +15,7 @@ interface WatchHistory {
   position: number;
   completed: boolean;
   updated_at: string;
-  media?: Movie;
+  media?: any;
 }
 
 interface LibraryStats {
@@ -272,7 +272,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  onMediaClick(movie: Movie): void {
+  onMediaClick(movie: any): void {
     if (movie.media_type === 'movie') {
       this.router.navigate(['/movies', movie.id]);
     } else if (movie.media_type === 'episode' && movie.tv_show_id) {
