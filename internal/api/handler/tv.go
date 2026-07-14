@@ -716,4 +716,24 @@ func (h *TVHandler) DeleteEpisodeByID(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListAllEpisodes returns all episodes across all TV shows/seasons.
+// GET /api/v1/episodes
+// @Summary List All Episodes
+// @Description Retrieve a list of all TV episodes.
+// @Tags TV Shows
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {array} models.Episode
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Router /episodes [get]
+func (h *TVHandler) ListAllEpisodes(w http.ResponseWriter, r *http.Request) {
+	items, err := sqlite.ListAllEpisodes(r.Context(), h.db)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not list all episodes", err)
+		return
+	}
+	respondJSON(w, http.StatusOK, emptySlice(toEpisodes(items)))
+}
+
+
 

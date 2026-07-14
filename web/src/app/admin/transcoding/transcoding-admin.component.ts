@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Subject, Subscription, of, timer } from 'rxjs';
+import { Subject, Subscription, of, timer, forkJoin } from 'rxjs';
 import { debounce, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from '../../auth.service';
 import { EventService } from '../../event.service';
@@ -228,15 +228,23 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = '';
 
-    // Fetch both media items and jobs to map them
-    this.http.get<MediaItem[]>('/api/v1/movies?all=true').subscribe({
-      next: (mediaItems) => {
+    // Fetch both movies and episodes in parallel to map them
+    forkJoin({
+      movies: this.http.get<any[]>('/api/v1/movies'),
+      episodes: this.http.get<any[]>('/api/v1/episodes')
+    }).subscribe({
+      next: (res) => {
         this.mediaMap.clear();
-        if (mediaItems) {
-          mediaItems.forEach((item) => {
-            this.mediaMap.set(item.id, item);
-          });
-        }
+        const movies = res.movies || [];
+        const episodes = res.episodes || [];
+
+        movies.forEach((item) => {
+          this.mediaMap.set(item.id, { ...item, media_type: 'movie' });
+        });
+
+        episodes.forEach((item) => {
+          this.mediaMap.set(item.id, { ...item, media_type: 'episode' });
+        });
 
         // Fetch workers
         this.fetchWorkers();

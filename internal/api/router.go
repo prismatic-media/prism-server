@@ -187,6 +187,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Delete("/tv-shows/{id}/seasons/{number}/episodes/{episode_id}", tvH.DeleteEpisode)
 			r.Get("/episodes/{episode_id}", tvH.GetEpisodeByID)
 			r.With(apimw.RequireAdmin).Delete("/episodes/{episode_id}", tvH.DeleteEpisodeByID)
+			r.Get("/episodes", tvH.ListAllEpisodes)
 
 			// WebSocket for global real-time events — any authenticated user.
 			r.Get("/ws/events", eventsH.ServeEvents)

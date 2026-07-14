@@ -111,6 +111,9 @@ func TestEpisodes_Routes(t *testing.T) {
 	r.Get("/api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}", tvH.GetEpisode)
 	r.Get("/api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}/next", tvH.GetNextEpisode)
 	r.With(apimw.RequireAdmin).Delete("/api/v1/tv-shows/{id}/seasons/{number}/episodes/{episode_id}", tvH.DeleteEpisode)
+	r.Get("/api/v1/episodes", tvH.ListAllEpisodes)
+	r.Get("/api/v1/episodes/{episode_id}", tvH.GetEpisodeByID)
+	r.With(apimw.RequireAdmin).Delete("/api/v1/episodes/{episode_id}", tvH.DeleteEpisodeByID)
 
 	adminUser := createUser(t, db, "adm_tv2", "adm_tv2@x.com", "pw", true)
 	hdr := map[string]string{"Authorization": "Bearer " + bearerToken(t, adminUser.ID, true)}
@@ -191,6 +194,38 @@ func TestEpisodes_Routes(t *testing.T) {
 	}
 	if nextResp.Title != "Ep 2" {
 		t.Errorf("expected Ep 2, got %q", nextResp.Title)
+	}
+
+	// Test ListAllEpisodes
+	recAll := do(t, r, http.MethodGet, "/api/v1/episodes", nil, hdr)
+	if recAll.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recAll.Code, recAll.Body)
+	}
+	var allResp []models.Episode
+	if err := json.NewDecoder(recAll.Body).Decode(&allResp); err != nil {
+		t.Fatal(err)
+	}
+	if len(allResp) != 2 {
+		t.Errorf("expected 2 all episodes, got %d", len(allResp))
+	}
+
+	// Test GetEpisodeByID
+	recGetID := do(t, r, http.MethodGet, fmt.Sprintf("/api/v1/episodes/%s", ep2.ID), nil, hdr)
+	if recGetID.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recGetID.Code, recGetID.Body)
+	}
+	var getIDResp models.Episode
+	if err := json.NewDecoder(recGetID.Body).Decode(&getIDResp); err != nil {
+		t.Fatal(err)
+	}
+	if getIDResp.Title != "Ep 2" {
+		t.Errorf("expected Ep 2, got %q", getIDResp.Title)
+	}
+
+	// Test DeleteEpisodeByID
+	recDelID := do(t, r, http.MethodDelete, fmt.Sprintf("/api/v1/episodes/%s", ep2.ID), nil, hdr)
+	if recDelID.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", recDelID.Code, recDelID.Body)
 	}
 
 	// Test DeleteEpisode
