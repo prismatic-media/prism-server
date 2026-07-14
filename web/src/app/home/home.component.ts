@@ -240,7 +240,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   getPosterUrl(movie: Movie): string {
     if (movie.poster_path) {
-      return `/api/v1/movies/${movie.id}/poster`;
+      return `/api/v1/media/${movie.id}/poster`;
     }
     // Fallback poster
     return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';

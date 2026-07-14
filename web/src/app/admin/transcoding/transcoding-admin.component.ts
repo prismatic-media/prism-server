@@ -362,7 +362,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   }
 
   getPosterUrl(job: TranscodeJob): string {
-    return `/api/v1/movies/${job.media_item_id}/poster`;
+    return `/api/v1/media/${job.media_item_id}/poster`;
   }
 
   handleJobProgressEvent(payload: any): { changed: boolean; shouldFetchJobs: boolean } {

@@ -191,8 +191,8 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   getPosterUrl(result: any): string {
     if (result.poster_path) {
-      if (result.media_type === 'movie') {
-        return `/api/v1/movies/${result.id}/poster`;
+      if (result.media_type === 'movie' || result.media_type === 'episode') {
+        return `/api/v1/media/${result.id}/poster`;
       } else if (result.media_type === 'tvshow') {
         return `/api/v1/tv-shows/${result.id}/poster`;
       }
@@ -286,7 +286,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   getCastPosterUrl(mediaItem: any): string {
     if (mediaItem && mediaItem.poster_path) {
       if (mediaItem.media_type === 'movie' || mediaItem.media_type === 'episode') {
-        return `/api/v1/movies/${mediaItem.id}/poster`;
+        return `/api/v1/media/${mediaItem.id}/poster`;
       } else {
         return `/api/v1/tv-shows/${mediaItem.id}/poster`;
       }
