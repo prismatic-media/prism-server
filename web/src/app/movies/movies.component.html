@@ -78,6 +78,7 @@
       class="movie-card group"
       *ngFor="let movie of movies; trackBy: trackByMovieId"
       [routerLink]="['/movies', movie.id]"
+      [attr.data-sort-letter]="getSortLetter(movie)"
     >
       <div class="poster-container">
         <img [src]="getPosterUrl(movie)" [alt]="movie.title" class="poster-img" loading="lazy" />
@@ -113,4 +114,7 @@
       </div>
     </div>
   </div>
+
+  <app-alphabet-rail *ngIf="!loading && !error && movies.length > 0" [items]="movies" titleKey="title"></app-alphabet-rail>
 </div>
+

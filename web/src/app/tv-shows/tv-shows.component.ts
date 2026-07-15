@@ -46,14 +46,28 @@ export interface Episode {
   bundle_status: string;
 }
 
+import { AlphabetRailComponent } from '../shared/alphabet-rail/alphabet-rail.component';
+
 @Component({
   selector: 'app-tv-shows',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, AlphabetRailComponent],
   templateUrl: './tv-shows.component.html',
   styleUrl: './tv-shows.component.css',
 })
 export class TVShowsComponent implements OnInit, OnDestroy {
+  getSortLetter(show: TVShow): string {
+    const name = show.name || '';
+    let normalized = name.trimStart();
+    if (/^the\s+/i.test(normalized)) {
+      normalized = normalized.replace(/^the\s+/i, '');
+    }
+    const firstChar = normalized.charAt(0).toUpperCase();
+    if (/[0-9]/.test(firstChar)) return '#';
+    if (/[A-Z]/.test(firstChar)) return firstChar;
+    return '#';
+  }
+
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private cacheService = inject(CacheService);

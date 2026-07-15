@@ -51,6 +51,7 @@
       *ngFor="let show of shows; trackBy: trackByShowId"
       class="show-card"
       [routerLink]="['/tv-shows', show.id]"
+      [attr.data-sort-letter]="getSortLetter(show)"
     >
       <div class="poster-container">
         <img [src]="getShowPosterUrl(show)" alt="Show Poster" class="poster-img" />
@@ -71,4 +72,7 @@
       </div>
     </div>
   </div>
+
+  <app-alphabet-rail *ngIf="!loading && !error && shows.length > 0" [items]="shows" titleKey="name"></app-alphabet-rail>
 </div>
+

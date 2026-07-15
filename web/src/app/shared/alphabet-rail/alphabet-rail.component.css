@@ -1,0 +1,88 @@
+.alphabet-rail {
+  position: fixed;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: var(--rounded-full, 20px);
+  z-index: 100;
+  user-select: none;
+  touch-action: none;
+  min-width: 24px;
+}
+
+.rail-letter {
+  background: transparent;
+  border: none;
+  color: rgba(220, 228, 229, 0.4);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 0;
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.rail-letter:hover,
+.rail-letter.active {
+  color: var(--primary-container, #00f0ff);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+  transform: scale(1.2);
+}
+
+/* Floating bubble tooltip while scrubbing */
+.letter-bubble {
+  position: absolute;
+  right: 48px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary-container, #00f0ff);
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+  pointer-events: none;
+  animation: scaleIn 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes scaleIn {
+  from {
+    transform: translateY(-50%) scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Responsive adjustment */
+@media (max-width: 768px) {
+  .alphabet-rail {
+    right: 6px;
+    padding: 6px 2px;
+  }
+  .rail-letter {
+    font-size: 9px;
+    padding: 1px 0;
+  }
+  .letter-bubble {
+    right: 36px;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+  }
+}

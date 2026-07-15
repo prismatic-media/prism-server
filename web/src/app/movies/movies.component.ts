@@ -28,14 +28,28 @@ export interface Movie {
   bundle_status: string;
 }
 
+import { AlphabetRailComponent } from '../shared/alphabet-rail/alphabet-rail.component';
+
 @Component({
   selector: 'app-movies',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, AlphabetRailComponent],
   templateUrl: './movies.component.html',
   styleUrl: './movies.component.css',
 })
 export class MoviesComponent implements OnInit, OnDestroy {
+  getSortLetter(movie: Movie): string {
+    const title = movie.title || '';
+    let normalized = title.trimStart();
+    if (/^the\s+/i.test(normalized)) {
+      normalized = normalized.replace(/^the\s+/i, '');
+    }
+    const firstChar = normalized.charAt(0).toUpperCase();
+    if (/[0-9]/.test(firstChar)) return '#';
+    if (/[A-Z]/.test(firstChar)) return firstChar;
+    return '#';
+  }
+
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private cacheService = inject(CacheService);

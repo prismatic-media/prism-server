@@ -1,0 +1,20 @@
+<div
+  #railContainer
+  class="alphabet-rail glass-card"
+  (touchstart)="onTouchStart($event)"
+  (touchmove)="onTouchMove($event)"
+  (touchend)="onTouchEnd()"
+>
+  <div class="letter-bubble glass-card-elevated" *ngIf="scrubbing">
+    {{ activeLetter }}
+  </div>
+  <button
+    *ngFor="let letter of availableLetters"
+    class="rail-letter"
+    [class.active]="letter === activeLetter"
+    (click)="scrollToLetter(letter)"
+    type="button"
+  >
+    {{ letter }}
+  </button>
+</div>

@@ -213,7 +213,9 @@
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   column-gap: 24px;
   row-gap: 40px;
+  padding-right: 32px;
 }
+
 
 /* --- Movie Card & Image Posters --- */
 .movie-card {
