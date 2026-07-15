@@ -16,7 +16,7 @@ func ListAllMediaItemsPaged(ctx context.Context, db *sql.DB, limit, offset int) 
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, probe_status, enrichment_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE media_type != 'episode'
 		ORDER BY CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE ASC, id ASC
 		LIMIT ? OFFSET ?`, limit, offset)
@@ -43,7 +43,7 @@ func ListMediaItemsPaged(ctx context.Context, db *sql.DB, libraryID uuid.UUID, l
 		       duration, width, height, video_codec, audio_codec,
 		       tmdb_id, year, overview, poster_path, director, cast_members, backdrop_path, extra_posters,
 		       tv_show_id, tv_season_id, season_number, episode_number,
-		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, transcode_sizes, created_at, updated_at
+		       transcode_status, mpd_path, source_fingerprint, source_status, bundle_status, probe_status, enrichment_status, transcode_sizes, created_at, updated_at
 		FROM media_items WHERE library_id = ? AND media_type != 'episode'
 		ORDER BY CASE WHEN LOWER(title) LIKE 'the %' THEN SUBSTR(title, 5) ELSE title END COLLATE NOCASE ASC, id ASC
 		LIMIT ? OFFSET ?`, libraryID.String(), limit, offset)
