@@ -7,6 +7,7 @@ import { forkJoin, map, of, switchMap, Subscription } from 'rxjs';
 import { AuthService } from '../auth.service';
 import { EventService } from '../event.service';
 import { CastService } from '../cast.service';
+import { CacheService } from '../cache.service';
 
 export interface Movie {
   id: string;
@@ -122,11 +123,15 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   public authService = inject(AuthService);
   private eventService = inject(EventService);
   public castService = inject(CastService);
+  private cacheService = inject(CacheService);
 
   protected readonly Math = Math;
 
   private eventSub?: Subscription;
   private castSub?: Subscription;
+  private movieSub?: Subscription;
+  private tvShowSub?: Subscription;
+  private episodesSub?: Subscription;
 
   mediaType: 'movie' | 'tvshow' | 'episode' = 'movie';
   id = '';
@@ -144,6 +149,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
   seasons: TVSeason[] = [];
   selectedSeason: TVSeason | null = null;
   episodes: Episode[] = [];
+  allEpisodes: Episode[] = [];
 
   // View States
   loading = true;
@@ -183,33 +189,10 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     });
 
     this.eventSub = this.eventService.events$.subscribe((events) => {
-      let changed = false;
-      let shouldReloadDetails = false;
       let shouldReloadSubtitles = false;
 
       for (const evt of events) {
-        if (evt.type === 'job.progress') {
-          if (this.handleJobProgressEvent(evt.payload)) {
-            changed = true;
-          }
-        } else if (evt.type === 'media.updated' || evt.type === 'media.created') {
-          if (this.handleMediaUpdatedEvent(evt.payload)) {
-            changed = true;
-          }
-        } else if (evt.type === 'media.enriched') {
-          const payload = evt.payload;
-          if (this.mediaType === 'movie' && this.movie && this.movie.id === payload.media_item_id) {
-            shouldReloadDetails = true;
-          } else if (this.mediaType === 'tvshow') {
-            if (
-              this.tvShow &&
-              (this.tvShow.id === payload.media_item_id ||
-                this.episodes.some((e) => e.id === payload.media_item_id))
-            ) {
-              shouldReloadDetails = true;
-            }
-          }
-        } else if (evt.type === 'subtitle.aligned') {
+        if (evt.type === 'subtitle.aligned') {
           const payload = evt.payload;
           if (this.showSubtitlesModal && payload.media_item_id === this.subtitleMediaId) {
             shouldReloadSubtitles = true;
@@ -217,12 +200,8 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         }
       }
 
-      if (shouldReloadDetails) {
-        this.loadDetails(true);
-      } else if (shouldReloadSubtitles) {
+      if (shouldReloadSubtitles) {
         this.loadUploadedSubtitles();
-      } else if (changed) {
-        this.cdr.detectChanges();
       }
     });
 
@@ -237,7 +216,23 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     });
   }
 
+  private unsubscribeAll(): void {
+    if (this.movieSub) {
+      this.movieSub.unsubscribe();
+      this.movieSub = undefined;
+    }
+    if (this.tvShowSub) {
+      this.tvShowSub.unsubscribe();
+      this.tvShowSub = undefined;
+    }
+    if (this.episodesSub) {
+      this.episodesSub.unsubscribe();
+      this.episodesSub = undefined;
+    }
+  }
+
   ngOnDestroy(): void {
+    this.unsubscribeAll();
     if (this.eventSub) {
       this.eventSub.unsubscribe();
     }
@@ -247,17 +242,17 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
     this.castService.clearPreview();
   }
 
-  loadDetails(silent = false): void {
-    if (!silent) {
-      this.loading = true;
-      this.error = '';
-      this.movie = null;
-      this.tvShow = null;
-      this.seasons = [];
-      this.selectedSeason = null;
-      this.episodes = [];
-      this.transcodeSizes = null;
-    }
+  loadDetails(): void {
+    this.unsubscribeAll();
+    this.loading = true;
+    this.error = '';
+    this.movie = null;
+    this.tvShow = null;
+    this.seasons = [];
+    this.selectedSeason = null;
+    this.episodes = [];
+    this.allEpisodes = [];
+    this.transcodeSizes = null;
 
     this.http.get<WatchHistory[]>('/api/v1/history').subscribe({
       next: (historyList) => {
@@ -266,48 +261,89 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
       },
     });
 
-    if (this.mediaType === 'movie' || this.mediaType === 'episode') {
-      const url = this.mediaType === 'episode' ? `/api/v1/episodes/${this.id}` : `/api/v1/movies/${this.id}`;
-      this.http.get<any>(url).subscribe({
-        next: (data) => {
-          this.movie = data;
-          this.loading = false;
-          this.cdr.detectChanges();
-          this.castService.showPreview(data);
-          this.loadTranscodeSizes(this.id);
-        },
-        error: (err) => {
-          if (!silent) {
-            this.error = this.mediaType === 'episode' ? 'Could not load episode details.' : 'Could not load movie details.';
-            this.movie = null;
+    if (this.mediaType === 'movie') {
+      this.cacheService.loadMovies();
+      this.movieSub = this.cacheService.movies$.subscribe({
+        next: (movies) => {
+          if (movies) {
+            const match = movies.find((m) => m.id === this.id);
+            if (match) {
+              this.movie = match;
+              this.loading = false;
+              this.cdr.detectChanges();
+              this.castService.showPreview(match);
+              if (match.transcode_status === 'done' && !this.transcodeSizes) {
+                this.loadTranscodeSizes(this.id);
+              }
+            }
           }
+        },
+        error: () => {
+          this.error = 'Could not load movie details.';
           this.loading = false;
           this.cdr.detectChanges();
+        }
+      });
+    } else if (this.mediaType === 'episode') {
+      this.cacheService.loadEpisodes();
+      this.movieSub = this.cacheService.episodes$.subscribe({
+        next: (episodes) => {
+          if (episodes) {
+            const match = episodes.find((e) => e.id === this.id);
+            if (match) {
+              this.movie = match;
+              this.loading = false;
+              this.cdr.detectChanges();
+              this.castService.showPreview(match);
+              if (match.transcode_status === 'done' && !this.transcodeSizes) {
+                this.loadTranscodeSizes(this.id);
+              }
+            }
+          }
         },
+        error: () => {
+          this.error = 'Could not load episode details.';
+          this.loading = false;
+          this.cdr.detectChanges();
+        }
       });
     } else {
-      this.http.get<TVShow>(`/api/v1/tv-shows/${this.id}`).subscribe({
-        next: (data) => {
-          this.tvShow = data;
-          this.loadSeasons(this.id, silent);
-          this.castService.showPreview(data);
-        },
-        error: (err) => {
-          if (!silent) {
-            this.error = 'Could not load TV show details.';
-            this.tvShow = null;
+      this.cacheService.loadTVShows();
+      this.tvShowSub = this.cacheService.tvShows$.subscribe({
+        next: (shows) => {
+          if (shows) {
+            const match = shows.find((s) => s.id === this.id);
+            if (match) {
+              this.tvShow = match;
+              this.castService.showPreview(match);
+              if (this.seasons.length === 0) {
+                this.loadSeasons(this.id);
+              }
+            }
           }
+        },
+        error: () => {
+          this.error = 'Could not load TV show details.';
           this.loading = false;
           this.cdr.detectChanges();
-        },
+        }
+      });
+
+      this.cacheService.loadEpisodes();
+      this.episodesSub = this.cacheService.episodes$.subscribe({
+        next: (episodes) => {
+          if (episodes) {
+            this.allEpisodes = episodes;
+            this.filterEpisodes();
+            this.loading = false;
+          }
+        }
       });
     }
   }
 
-  loadSeasons(showId: string, silent = false): void {
-    if (!silent) {
-      this.seasonsLoading = true;
-    }
+  loadSeasons(showId: string): void {
+    this.seasonsLoading = true;
     this.http.get<TVSeason[]>(`/api/v1/tv-shows/${showId}/seasons`).subscribe({
       next: (seasonsList) => {
         const prevSelectedSeasonNumber = this.selectedSeason
@@ -317,7 +353,6 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
           ? seasonsList.sort((a, b) => a.season_number - b.season_number)
           : [];
         this.seasonsLoading = false;
-        this.loading = false;
 
         if (this.seasons.length > 0) {
           let toSelect = this.seasons[0];
@@ -327,47 +362,28 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
               toSelect = found;
             }
           }
-          this.selectSeason(toSelect, silent);
+          this.selectSeason(toSelect);
         }
         this.cdr.detectChanges();
       },
       error: () => {
         this.seasonsLoading = false;
-        this.loading = false;
         this.cdr.detectChanges();
       },
     });
   }
 
-  selectSeason(season: TVSeason, silent = false): void {
+  selectSeason(season: TVSeason): void {
     this.selectedSeason = season;
-    if (!silent) {
-      this.episodes = [];
-    }
-    if (this.tvShow) {
-      this.loadEpisodes(this.tvShow.id, season.season_number, silent);
-    }
+    this.filterEpisodes();
   }
 
-  loadEpisodes(showId: string, seasonNumber: number, silent = false): void {
-    if (!silent) {
-      this.episodesLoading = true;
-    }
-    this.http
-      .get<Episode[]>(`/api/v1/tv-shows/${showId}/seasons/${seasonNumber}/episodes`)
-      .subscribe({
-        next: (episodesList) => {
-          this.episodes = episodesList
-            ? episodesList.sort((a, b) => a.episode_number - b.episode_number)
-            : [];
-          this.episodesLoading = false;
-          this.cdr.detectChanges();
-        },
-        error: () => {
-          this.episodesLoading = false;
-          this.cdr.detectChanges();
-        },
-      });
+  filterEpisodes(): void {
+    if (!this.selectedSeason || !this.allEpisodes) return;
+    this.episodes = this.allEpisodes
+      .filter((e) => e.tv_show_id === this.id && e.season_number === this.selectedSeason!.season_number)
+      .sort((a, b) => a.episode_number - b.episode_number);
+    this.cdr.detectChanges();
   }
 
   loadTranscodeSizes(mediaId: string): void {

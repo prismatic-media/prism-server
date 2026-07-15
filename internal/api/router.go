@@ -47,7 +47,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 	userH := handler.NewUsersHandler(db, rs.JWTSecret)
 	libH := handler.NewLibraryHandler(db, scanManager)
 	mediaH := handler.NewMediaHandler(db).WithBus(bus)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, bus)
 	streamH := handler.NewStreamHandler(db, pool.MPDCache(), rs.JWTSecret)
 	historyH := handler.NewHistoryHandler(db)
 	eventsH := handler.NewEventsHandler(bus)
@@ -173,6 +173,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 			r.With(apimw.RequireAdmin).Get("/jobs/{id}", jobsH.GetJob)
 			r.With(apimw.RequireAdmin).Post("/jobs", jobsH.CreateJob)
 			r.With(apimw.RequireAdmin).Post("/jobs/{id}:prioritize", jobsH.PrioritizeJob)
+			r.With(apimw.RequireAdmin).Delete("/jobs/{id}", jobsH.CancelJob)
 
 			// WebSocket for job progress (Phase 4)
 			r.With(apimw.RequireAdmin).Get("/jobs/{id}/progress", jobsH.JobProgress)

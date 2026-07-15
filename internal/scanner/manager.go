@@ -115,9 +115,7 @@ func (t *enrichItemTask) execute(ctx context.Context) {
 			_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusDone)
 			if updated.PosterPath != nil && t.bus != nil {
 				t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
-					MediaItemID: updated.ID,
-					LibraryID:   updated.LibraryID,
-					PosterPath:  *updated.PosterPath,
+					MediaItem: updated,
 				})
 			}
 		} else {
@@ -149,15 +147,20 @@ func (t *enrichTVEpisodeTask) execute(ctx context.Context) {
 
 	t.enricher.EnrichTVEpisode(ctx, t.item, t.showID, t.seasonID)
 
+	// Fetch and emit TV show update event
+	if show, err := sqlite.GetTVShowByID(ctx, t.db, t.showID); err == nil && t.bus != nil {
+		t.bus.Publish(events.EventTVShowUpdated, events.TVShowUpdatedPayload{
+			TVShow: show,
+		})
+	}
+
 	updated, err := sqlite.GetMediaItemByID(ctx, t.db, t.item.ID)
 	if err == nil {
 		if updated.TMDBId != nil {
 			_ = sqlite.UpdateMediaEnrichmentStatus(ctx, t.db, t.item.ID, models.EnrichmentStatusDone)
 			if updated.PosterPath != nil && t.bus != nil {
 				t.bus.Publish(events.EventMediaEnriched, events.MediaEnrichedPayload{
-					MediaItemID: updated.ID,
-					LibraryID:   updated.LibraryID,
-					PosterPath:  *updated.PosterPath,
+					MediaItem: updated,
 				})
 			}
 		} else {

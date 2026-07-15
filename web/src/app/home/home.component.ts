@@ -7,6 +7,7 @@ import { TVShow } from '../tv-shows/tv-shows.component';
 import { Router } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
 import { EventService } from '../event.service';
+import { CacheService } from '../cache.service';
 
 interface WatchHistory {
   id: string;
@@ -38,7 +39,10 @@ export class HomeComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
   private eventService = inject(EventService);
+  private cacheService = inject(CacheService);
   private eventSub?: Subscription;
+  private moviesSub?: Subscription;
+  private tvShowsSub?: Subscription;
 
   stats: LibraryStats = {
     moviesCount: 0,
@@ -53,6 +57,23 @@ export class HomeComponent implements OnInit, OnDestroy {
   loading = true;
 
   ngOnInit(): void {
+    this.cacheService.loadMovies();
+    this.cacheService.loadTVShows();
+
+    this.moviesSub = this.cacheService.movies$.subscribe((movies) => {
+      if (movies) {
+        this.stats.moviesCount = movies.length;
+        this.cdr.detectChanges();
+      }
+    });
+
+    this.tvShowsSub = this.cacheService.tvShows$.subscribe((shows) => {
+      if (shows) {
+        this.stats.showsCount = shows.length;
+        this.cdr.detectChanges();
+      }
+    });
+
     this.fetchDashboardData();
     this.eventSub = this.eventService.events$.subscribe((events) => {
       const shouldRefresh = events.some(
@@ -71,6 +92,12 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (this.eventSub) {
       this.eventSub.unsubscribe();
     }
+    if (this.moviesSub) {
+      this.moviesSub.unsubscribe();
+    }
+    if (this.tvShowsSub) {
+      this.tvShowsSub.unsubscribe();
+    }
   }
 
   fetchDashboardData(silent = false): void {
@@ -79,15 +106,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
 
     forkJoin({
-      allMovies: this.http.get<Movie[]>('/api/v1/movies'),
-      allShows: this.http.get<TVShow[]>('/api/v1/tv-shows'),
       recentMovies: this.http.get<Movie[]>('/api/v1/movies?sort=recent&limit=20'),
       recentShows: this.http.get<TVShow[]>('/api/v1/tv-shows?sort=recent&limit=20'),
       continueWatching: this.http.get<WatchHistory[]>('/api/v1/history'),
     }).subscribe({
       next: (res) => {
-        this.stats.moviesCount = res.allMovies?.length || 0;
-        this.stats.showsCount = res.allShows?.length || 0;
         this.recentMovies = res.recentMovies || [];
         this.recentShows = res.recentShows || [];
         this.continueWatching = (res.continueWatching || []).map((item: any) => {

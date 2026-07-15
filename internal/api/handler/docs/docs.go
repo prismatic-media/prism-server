@@ -427,6 +427,167 @@ const docTemplate = `{
                 }
             }
         },
+        "/episodes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a list of all TV episodes.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TV Shows"
+                ],
+                "summary": "List All Episodes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Episode"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/episodes/{episode_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a specific episode by its ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TV Shows"
+                ],
+                "summary": "Get Episode by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Episode ID",
+                        "name": "episode_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Episode"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Episode not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "TV Shows"
+                ],
+                "summary": "Delete Episode by ID (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Episode ID",
+                        "name": "episode_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Episode deleted successfully"
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Episode not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/fs:browse": {
             "get": {
                 "security": [
@@ -505,7 +666,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/models.WatchHistory"
+                                "$ref": "#/definitions/models.WatchHistoryResponse"
                             }
                         }
                     },
@@ -550,7 +711,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.WatchHistory"
+                            "$ref": "#/definitions/models.WatchHistoryResponse"
                         }
                     },
                     "204": {
@@ -746,7 +907,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new transcode job for a specific media item, or bulk enqueues based on a filter.",
+                "description": "Creates a new transcode job for a specific media item, TV show, TV season, or bulk enqueues based on a filter.",
                 "consumes": [
                     "application/json"
                 ],
@@ -770,7 +931,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Returns number of jobs enqueued (for bulk filter): {'enqueued': N}",
+                        "description": "Returns number of jobs enqueued (for bulk filter, show, or season): {'enqueued': N}",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -812,7 +973,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Media item not found",
+                        "description": "Media item, show, or season not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -853,6 +1014,78 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/models.TranscodeJob"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid job ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden (requires Admin status)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Job not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancels a pending or processing transcode job, terminating local processes and notifying remote workers.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transcoding Jobs"
+                ],
+                "summary": "Cancel/Stop Transcode Job (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns {'status': 'ok'}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -1547,6 +1780,184 @@ const docTemplate = `{
                 }
             }
         },
+        "/media/{media_id}/backdrop": {
+            "get": {
+                "description": "Serve the cached backdrop image file for a movie or episode.",
+                "produces": [
+                    "image/*"
+                ],
+                "tags": [
+                    "Media Items"
+                ],
+                "summary": "Serve Media Backdrop",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Backdrop image file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid media ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Media item or backdrop not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/media/{media_id}/extra-posters/{index}": {
+            "get": {
+                "description": "Serve a cached extra poster image by index for a movie or episode.",
+                "produces": [
+                    "image/*"
+                ],
+                "tags": [
+                    "Media Items"
+                ],
+                "summary": "Serve Media Extra Poster",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Zero-based index of the extra poster",
+                        "name": "index",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Extra poster image file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid index or media ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Media item or poster at index not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/media/{media_id}/poster": {
+            "get": {
+                "description": "Serve the cached poster image file for a movie or episode.",
+                "produces": [
+                    "image/*"
+                ],
+                "tags": [
+                    "Media Items"
+                ],
+                "summary": "Serve Media Poster",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Poster image file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid media ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Media item or poster not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/media/{media_id}/source": {
             "get": {
                 "security": [
@@ -1979,6 +2390,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/media/{media_id}/transcode-sizes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the size of each resolution subdirectory and the total size in the media item's transcode bundle.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media Items"
+                ],
+                "summary": "Get Media Transcode Sizes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.TranscodeSizesInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid media ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Media item not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/metadata:refresh": {
             "post": {
                 "security": [
@@ -2021,26 +2494,20 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Lists media items (movies, episodes) with filtering/sorting capabilities.",
+                "description": "Lists movie media items with filtering/sorting capabilities.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Media Items"
+                    "Movies"
                 ],
-                "summary": "List Media Items",
+                "summary": "List Movies",
                 "parameters": [
                     {
                         "type": "string",
                         "format": "uuid",
                         "description": "Library ID",
                         "name": "library_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Media Type",
-                        "name": "media_type",
                         "in": "query"
                     },
                     {
@@ -2063,7 +2530,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/models.MediaItem"
+                                "$ref": "#/definitions/models.Movie"
                             }
                         }
                     },
@@ -2099,14 +2566,14 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Media Items"
+                    "Movies"
                 ],
-                "summary": "Get Media Item",
+                "summary": "Get Movie",
                 "parameters": [
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Media ID",
+                        "description": "Movie ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2116,11 +2583,11 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.MediaItem"
+                            "$ref": "#/definitions/models.Movie"
                         }
                     },
                     "400": {
-                        "description": "Invalid media ID",
+                        "description": "Invalid movie ID",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2138,7 +2605,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Media item not found",
+                        "description": "Movie not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2155,14 +2622,14 @@ const docTemplate = `{
                     }
                 ],
                 "tags": [
-                    "Media Items"
+                    "Movies"
                 ],
-                "summary": "Delete Media Item (Admin Only)",
+                "summary": "Delete Movie (Admin Only)",
                 "parameters": [
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Media ID",
+                        "description": "Movie ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2170,10 +2637,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Media item deleted successfully"
+                        "description": "Movie deleted successfully"
                     },
                     "400": {
-                        "description": "Invalid media ID",
+                        "description": "Invalid movie ID",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2200,247 +2667,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Media item not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/movies/{id}/backdrop": {
-            "get": {
-                "description": "Serve the cached backdrop image file for a movie.",
-                "produces": [
-                    "image/*"
-                ],
-                "tags": [
-                    "Media Items"
-                ],
-                "summary": "Serve Movie Backdrop",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Media ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Backdrop image file",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid media ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Media item or backdrop not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/movies/{id}/extra-posters/{index}": {
-            "get": {
-                "description": "Serve a cached extra poster image by index for a movie.",
-                "produces": [
-                    "image/*"
-                ],
-                "tags": [
-                    "Media Items"
-                ],
-                "summary": "Serve Movie Extra Poster",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Media ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Zero-based index of the extra poster",
-                        "name": "index",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Extra poster image file",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid index or media ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Media item or poster at index not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/movies/{id}/poster": {
-            "get": {
-                "description": "Serve the cached poster image file for a movie.",
-                "produces": [
-                    "image/*"
-                ],
-                "tags": [
-                    "Media Items"
-                ],
-                "summary": "Serve Movie Poster",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Media ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Poster image file",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid media ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Media item or poster not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/movies/{id}/transcode-sizes": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Returns the size of each resolution subdirectory and the total size in the media item's transcode bundle.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Media Items"
-                ],
-                "summary": "Get Media Transcode Sizes",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Media ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.TranscodeSizesInfo"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid media ID",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthenticated",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Media item not found",
+                        "description": "Movie not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -3754,7 +3981,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieve all episodes (returned as MediaItems) for a specific season of a show.",
+                "description": "Retrieve all episodes (returned as Episodes) for a specific season of a show.",
                 "produces": [
                     "application/json"
                 ],
@@ -3785,7 +4012,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/models.MediaItem"
+                                "$ref": "#/definitions/models.Episode"
                             }
                         }
                     },
@@ -3809,6 +4036,237 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Season not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tv-shows/{id}/seasons/{number}/episodes/{episode_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a specific episode details.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TV Shows"
+                ],
+                "summary": "Get Episode",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "TV Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Season Number",
+                        "name": "number",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Episode ID",
+                        "name": "episode_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Episode"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid inputs",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Episode not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "TV Shows"
+                ],
+                "summary": "Delete Episode (Admin Only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "TV Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Season Number",
+                        "name": "number",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Episode ID",
+                        "name": "episode_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Episode deleted successfully"
+                    },
+                    "400": {
+                        "description": "Invalid inputs",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden (requires Admin status)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Episode not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tv-shows/{id}/seasons/{number}/episodes/{episode_id}/next": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve the next episode in the show sequence.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TV Shows"
+                ],
+                "summary": "Get Next Episode",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "TV Show ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Season Number",
+                        "name": "number",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Current Episode ID",
+                        "name": "episode_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Episode"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid inputs",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Next episode not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -4581,6 +5039,12 @@ const docTemplate = `{
                 },
                 "media_item_id": {
                     "type": "string"
+                },
+                "tv_season_id": {
+                    "type": "string"
+                },
+                "tv_show_id": {
+                    "type": "string"
                 }
             }
         },
@@ -4717,6 +5181,12 @@ const docTemplate = `{
         "handler.heartbeatResponse": {
             "type": "object",
             "properties": {
+                "cancelled_jobs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "hwaccel": {
                     "type": "string"
                 },
@@ -4767,11 +5237,17 @@ const docTemplate = `{
         "handler.nowPlayingResponse": {
             "type": "object",
             "properties": {
-                "history": {
-                    "$ref": "#/definitions/models.WatchHistory"
+                "episode": {
+                    "$ref": "#/definitions/models.Episode"
                 },
-                "media": {
-                    "$ref": "#/definitions/models.MediaItem"
+                "history": {
+                    "$ref": "#/definitions/models.WatchHistoryResponse"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "movie": {
+                    "$ref": "#/definitions/models.Movie"
                 }
             }
         },
@@ -4978,6 +5454,23 @@ const docTemplate = `{
                 }
             }
         },
+        "models.EnrichmentStatus": {
+            "type": "string",
+            "enum": [
+                "none",
+                "pending",
+                "processing",
+                "done",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "EnrichmentStatusNone",
+                "EnrichmentStatusPending",
+                "EnrichmentStatusProcessing",
+                "EnrichmentStatusDone",
+                "EnrichmentStatusFailed"
+            ]
+        },
         "models.EphemeralWorkerToken": {
             "type": "object",
             "properties": {
@@ -4992,6 +5485,126 @@ const docTemplate = `{
                 },
                 "token": {
                     "type": "string"
+                }
+            }
+        },
+        "models.Episode": {
+            "type": "object",
+            "properties": {
+                "audio_codec": {
+                    "type": "string"
+                },
+                "backdrop_path": {
+                    "type": "string"
+                },
+                "bundle_status": {
+                    "type": "string"
+                },
+                "cast": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.CastMember"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "director": {
+                    "type": "string"
+                },
+                "duration": {
+                    "description": "seconds",
+                    "type": "number"
+                },
+                "enrichment_status": {
+                    "$ref": "#/definitions/models.EnrichmentStatus"
+                },
+                "episode_number": {
+                    "type": "integer"
+                },
+                "extra_posters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "library_id": {
+                    "type": "string"
+                },
+                "mpd_path": {
+                    "type": "string"
+                },
+                "overview": {
+                    "type": "string"
+                },
+                "poster_path": {
+                    "type": "string"
+                },
+                "probe_status": {
+                    "$ref": "#/definitions/models.ProbeStatus"
+                },
+                "season_number": {
+                    "type": "integer"
+                },
+                "source_fingerprint": {
+                    "type": "string"
+                },
+                "source_status": {
+                    "type": "string"
+                },
+                "sub_jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TranscodeSubJob"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "tmdb_id": {
+                    "type": "integer"
+                },
+                "transcode_progress": {
+                    "type": "number"
+                },
+                "transcode_sizes": {
+                    "$ref": "#/definitions/models.TranscodeSizesInfo"
+                },
+                "transcode_status": {
+                    "$ref": "#/definitions/models.TranscodeStatus"
+                },
+                "tv_season_id": {
+                    "type": "string"
+                },
+                "tv_show_id": {
+                    "type": "string"
+                },
+                "tv_show_title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "video_codec": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         },
@@ -5043,6 +5656,9 @@ const docTemplate = `{
                     "description": "seconds",
                     "type": "number"
                 },
+                "enrichment_status": {
+                    "$ref": "#/definitions/models.EnrichmentStatus"
+                },
                 "episode_number": {
                     "type": "integer"
                 },
@@ -5078,6 +5694,9 @@ const docTemplate = `{
                 },
                 "poster_path": {
                     "type": "string"
+                },
+                "probe_status": {
+                    "$ref": "#/definitions/models.ProbeStatus"
                 },
                 "season_number": {
                     "type": "integer"
@@ -5184,6 +5803,128 @@ const docTemplate = `{
                 "MediaTypeTVShow",
                 "MediaTypeEpisode",
                 "MediaTypeMusic"
+            ]
+        },
+        "models.Movie": {
+            "type": "object",
+            "properties": {
+                "audio_codec": {
+                    "type": "string"
+                },
+                "backdrop_path": {
+                    "type": "string"
+                },
+                "bundle_status": {
+                    "type": "string"
+                },
+                "cast": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.CastMember"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "director": {
+                    "type": "string"
+                },
+                "duration": {
+                    "description": "seconds",
+                    "type": "number"
+                },
+                "enrichment_status": {
+                    "$ref": "#/definitions/models.EnrichmentStatus"
+                },
+                "extra_posters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "library_id": {
+                    "type": "string"
+                },
+                "mpd_path": {
+                    "type": "string"
+                },
+                "overview": {
+                    "type": "string"
+                },
+                "poster_path": {
+                    "type": "string"
+                },
+                "probe_status": {
+                    "$ref": "#/definitions/models.ProbeStatus"
+                },
+                "source_fingerprint": {
+                    "type": "string"
+                },
+                "source_status": {
+                    "type": "string"
+                },
+                "sub_jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TranscodeSubJob"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "tmdb_id": {
+                    "type": "integer"
+                },
+                "transcode_progress": {
+                    "type": "number"
+                },
+                "transcode_sizes": {
+                    "$ref": "#/definitions/models.TranscodeSizesInfo"
+                },
+                "transcode_status": {
+                    "$ref": "#/definitions/models.TranscodeStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "video_codec": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ProbeStatus": {
+            "type": "string",
+            "enum": [
+                "none",
+                "pending",
+                "processing",
+                "done",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "ProbeStatusNone",
+                "ProbeStatusPending",
+                "ProbeStatusProcessing",
+                "ProbeStatusDone",
+                "ProbeStatusFailed"
             ]
         },
         "models.RenditionSize": {
@@ -5587,6 +6328,39 @@ const docTemplate = `{
                 },
                 "position": {
                     "description": "seconds",
+                    "type": "number"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.WatchHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "completed": {
+                    "type": "boolean"
+                },
+                "episode": {
+                    "$ref": "#/definitions/models.Episode"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "media_item_id": {
+                    "type": "string"
+                },
+                "media_type": {
+                    "description": "\"movie\" or \"episode\"",
+                    "type": "string"
+                },
+                "movie": {
+                    "$ref": "#/definitions/models.Movie"
+                },
+                "position": {
                     "type": "number"
                 },
                 "updated_at": {

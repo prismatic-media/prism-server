@@ -51,7 +51,7 @@ func CreateTranscodeJob(ctx context.Context, db *sql.DB, j *models.TranscodeJob)
 		j.ID.String(), j.MediaItemID.String(),
 		string(j.Status), j.Progress,
 		j.Priority,
-		j.CreatedAt.Format(time.RFC3339),
+		j.CreatedAt.Format("2006-01-02T15:04:05.000000Z"),
 	)
 	if err != nil {
 		return fmt.Errorf("creating transcode job: %w", err)
@@ -215,7 +215,7 @@ func ResetTranscodeJob(ctx context.Context, db *sql.DB, j *models.TranscodeJob) 
 		    started_at = NULL, finished_at = NULL, created_at = ?
 		WHERE id = ?`,
 		string(models.TranscodeStatusPending),
-		j.CreatedAt.Format(time.RFC3339),
+		j.CreatedAt.Format("2006-01-02T15:04:05.000000Z"),
 		j.ID.String(),
 	)
 	if err != nil {
@@ -300,6 +300,61 @@ func PrioritizeJob(ctx context.Context, db *sql.DB, id uuid.UUID) error {
 	return nil
 }
 
+// CancelTranscodeJob marks a job and all its pending/processing sub-jobs as failed (Cancelled).
+func CancelTranscodeJob(ctx context.Context, db *sql.DB, jobID uuid.UUID) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Fetch job to check status and get media_item_id
+	var status, mediaItemID string
+	err = tx.QueryRowContext(ctx, `SELECT status, media_item_id FROM transcode_jobs WHERE id = ?`, jobID.String()).Scan(&status, &mediaItemID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	// Only cancel if not already in terminal state
+	if status == "done" || status == "failed" {
+		return nil
+	}
+
+	// Update job status to failed with error msg 'Cancelled'
+	_, err = tx.ExecContext(ctx, `
+		UPDATE transcode_jobs
+		SET status = 'failed', error_msg = 'Cancelled', finished_at = ?
+		WHERE id = ?`, now, jobID.String())
+	if err != nil {
+		return err
+	}
+
+	// Update sub-jobs status to failed with error msg 'Cancelled'
+	_, err = tx.ExecContext(ctx, `
+		UPDATE transcode_sub_jobs
+		SET status = 'failed', error_msg = 'Cancelled', finished_at = ?
+		WHERE job_id = ? AND status IN ('pending', 'processing')`, now, jobID.String())
+	if err != nil {
+		return err
+	}
+
+	// Update media item transcode status to failed
+	_, err = tx.ExecContext(ctx, `
+		UPDATE media_items
+		SET transcode_status = 'failed', updated_at = ?
+		WHERE id = ?`, now, mediaItemID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 // BulkEnqueueUntranscoded creates jobs for media items with no prior jobs.
 func BulkEnqueueUntranscoded(ctx context.Context, db *sql.DB) (int, error) {
 	tx, err := db.BeginTx(ctx, nil)
@@ -332,12 +387,21 @@ func BulkEnqueueUntranscoded(ctx context.Context, db *sql.DB) (int, error) {
 		return 0, err
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
-	for _, mediaID := range mediaIDs {
-		_, err := tx.ExecContext(ctx, `
+	now := time.Now().UTC()
+	for i, mediaID := range mediaIDs {
+		mediaIDUUID, err := uuid.Parse(mediaID)
+		if err != nil {
+			return 0, fmt.Errorf("parsing media id: %w", err)
+		}
+
+		jobCreatedAt := now.Add(time.Duration(i) * time.Millisecond)
+		jobCreatedAtStr := jobCreatedAt.Format("2006-01-02T15:04:05.000000Z")
+		jobID := uuid.New()
+
+		_, err = tx.ExecContext(ctx, `
 			INSERT INTO transcode_jobs (id, media_item_id, status, progress, priority, created_at)
 			VALUES (?, ?, 'pending', 0, 0, ?)`,
-			uuid.NewString(), mediaID, now,
+			jobID.String(), mediaID, jobCreatedAtStr,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("inserting untranscoded job: %w", err)
@@ -346,9 +410,13 @@ func BulkEnqueueUntranscoded(ctx context.Context, db *sql.DB) (int, error) {
 		_, err = tx.ExecContext(ctx, `
 			UPDATE media_items
 			SET transcode_status = 'pending', updated_at = ?
-			WHERE id = ?`, now, mediaID)
+			WHERE id = ?`, jobCreatedAtStr, mediaID)
 		if err != nil {
 			return 0, fmt.Errorf("updating media status: %w", err)
+		}
+
+		if err := createSubJobsForJob(ctx, tx, jobID, mediaIDUUID); err != nil {
+			return 0, fmt.Errorf("creating sub-jobs for untranscoded job: %w", err)
 		}
 	}
 
@@ -367,48 +435,79 @@ func BulkEnqueueFailed(ctx context.Context, db *sql.DB) (int, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Get all media_item_ids for failed jobs so we can update media_items.transcode_status
-	rows, err := tx.QueryContext(ctx, `SELECT media_item_id FROM transcode_jobs WHERE status = 'failed'`)
+	// Get all failed jobs ordered by their original created_at
+	rows, err := tx.QueryContext(ctx, `SELECT id, media_item_id FROM transcode_jobs WHERE status = 'failed' ORDER BY created_at ASC`)
 	if err != nil {
 		return 0, fmt.Errorf("querying failed jobs: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var mediaIDs []string
+	type jobInfo struct {
+		ID          string
+		MediaItemID string
+	}
+	var jobs []jobInfo
 	for rows.Next() {
-		var mediaID string
-		if err := rows.Scan(&mediaID); err != nil {
-			return 0, fmt.Errorf("scanning media id: %w", err)
+		var j jobInfo
+		if err := rows.Scan(&j.ID, &j.MediaItemID); err != nil {
+			return 0, fmt.Errorf("scanning failed job: %w", err)
 		}
-		mediaIDs = append(mediaIDs, mediaID)
+		jobs = append(jobs, j)
 	}
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
+	_ = rows.Close()
 
-	if len(mediaIDs) == 0 {
+	if len(jobs) == 0 {
 		return 0, nil
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
-	res, err := tx.ExecContext(ctx, `
-		UPDATE transcode_jobs
-		SET status = 'pending', progress = 0, worker_id = NULL, error_msg = NULL,
-		    started_at = NULL, finished_at = NULL, created_at = ?
-		WHERE status = 'failed'`,
-		now,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("updating failed jobs: %w", err)
-	}
+	now := time.Now().UTC()
+	for i, job := range jobs {
+		jobIDUUID, err := uuid.Parse(job.ID)
+		if err != nil {
+			return 0, fmt.Errorf("parsing job id: %w", err)
+		}
+		mediaIDUUID, err := uuid.Parse(job.MediaItemID)
+		if err != nil {
+			return 0, fmt.Errorf("parsing media id: %w", err)
+		}
 
-	for _, mediaID := range mediaIDs {
+		jobCreatedAt := now.Add(time.Duration(i) * time.Millisecond)
+		jobCreatedAtStr := jobCreatedAt.Format("2006-01-02T15:04:05.000000Z")
+
+		// Delete old sub-jobs
+		_, err = tx.ExecContext(ctx, `DELETE FROM transcode_sub_jobs WHERE job_id = ?`, job.ID)
+		if err != nil {
+			return 0, fmt.Errorf("deleting old sub-jobs: %w", err)
+		}
+
+		// Update transcode_jobs
+		_, err = tx.ExecContext(ctx, `
+			UPDATE transcode_jobs
+			SET status = 'pending', progress = 0, worker_id = NULL, error_msg = NULL,
+			    started_at = NULL, finished_at = NULL, created_at = ?
+			WHERE id = ?`,
+			jobCreatedAtStr,
+			job.ID,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("updating failed job: %w", err)
+		}
+
+		// Update media_items status
 		_, err = tx.ExecContext(ctx, `
 			UPDATE media_items
 			SET transcode_status = 'pending', updated_at = ?
-			WHERE id = ?`, now, mediaID)
+			WHERE id = ?`, jobCreatedAtStr, job.MediaItemID)
 		if err != nil {
 			return 0, fmt.Errorf("updating media status: %w", err)
+		}
+
+		// Recreate sub-jobs
+		if err := createSubJobsForJob(ctx, tx, jobIDUUID, mediaIDUUID); err != nil {
+			return 0, fmt.Errorf("recreating sub-jobs for failed job: %w", err)
 		}
 	}
 
@@ -416,8 +515,7 @@ func BulkEnqueueFailed(ctx context.Context, db *sql.DB) (int, error) {
 		return 0, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	n, _ := res.RowsAffected()
-	return int(n), nil
+	return len(jobs), nil
 }
 
 
@@ -429,48 +527,79 @@ func BulkEnqueueCompleted(ctx context.Context, db *sql.DB) (int, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Get all media_item_ids for completed jobs so we can update media_items.transcode_status
-	rows, err := tx.QueryContext(ctx, `SELECT media_item_id FROM transcode_jobs WHERE status = 'done'`)
+	// Get all completed jobs ordered by their original created_at
+	rows, err := tx.QueryContext(ctx, `SELECT id, media_item_id FROM transcode_jobs WHERE status = 'done' ORDER BY created_at ASC`)
 	if err != nil {
 		return 0, fmt.Errorf("querying completed jobs: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var mediaIDs []string
+	type jobInfo struct {
+		ID          string
+		MediaItemID string
+	}
+	var jobs []jobInfo
 	for rows.Next() {
-		var mediaID string
-		if err := rows.Scan(&mediaID); err != nil {
-			return 0, fmt.Errorf("scanning media id: %w", err)
+		var j jobInfo
+		if err := rows.Scan(&j.ID, &j.MediaItemID); err != nil {
+			return 0, fmt.Errorf("scanning completed job: %w", err)
 		}
-		mediaIDs = append(mediaIDs, mediaID)
+		jobs = append(jobs, j)
 	}
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
+	_ = rows.Close()
 
-	if len(mediaIDs) == 0 {
+	if len(jobs) == 0 {
 		return 0, nil
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
-	res, err := tx.ExecContext(ctx, `
-		UPDATE transcode_jobs
-		SET status = 'pending', progress = 0, worker_id = NULL, error_msg = NULL,
-		    started_at = NULL, finished_at = NULL, created_at = ?
-		WHERE status = 'done'`,
-		now,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("updating completed jobs: %w", err)
-	}
+	now := time.Now().UTC()
+	for i, job := range jobs {
+		jobIDUUID, err := uuid.Parse(job.ID)
+		if err != nil {
+			return 0, fmt.Errorf("parsing job id: %w", err)
+		}
+		mediaIDUUID, err := uuid.Parse(job.MediaItemID)
+		if err != nil {
+			return 0, fmt.Errorf("parsing media id: %w", err)
+		}
 
-	for _, mediaID := range mediaIDs {
+		jobCreatedAt := now.Add(time.Duration(i) * time.Millisecond)
+		jobCreatedAtStr := jobCreatedAt.Format("2006-01-02T15:04:05.000000Z")
+
+		// Delete old sub-jobs
+		_, err = tx.ExecContext(ctx, `DELETE FROM transcode_sub_jobs WHERE job_id = ?`, job.ID)
+		if err != nil {
+			return 0, fmt.Errorf("deleting old sub-jobs: %w", err)
+		}
+
+		// Update transcode_jobs
+		_, err = tx.ExecContext(ctx, `
+			UPDATE transcode_jobs
+			SET status = 'pending', progress = 0, worker_id = NULL, error_msg = NULL,
+			    started_at = NULL, finished_at = NULL, created_at = ?
+			WHERE id = ?`,
+			jobCreatedAtStr,
+			job.ID,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("updating completed job: %w", err)
+		}
+
+		// Update media_items status
 		_, err = tx.ExecContext(ctx, `
 			UPDATE media_items
 			SET transcode_status = 'pending', updated_at = ?
-			WHERE id = ?`, now, mediaID)
+			WHERE id = ?`, jobCreatedAtStr, job.MediaItemID)
 		if err != nil {
 			return 0, fmt.Errorf("updating media status: %w", err)
+		}
+
+		// Recreate sub-jobs
+		if err := createSubJobsForJob(ctx, tx, jobIDUUID, mediaIDUUID); err != nil {
+			return 0, fmt.Errorf("recreating sub-jobs for completed job: %w", err)
 		}
 	}
 
@@ -478,8 +607,7 @@ func BulkEnqueueCompleted(ctx context.Context, db *sql.DB) (int, error) {
 		return 0, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	n, _ := res.RowsAffected()
-	return int(n), nil
+	return len(jobs), nil
 }
 
 
@@ -639,7 +767,7 @@ func createSubJobsForJob(ctx context.Context, tx *sql.Tx, jobID, mediaItemID uui
 		profiles = filtered
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := time.Now().UTC().Format("2006-01-02T15:04:05.000000Z")
 
 	// Create video sub-jobs
 	for _, prof := range profiles {
@@ -762,13 +890,19 @@ func ClaimNextSubJob(ctx context.Context, db *sql.DB, workerID *uuid.UUID) (*mod
 					   j.created_at,
 					   s.type,
 					   jp.pinned_worker_id,
+					   m.season_number,
+					   m.episode_number,
 					   CASE
-						   WHEN (jp.pinned_worker_id IS NULL AND ? IS NULL) OR (jp.pinned_worker_id = ?) THEN 1
-						   WHEN jp.pinned_worker_id IS NULL THEN 2
+						   -- Pinned to me:
+						   WHEN jp.job_id IS NOT NULL AND ((jp.pinned_worker_id IS NULL AND ? IS NULL) OR (jp.pinned_worker_id = ?)) THEN 1
+						   -- Unclaimed:
+						   WHEN jp.job_id IS NULL THEN 2
+						   -- Pinned to someone else:
 						   ELSE 3
 					   END AS pinning_category
 				FROM transcode_sub_jobs s
 				JOIN transcode_jobs j ON s.job_id = j.id
+				JOIN media_items m ON j.media_item_id = m.id
 				LEFT JOIN job_pinnings jp ON s.job_id = jp.job_id
 				WHERE s.status = 'pending' AND j.status != 'failed'
 			)
@@ -781,6 +915,8 @@ func ClaimNextSubJob(ctx context.Context, db *sql.DB, workerID *uuid.UUID) (*mod
 				pinning_category ASC,
 				priority DESC,
 				created_at ASC,
+				COALESCE(season_number, 0) ASC,
+				COALESCE(episode_number, 0) ASC,
 				type DESC,
 				sub_job_id ASC
 			LIMIT 1
@@ -812,9 +948,9 @@ func ClaimNextSubJob(ctx context.Context, db *sql.DB, workerID *uuid.UUID) (*mod
 		return nil, fmt.Errorf("fetching parent job status: %w", err)
 	}
 
-	// If parent job is pending, update it to processing
+	// If parent job is pending, update it to processing and set worker_id
 	if parentStatus == string(models.TranscodeStatusPending) {
-		_, err = tx.ExecContext(ctx, `UPDATE transcode_jobs SET status = 'processing', started_at = ? WHERE id = ?`, now, subJob.JobID.String())
+		_, err = tx.ExecContext(ctx, `UPDATE transcode_jobs SET status = 'processing', worker_id = ?, started_at = ? WHERE id = ?`, workerIDVal, now, subJob.JobID.String())
 		if err != nil {
 			return nil, fmt.Errorf("updating parent job to processing: %w", err)
 		}
@@ -822,6 +958,12 @@ func ClaimNextSubJob(ctx context.Context, db *sql.DB, workerID *uuid.UUID) (*mod
 		_, err = tx.ExecContext(ctx, `UPDATE media_items SET transcode_status = 'processing', updated_at = ? WHERE id = ?`, now, mediaItemID)
 		if err != nil {
 			return nil, fmt.Errorf("updating media item to processing: %w", err)
+		}
+	} else {
+		// Just ensure parent job has the worker_id set correctly
+		_, err = tx.ExecContext(ctx, `UPDATE transcode_jobs SET worker_id = ? WHERE id = ?`, workerIDVal, subJob.JobID.String())
+		if err != nil {
+			return nil, fmt.Errorf("updating parent job worker_id: %w", err)
 		}
 	}
 
@@ -841,6 +983,16 @@ func UpdateSubJobProgress(ctx context.Context, db *sql.DB, subJobID uuid.UUID, p
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	// Check if already in terminal state
+	var currentStatus string
+	err = tx.QueryRowContext(ctx, `SELECT status FROM transcode_sub_jobs WHERE id = ?`, subJobID.String()).Scan(&currentStatus)
+	if err != nil {
+		return err
+	}
+	if currentStatus == string(models.TranscodeStatusFailed) || currentStatus == string(models.TranscodeStatusDone) {
+		return nil
+	}
 
 	// Update sub-job progress
 	_, err = tx.ExecContext(ctx, `UPDATE transcode_sub_jobs SET progress = ? WHERE id = ?`, progress, subJobID.String())
@@ -878,6 +1030,16 @@ func UpdateSubJobStatus(ctx context.Context, db *sql.DB, subJobID uuid.UUID, sta
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	// Check if already in terminal state
+	var currentStatus string
+	err = tx.QueryRowContext(ctx, `SELECT status FROM transcode_sub_jobs WHERE id = ?`, subJobID.String()).Scan(&currentStatus)
+	if err != nil {
+		return err
+	}
+	if currentStatus == string(models.TranscodeStatusFailed) || currentStatus == string(models.TranscodeStatusDone) {
+		return nil
+	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 

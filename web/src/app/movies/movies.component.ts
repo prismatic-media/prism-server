@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { EventService } from '../event.service';
+import { CacheService } from '../cache.service';
 import { LibraryStateService } from '../library-state.service';
 
 export interface Movie {
@@ -38,9 +38,9 @@ export interface Movie {
 export class MoviesComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
-  private eventService = inject(EventService);
+  private cacheService = inject(CacheService);
   private libraryStateService = inject(LibraryStateService);
-  private eventSub?: Subscription;
+  private moviesSub?: Subscription;
 
   allMovies: Movie[] = [];
   movies: Movie[] = [];
@@ -52,58 +52,31 @@ export class MoviesComponent implements OnInit, OnDestroy {
   error = '';
 
   ngOnInit(): void {
-    const cached = this.libraryStateService.moviesCache;
-    if (cached) {
-      this.allMovies = cached;
-      this.searchQuery = this.libraryStateService.moviesSearchQuery;
-      this.selectedFilter = this.libraryStateService.moviesFilter;
-      this.filterMovies();
-      this.loading = false;
-      this.cdr.detectChanges();
+    this.searchQuery = this.libraryStateService.moviesSearchQuery;
+    this.selectedFilter = this.libraryStateService.moviesFilter;
 
-      // Refresh in background silently
-      this.fetchMovies(true);
-    } else {
-      this.fetchMovies();
-    }
-
-    this.eventSub = this.eventService.events$.subscribe((events) => {
-      const shouldRefresh = events.some(
-        (evt) =>
-          evt.type === 'media.created' ||
-          evt.type === 'media.updated' ||
-          evt.type === 'media.enriched',
-      );
-      if (shouldRefresh) {
-        this.fetchMovies(true);
-      }
-    });
-  }
-
-  ngOnDestroy(): void {
-    if (this.eventSub) {
-      this.eventSub.unsubscribe();
-    }
-  }
-
-  fetchMovies(silent = false): void {
-    if (!silent) {
-      this.loading = true;
-    }
-    this.http.get<Movie[]>('/api/v1/movies').subscribe({
-      next: (data) => {
-        this.allMovies = data || [];
-        this.libraryStateService.moviesCache = this.allMovies;
-        this.filterMovies();
-        this.loading = false;
-        this.cdr.detectChanges();
+    this.cacheService.loadMovies();
+    this.moviesSub = this.cacheService.movies$.subscribe({
+      next: (movies) => {
+        if (movies !== null) {
+          this.allMovies = movies;
+          this.filterMovies();
+          this.loading = false;
+          this.cdr.detectChanges();
+        }
       },
       error: (err) => {
         this.error = 'Could not load movies from library.';
         this.loading = false;
         this.cdr.detectChanges();
-      },
+      }
     });
+  }
+
+  ngOnDestroy(): void {
+    if (this.moviesSub) {
+      this.moviesSub.unsubscribe();
+    }
   }
 
   filterMovies(): void {
@@ -192,9 +165,6 @@ export class MoviesComponent implements OnInit, OnDestroy {
   triggerTranscode(movie: Movie, event: MouseEvent): void {
     event.stopPropagation();
     this.http.post('/api/v1/jobs', { media_item_id: movie.id }).subscribe({
-      next: () => {
-        this.fetchMovies(true);
-      },
       error: (err) => {
         alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
       },

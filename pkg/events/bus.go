@@ -25,6 +25,14 @@ const (
 	EventMediaEnriched EventType = "media.enriched"
 	// EventSubtitleAligned is published when subtitle auto-alignment is completed or failed.
 	EventSubtitleAligned EventType = "subtitle.aligned"
+	// EventTVShowCreated is published when a TV show is discovered.
+	EventTVShowCreated EventType = "tvshow.created"
+	// EventTVShowUpdated is published when TV show metadata is updated/enriched.
+	EventTVShowUpdated EventType = "tvshow.updated"
+	// EventJobCreated is published when a job is enqueued.
+	EventJobCreated EventType = "job.created"
+	// EventJobUpdated is published when job status changes.
+	EventJobUpdated EventType = "job.updated"
 )
 
 // SubtitleAlignedPayload carries alignment results.
@@ -47,32 +55,46 @@ type Event struct {
 type JobProgressPayload struct {
 	JobID       uuid.UUID                 `json:"job_id"`
 	MediaItemID uuid.UUID                 `json:"media_item_id"`
+	WorkerID    *uuid.UUID                `json:"worker_id,omitempty"`
 	Progress    float64                   `json:"progress"`
 	Done        bool                      `json:"done"`
 	Error       string                    `json:"error,omitempty"`
 	SubJobs     []*models.TranscodeSubJob `json:"sub_jobs,omitempty"`
 }
 
-// MediaUpdatedPayload is published when transcode_status changes.
+// MediaUpdatedPayload carries the full updated media item.
 type MediaUpdatedPayload struct {
-	MediaItemID     uuid.UUID `json:"media_item_id"`
-	LibraryID       uuid.UUID `json:"library_id"`
-	TranscodeStatus string    `json:"transcode_status"`
+	MediaItem *models.MediaItem `json:"media_item"`
 }
 
-// MediaCreatedPayload is published when a media item is first discovered.
+// MediaCreatedPayload carries the full created media item.
 type MediaCreatedPayload struct {
-	MediaItemID uuid.UUID `json:"media_item_id"`
-	LibraryID   uuid.UUID `json:"library_id"`
-	Title       string    `json:"title"`
+	MediaItem *models.MediaItem `json:"media_item"`
 }
 
-// MediaEnrichedPayload is published when TMDB metadata has been fetched and
-// a poster image is available for a media item.
+// MediaEnrichedPayload carries the full enriched media item.
 type MediaEnrichedPayload struct {
-	MediaItemID uuid.UUID `json:"media_item_id"`
-	LibraryID   uuid.UUID `json:"library_id"`
-	PosterPath  string    `json:"poster_path"`
+	MediaItem *models.MediaItem `json:"media_item"`
+}
+
+// TVShowCreatedPayload carries the full created TV show.
+type TVShowCreatedPayload struct {
+	TVShow *models.TVShow `json:"tv_show"`
+}
+
+// TVShowUpdatedPayload carries the full updated TV show.
+type TVShowUpdatedPayload struct {
+	TVShow *models.TVShow `json:"tv_show"`
+}
+
+// JobCreatedPayload carries the full created transcode job.
+type JobCreatedPayload struct {
+	Job *models.TranscodeJob `json:"job"`
+}
+
+// JobUpdatedPayload carries the full updated transcode job.
+type JobUpdatedPayload struct {
+	Job *models.TranscodeJob `json:"job"`
 }
 
 // Bus is a goroutine-safe broadcast bus. All registered subscribers receive

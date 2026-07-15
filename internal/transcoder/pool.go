@@ -41,6 +41,7 @@ import (
 // ProgressEvent is emitted during a transcode job.
 type ProgressEvent struct {
 	JobID    uuid.UUID                 `json:"job_id"`
+	WorkerID *uuid.UUID                `json:"worker_id,omitempty"`
 	Progress float64                   `json:"progress"` // 0–100
 	Done     bool                      `json:"done"`
 	Error    string                    `json:"error,omitempty"`
@@ -104,17 +105,20 @@ type Pool struct {
 	stopCh        chan struct{}
 	stopOnce      sync.Once
 	OnWhisperDone func(ctx context.Context, mediaItemID uuid.UUID)
+	activeCancels map[uuid.UUID]context.CancelFunc
+	cancelsMu     sync.Mutex
 }
 
 // NewPool creates a Pool. Call Start to begin processing.
 func NewPool(db *sql.DB, workers int, mpdCache *dash.Cache, bus *events.Bus) *Pool {
 	p := &Pool{
-		db:       db,
-		mpdCache: mpdCache,
-		eventBus: bus,
-		hub:      newHub(),
-		workers:  workers,
-		stopCh:   make(chan struct{}),
+		db:            db,
+		mpdCache:      mpdCache,
+		eventBus:      bus,
+		hub:           newHub(),
+		workers:       workers,
+		stopCh:        make(chan struct{}),
+		activeCancels: make(map[uuid.UUID]context.CancelFunc),
 	}
 	p.pollInterval.Store(int64(15 * time.Second))
 	return p
@@ -218,8 +222,79 @@ func (p *Pool) Enqueue(ctx context.Context, mediaItemID uuid.UUID, force bool) (
 		return nil, err
 	}
 	p.mpdCache.Invalidate(mediaItemID)
+
+	if p.eventBus != nil {
+		if item, err := sqlite.GetMediaItemByID(ctx, p.db, mediaItemID); err == nil {
+			p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+				MediaItem: item,
+			})
+		}
+		p.eventBus.Publish(events.EventJobCreated, events.JobCreatedPayload{
+			Job: j,
+		})
+	}
 	return j, nil
 }
+
+// CancelJob cancels a transcode job, terminating any active local workers and updating the DB.
+func (p *Pool) CancelJob(ctx context.Context, jobID uuid.UUID) error {
+	// 1. Get the sub-jobs of the job to find their IDs
+	subJobs, err := sqlite.ListTranscodeSubJobsByJob(ctx, p.db, jobID)
+	if err != nil {
+		return err
+	}
+
+	// 2. Perform DB update
+	if err := sqlite.CancelTranscodeJob(ctx, p.db, jobID); err != nil {
+		return err
+	}
+
+	// 3. Cancel any local active sub-job contexts
+	p.cancelsMu.Lock()
+	for _, sj := range subJobs {
+		if cancel, exists := p.activeCancels[sj.ID]; exists {
+			cancel()
+		}
+	}
+	p.cancelsMu.Unlock()
+
+	// 4. Invalidate MPD cache for the media item
+	parentJob, err := sqlite.GetTranscodeJobByID(ctx, p.db, jobID)
+	if err == nil && parentJob != nil {
+		p.mpdCache.Invalidate(parentJob.MediaItemID)
+
+		// 5. Publish progress/updated job events
+		p.hub.Publish(ProgressEvent{
+			JobID:    jobID,
+			Progress: 0,
+			Done:     true,
+			Error:    "Cancelled",
+			SubJobs:  parentJob.SubJobs,
+		})
+
+		if p.eventBus != nil {
+			p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
+				JobID:       jobID,
+				MediaItemID: parentJob.MediaItemID,
+				Progress:    0,
+				Done:        true,
+				Error:       "Cancelled",
+				SubJobs:     parentJob.SubJobs,
+			})
+			if latestItem, err := sqlite.GetMediaItemByID(ctx, p.db, parentJob.MediaItemID); err == nil {
+				p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+					MediaItem: latestItem,
+				})
+			}
+			p.eventBus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+				Job: parentJob,
+			})
+		}
+	}
+
+	return nil
+}
+
 
 
 func (p *Pool) runWorker(ctx context.Context) {
@@ -289,11 +364,11 @@ func (p *Pool) runWorkerMonitor(ctx context.Context) {
 						Done:        false,
 						SubJobs:     subJobs,
 					})
-					p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-						MediaItemID:     job.MediaItemID,
-						LibraryID:       job.LibraryID,
-						TranscodeStatus: string(models.TranscodeStatusPending),
-					})
+					if item, err := sqlite.GetMediaItemByID(ctx, p.db, job.MediaItemID); err == nil {
+						p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+							MediaItem: item,
+						})
+					}
 				}
 			}
 		}
@@ -324,12 +399,16 @@ func (p *Pool) runAutoEnqueueListener(ctx context.Context) {
 				continue
 			}
 
+			if payload.MediaItem == nil {
+				continue
+			}
+
 			enabled, err := sqlite.GetSetting(ctx, p.db, "auto_transcode_on_discovery")
 			if err != nil || enabled != "true" {
 				continue
 			}
 
-			item, err := sqlite.GetMediaItemByID(ctx, p.db, payload.MediaItemID)
+			item, err := sqlite.GetMediaItemByID(ctx, p.db, payload.MediaItem.ID)
 			if err != nil {
 				continue
 			}
@@ -337,13 +416,13 @@ func (p *Pool) runAutoEnqueueListener(ctx context.Context) {
 				continue
 			}
 
-			hasJob, err := sqlite.HasTranscodeJobForMediaItem(ctx, p.db, payload.MediaItemID)
+			hasJob, err := sqlite.HasTranscodeJobForMediaItem(ctx, p.db, payload.MediaItem.ID)
 			if err != nil || hasJob {
 				continue
 			}
 
-			if _, err := p.Enqueue(ctx, payload.MediaItemID, false); err != nil {
-				slog.Warn("auto-enqueue on discovery failed", "media_item_id", payload.MediaItemID, "error", err)
+			if _, err := p.Enqueue(ctx, payload.MediaItem.ID, false); err != nil {
+				slog.Warn("auto-enqueue on discovery failed", "media_item_id", payload.MediaItem.ID, "error", err)
 			}
 		}
 	}
@@ -391,7 +470,21 @@ func (p *Pool) loadPollInterval(ctx context.Context) time.Duration {
 }
 
 // process runs a single transcode sub-job.
-func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
+func (p *Pool) process(parentCtx context.Context, j *models.TranscodeSubJob) {
+	ctx, cancel := context.WithCancel(parentCtx)
+	p.cancelsMu.Lock()
+	if p.activeCancels == nil {
+		p.activeCancels = make(map[uuid.UUID]context.CancelFunc)
+	}
+	p.activeCancels[j.ID] = cancel
+	p.cancelsMu.Unlock()
+	defer func() {
+		p.cancelsMu.Lock()
+		delete(p.activeCancels, j.ID)
+		p.cancelsMu.Unlock()
+		cancel()
+	}()
+
 	parentJob, err := sqlite.GetTranscodeJobByID(ctx, p.db, j.JobID)
 	if err != nil {
 		p.fail(ctx, j, fmt.Sprintf("fetching parent job: %v", err))
@@ -436,11 +529,11 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 	}
 
 	if p.eventBus != nil {
-		p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-			MediaItemID:     parentJob.MediaItemID,
-			LibraryID:       item.LibraryID,
-			TranscodeStatus: string(models.TranscodeStatusProcessing),
-		})
+		if latestItem, err := sqlite.GetMediaItemByID(ctx, p.db, parentJob.MediaItemID); err == nil {
+			p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+				MediaItem: latestItem,
+			})
+		}
 	}
 
 	ffmpegPath := "ffmpeg"
@@ -498,6 +591,7 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 			if err == nil && parentJob != nil {
 				p.hub.Publish(ProgressEvent{
 					JobID:    j.JobID,
+					WorkerID: parentJob.WorkerID,
 					Progress: parentJob.Progress,
 					SubJobs:  parentJob.SubJobs,
 				})
@@ -505,6 +599,7 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 					p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
 						JobID:       j.JobID,
 						MediaItemID: parentJob.MediaItemID,
+						WorkerID:    parentJob.WorkerID,
 						Progress:    parentJob.Progress,
 						SubJobs:     parentJob.SubJobs,
 					})
@@ -667,6 +762,7 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 				if err == nil && parentJob != nil {
 					p.hub.Publish(ProgressEvent{
 						JobID:    j.JobID,
+						WorkerID: parentJob.WorkerID,
 						Progress: parentJob.Progress,
 						SubJobs:  parentJob.SubJobs,
 					})
@@ -674,6 +770,7 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 						p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
 							JobID:       j.JobID,
 							MediaItemID: parentJob.MediaItemID,
+							WorkerID:    parentJob.WorkerID,
 							Progress:    parentJob.Progress,
 							SubJobs:     parentJob.SubJobs,
 						})
@@ -744,6 +841,7 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 
 		p.hub.Publish(ProgressEvent{
 			JobID:    parentJob.ID,
+			WorkerID: parentJob.WorkerID,
 			Progress: parentJob.Progress,
 			Done:     isDone,
 			Error:    errStr,
@@ -754,22 +852,20 @@ func (p *Pool) process(ctx context.Context, j *models.TranscodeSubJob) {
 			p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
 				JobID:       parentJob.ID,
 				MediaItemID: parentJob.MediaItemID,
+				WorkerID:    parentJob.WorkerID,
 				Progress:    parentJob.Progress,
 				Done:        isDone,
 				Error:       errStr,
 				SubJobs:     parentJob.SubJobs,
 			})
-			if isDone {
+			if latestItem, err := sqlite.GetMediaItemByID(ctx, p.db, parentJob.MediaItemID); err == nil {
 				p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-					MediaItemID:     parentJob.MediaItemID,
-					LibraryID:       item.LibraryID,
-					TranscodeStatus: string(parentJob.Status),
+					MediaItem: latestItem,
 				})
-			} else {
-				p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-					MediaItemID:     parentJob.MediaItemID,
-					LibraryID:       item.LibraryID,
-					TranscodeStatus: string(models.TranscodeStatusProcessing),
+			}
+			if isDone {
+				p.eventBus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+					Job: parentJob,
 				})
 			}
 		}
@@ -783,13 +879,16 @@ func (p *Pool) fail(ctx context.Context, j *models.TranscodeSubJob, errMsg strin
 	_ = sqlite.UpdateSubJobStatus(ctx, p.db, j.ID, models.TranscodeStatusFailed, &errMsg)
 
 	var subJobs []*models.TranscodeSubJob
+	var parentWorkerID *uuid.UUID
 	parentJob, err := sqlite.GetTranscodeJobByID(ctx, p.db, j.JobID)
 	if err == nil && parentJob != nil {
 		subJobs = parentJob.SubJobs
+		parentWorkerID = parentJob.WorkerID
 	}
 
 	p.hub.Publish(ProgressEvent{
 		JobID:    j.JobID,
+		WorkerID: parentWorkerID,
 		Progress: 0,
 		Done:     true,
 		Error:    errMsg,
@@ -799,21 +898,20 @@ func (p *Pool) fail(ctx context.Context, j *models.TranscodeSubJob, errMsg strin
 		p.eventBus.Publish(events.EventJobProgress, events.JobProgressPayload{
 			JobID:       j.JobID,
 			MediaItemID: j.MediaItemID,
+			WorkerID:    parentWorkerID,
 			Done:        true,
 			Error:       errMsg,
 			SubJobs:     subJobs,
 		})
 
 		if parentJob != nil {
-			item, err := sqlite.GetMediaItemByID(ctx, p.db, parentJob.MediaItemID)
-			var libraryID uuid.UUID
-			if err == nil && item != nil {
-				libraryID = item.LibraryID
+			if item, err := sqlite.GetMediaItemByID(ctx, p.db, parentJob.MediaItemID); err == nil && item != nil {
+				p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+					MediaItem: item,
+				})
 			}
-			p.eventBus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-				MediaItemID:     parentJob.MediaItemID,
-				LibraryID:       libraryID,
-				TranscodeStatus: string(models.TranscodeStatusFailed),
+			p.eventBus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+				Job: parentJob,
 			})
 		}
 	}

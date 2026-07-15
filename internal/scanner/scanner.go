@@ -333,9 +333,7 @@ func (s *Scanner) upsertFile(ctx context.Context, path string, isManual bool) er
 	if item, err := sqlite.GetMediaItemByPath(ctx, s.db, path); err == nil {
 		if s.eventBus != nil {
 			s.eventBus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{
-				MediaItemID: item.ID,
-				LibraryID:   s.library.ID,
-				Title:       item.Title,
+				MediaItem: item,
 			})
 		}
 		s.queueTask(&probeItemTask{
@@ -424,6 +422,10 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 	}
 
 	// Upsert the parent TV show.
+	isNewShow := false
+	if _, err := sqlite.GetTVShowByName(ctx, s.db, s.library.ID, showName); errors.Is(err, sqlite.ErrNotFound) {
+		isNewShow = true
+	}
 	show := &models.TVShow{
 		LibraryID: s.library.ID,
 		Name:      showName,
@@ -433,6 +435,14 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 	}
 	if err := sqlite.UpsertTVShow(ctx, s.db, show); err != nil {
 		return fmt.Errorf("upserting tv show: %w", err)
+	}
+
+	if isNewShow && s.eventBus != nil {
+		if fullShow, err := sqlite.GetTVShowByID(ctx, s.db, show.ID); err == nil {
+			s.eventBus.Publish(events.EventTVShowCreated, events.TVShowCreatedPayload{
+				TVShow: fullShow,
+			})
+		}
 	}
 
 	// Upsert the season.
@@ -475,9 +485,7 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 	if item, err := sqlite.GetMediaItemByPath(ctx, s.db, path); err == nil {
 		if s.eventBus != nil {
 			s.eventBus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{
-				MediaItemID: item.ID,
-				LibraryID:   s.library.ID,
-				Title:       item.Title,
+				MediaItem: item,
 			})
 		}
 		s.queueTask(&probeItemTask{

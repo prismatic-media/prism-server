@@ -72,9 +72,10 @@ type WorkerSubJob struct {
 }
 
 type heartbeatResponse struct {
-	Threads int           `json:"threads"`
-	HWAccel string        `json:"hwaccel"`
-	Job     *WorkerSubJob `json:"job"` // keep JSON key as "job" for worker compatibility
+	Threads       int           `json:"threads"`
+	HWAccel       string        `json:"hwaccel"`
+	Job           *WorkerSubJob `json:"job"` // keep JSON key as "job" for worker compatibility
+	CancelledJobs []uuid.UUID   `json:"cancelled_jobs,omitempty"`
 }
 
 type progressRequest struct {
@@ -162,11 +163,16 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if h.bus != nil {
-					h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-						MediaItemID:     claimedSubJob.MediaItemID,
-						LibraryID:       item.LibraryID,
-						TranscodeStatus: string(models.TranscodeStatusProcessing),
-					})
+					if latestItem, err := sqlite.GetMediaItemByID(r.Context(), h.db, claimedSubJob.MediaItemID); err == nil {
+						h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+							MediaItem: latestItem,
+						})
+					}
+					if job, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, claimedSubJob.JobID); err == nil {
+						h.bus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+							Job: job,
+						})
+					}
 				}
 			}
 		}
@@ -224,10 +230,28 @@ func (h *WorkerHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var cancelledJobs []uuid.UUID
+	rows, err := h.db.QueryContext(r.Context(), `
+		SELECT id FROM transcode_sub_jobs
+		WHERE worker_id = ? AND status = 'failed' AND error_msg = 'Cancelled'`,
+		worker.ID.String())
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var idStr string
+			if err := rows.Scan(&idStr); err == nil {
+				if u, err := uuid.Parse(idStr); err == nil {
+					cancelledJobs = append(cancelledJobs, u)
+				}
+			}
+		}
+	}
+
 	respondJSON(w, http.StatusOK, heartbeatResponse{
-		Threads: worker.Threads,
-		HWAccel: worker.HWAccel,
-		Job:     wSubJob,
+		Threads:       worker.Threads,
+		HWAccel:       worker.HWAccel,
+		Job:           wSubJob,
+		CancelledJobs: cancelledJobs,
 	})
 }
 
@@ -326,6 +350,12 @@ func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if subJob.Status == models.TranscodeStatusFailed && subJob.ErrorMsg != nil && *subJob.ErrorMsg == "Cancelled" {
+		_, _ = h.db.ExecContext(r.Context(), `UPDATE transcode_sub_jobs SET worker_id = NULL WHERE id = ?`, subJobID.String())
+		respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
+
 	if req.Status == "failed" {
 		errStr := req.ErrorMsg
 		if errStr == "" {
@@ -349,10 +379,6 @@ func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Requ
 
 		if h.bus != nil {
 			item, _ := sqlite.GetMediaItemByID(r.Context(), h.db, subJob.MediaItemID)
-			var libraryID uuid.UUID
-			if item != nil {
-				libraryID = item.LibraryID
-			}
 			h.bus.Publish(events.EventJobProgress, events.JobProgressPayload{
 				JobID:       subJob.JobID,
 				MediaItemID: subJob.MediaItemID,
@@ -360,11 +386,16 @@ func (h *WorkerHandler) UpdateSubJobProgress(w http.ResponseWriter, r *http.Requ
 				Error:       errStr,
 				SubJobs:     subJobs,
 			})
-			h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-				MediaItemID:     subJob.MediaItemID,
-				LibraryID:       libraryID,
-				TranscodeStatus: string(models.TranscodeStatusFailed),
-			})
+			if item != nil {
+				h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+					MediaItem: item,
+				})
+			}
+			if job, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, subJob.JobID); err == nil {
+				h.bus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+					Job: job,
+				})
+			}
 		}
 	} else {
 		_ = sqlite.UpdateSubJobProgress(r.Context(), h.db, subJobID, req.Progress)
@@ -445,9 +476,9 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	item, err := sqlite.GetMediaItemByID(r.Context(), h.db, subJob.MediaItemID)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to get media item", err)
+	if subJob.Status == models.TranscodeStatusFailed && subJob.ErrorMsg != nil && *subJob.ErrorMsg == "Cancelled" {
+		_, _ = h.db.ExecContext(r.Context(), `UPDATE transcode_sub_jobs SET worker_id = NULL WHERE id = ?`, subJobID.String())
+		respondError(w, http.StatusConflict, "sub-job is cancelled")
 		return
 	}
 
@@ -581,10 +612,13 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 					SubJobs:     parentJob.SubJobs,
 				})
 				if isDone {
-					h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-						MediaItemID:     parentJob.MediaItemID,
-						LibraryID:       item.LibraryID,
-						TranscodeStatus: string(parentJob.Status),
+					if latestItem, err := sqlite.GetMediaItemByID(r.Context(), h.db, parentJob.MediaItemID); err == nil {
+						h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
+							MediaItem: latestItem,
+						})
+					}
+					h.bus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+						Job: parentJob,
 					})
 				}
 			}
@@ -639,18 +673,14 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 				Error:       errStr,
 				SubJobs:     parentJob.SubJobs,
 			})
-			if isDone {
+			if latestItem, err := sqlite.GetMediaItemByID(r.Context(), h.db, parentJob.MediaItemID); err == nil {
 				h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-					MediaItemID:     parentJob.MediaItemID,
-					LibraryID:       item.LibraryID,
-					TranscodeStatus: string(parentJob.Status),
+					MediaItem: latestItem,
 				})
-			} else {
-				// Publish intermediate update so UI knows bundle_status might have changed to available
-				h.bus.Publish(events.EventMediaUpdated, events.MediaUpdatedPayload{
-					MediaItemID:     parentJob.MediaItemID,
-					LibraryID:       item.LibraryID,
-					TranscodeStatus: string(models.TranscodeStatusProcessing),
+			}
+			if isDone {
+				h.bus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+					Job: parentJob,
 				})
 			}
 		}

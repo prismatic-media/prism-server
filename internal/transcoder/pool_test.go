@@ -112,7 +112,7 @@ func TestPoolAutoEnqueueOnDiscovery_Enabled(t *testing.T) {
 	defer pool.Stop()
 
 	waitFor(t, 2*time.Second, func() bool {
-		bus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{MediaItemID: m.ID, LibraryID: m.LibraryID, Title: m.Title})
+		bus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{MediaItem: m})
 		has, err := sqlite.HasTranscodeJobForMediaItem(ctx, db, m.ID)
 		return err == nil && has
 	})
@@ -135,7 +135,7 @@ func TestPoolAutoEnqueueOnDiscovery_Disabled(t *testing.T) {
 	}
 	defer pool.Stop()
 
-	bus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{MediaItemID: m.ID, LibraryID: m.LibraryID, Title: m.Title})
+	bus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{MediaItem: m})
 	time.Sleep(200 * time.Millisecond)
 
 	has, err := sqlite.HasTranscodeJobForMediaItem(ctx, db, m.ID)
@@ -169,7 +169,7 @@ func TestPoolAutoEnqueueOnDiscovery_Idempotent(t *testing.T) {
 	}
 	defer pool.Stop()
 
-	bus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{MediaItemID: m.ID, LibraryID: m.LibraryID, Title: m.Title})
+	bus.Publish(events.EventMediaCreated, events.MediaCreatedPayload{MediaItem: m})
 	time.Sleep(200 * time.Millisecond)
 
 	jobs, err := sqlite.ListTranscodeJobs(ctx, db)

@@ -866,6 +866,210 @@ func TestCreateTranscodeJob_CapsBitrateSmart(t *testing.T) {
 	}
 }
 
+func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeTV)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create TV Show
+	show := &models.TVShow{
+		ID:        uuid.New(),
+		LibraryID: lib.ID,
+		Title:     "Test Show",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := sqlite.CreateTVShow(ctx, db, show); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create TV Seasons
+	season1 := &models.TVSeason{
+		ID:           uuid.New(),
+		TVShowID:     show.ID,
+		SeasonNumber: 1,
+		Title:        "Season 1",
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}
+	if err := sqlite.CreateTVSeason(ctx, db, season1); err != nil {
+		t.Fatal(err)
+	}
+	season2 := &models.TVSeason{
+		ID:           uuid.New(),
+		TVShowID:     show.ID,
+		SeasonNumber: 2,
+		Title:        "Season 2",
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}
+	if err := sqlite.CreateTVSeason(ctx, db, season2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create episodes in reverse order of how they should be processed
+	epS2E1 := &models.MediaItem{
+		ID:            uuid.New(),
+		LibraryID:     lib.ID,
+		Title:         "Episode S2E1",
+		MediaType:     "episode",
+		FilePath:      "/l/s2e1.mkv",
+		TVShowID:      &show.ID,
+		TVSeasonID:    &season2.ID,
+		SeasonNumber:  &season2.SeasonNumber,
+		EpisodeNumber: 1,
+	}
+	epS1E2 := &models.MediaItem{
+		ID:            uuid.New(),
+		LibraryID:     lib.ID,
+		Title:         "Episode S1E2",
+		MediaType:     "episode",
+		FilePath:      "/l/s1e2.mkv",
+		TVShowID:      &show.ID,
+		TVSeasonID:    &season1.ID,
+		SeasonNumber:  &season1.SeasonNumber,
+		EpisodeNumber: 2,
+	}
+	epS1E1 := &models.MediaItem{
+		ID:            uuid.New(),
+		LibraryID:     lib.ID,
+		Title:         "Episode S1E1",
+		MediaType:     "episode",
+		FilePath:      "/l/s1e1.mkv",
+		TVShowID:      &show.ID,
+		TVSeasonID:    &season1.ID,
+		SeasonNumber:  &season1.SeasonNumber,
+		EpisodeNumber: 1,
+	}
+
+	for _, ep := range []*models.MediaItem{epS2E1, epS1E2, epS1E1} {
+		if err := sqlite.UpsertMediaItem(ctx, db, ep); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// We manually create transcode jobs with identical created_at times to force fallback sorting
+	now := time.Now().UTC()
+	
+	// Create jobs in database
+	jS2E1 := &models.TranscodeJob{MediaItemID: epS2E1.ID, CreatedAt: now}
+	jS1E2 := &models.TranscodeJob{MediaItemID: epS1E2.ID, CreatedAt: now}
+	jS1E1 := &models.TranscodeJob{MediaItemID: epS1E1.ID, CreatedAt: now}
+
+	for _, j := range []*models.TranscodeJob{jS2E1, jS1E2, jS1E1} {
+		if err := sqlite.CreateTranscodeJob(ctx, db, j); err != nil {
+			t.Fatal(err)
+		}
+		// Reset created_at to make absolutely sure they are identical in DB
+		_, err := db.ExecContext(ctx, "UPDATE transcode_jobs SET created_at = ? WHERE id = ?", now.Format("2006-01-02T15:04:05.000000Z"), j.ID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// We expect ClaimNextSubJob to first claim all sub-jobs from S1E1, then S1E2, then S2E1.
+	// We track the order of unique jobs as they are claimed.
+	var uniqueJobs []uuid.UUID
+	for {
+		claimed, err := sqlite.ClaimNextSubJob(ctx, db, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if claimed == nil {
+			break
+		}
+		if len(uniqueJobs) == 0 || uniqueJobs[len(uniqueJobs)-1] != claimed.JobID {
+			uniqueJobs = append(uniqueJobs, claimed.JobID)
+		}
+		err = sqlite.UpdateSubJobStatus(ctx, db, claimed.ID, models.TranscodeStatusDone, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if len(uniqueJobs) != 3 {
+		t.Fatalf("expected 3 unique jobs claimed in sequence, got: %v", uniqueJobs)
+	}
+	if uniqueJobs[0] != jS1E1.ID {
+		t.Errorf("first claimed job should be S1E1 (%v), got %v", jS1E1.ID, uniqueJobs[0])
+	}
+	if uniqueJobs[1] != jS1E2.ID {
+		t.Errorf("second claimed job should be S1E2 (%v), got %v", jS1E2.ID, uniqueJobs[1])
+	}
+	if uniqueJobs[2] != jS2E1.ID {
+		t.Errorf("third claimed job should be S2E1 (%v), got %v", jS2E1.ID, uniqueJobs[2])
+	}
+}
+
+func TestClaimNextSubJob_NoInterleaving(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/l", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	m1 := newMovieItem(lib.ID, "A", "/l/a.mkv")
+	m2 := newMovieItem(lib.ID, "B", "/l/b.mkv")
+	for _, m := range []*models.MediaItem{m1, m2} {
+		if err := sqlite.UpsertMediaItem(ctx, db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	j1 := &models.TranscodeJob{MediaItemID: m1.ID}
+	j2 := &models.TranscodeJob{MediaItemID: m2.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j1); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlite.CreateTranscodeJob(ctx, db, j2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create remote worker
+	w1, err := sqlite.CreateWorker(ctx, db, "Worker1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET last_heartbeat = ?, status = 'idle' WHERE id = ?", nowStr, w1.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Local worker claims a sub-job first. It should claim J1.
+	cLocal, err := sqlite.ClaimNextSubJob(ctx, db, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cLocal == nil || cLocal.JobID != j1.ID {
+		t.Fatalf("expected local worker to claim from j1, got %+v", cLocal)
+	}
+
+	// Now remote worker w1 claims. Since J1 is pinned to local pool (nil),
+	// w1 MUST claim from J2 (as J1 is Category 3 / pinned to another worker).
+	cRemote, err := sqlite.ClaimNextSubJob(ctx, db, &w1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cRemote == nil || cRemote.JobID != j2.ID {
+		t.Fatalf("expected remote worker w1 to claim from j2, got %+v", cRemote)
+	}
+
+	// Local worker claims again. It should get another sub-job from J1 (pinned to local).
+	cLocal2, err := sqlite.ClaimNextSubJob(ctx, db, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cLocal2 == nil || cLocal2.JobID != j1.ID {
+		t.Fatalf("expected local worker to claim subsequent sub-job from j1, got %+v", cLocal2)
+	}
+}
+
 
 
 

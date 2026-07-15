@@ -604,3 +604,89 @@ func TestEnqueueTranscode_Force(t *testing.T) {
 	}
 }
 
+func TestCancelJob(t *testing.T) {
+	db := openTestDB(t)
+	mpdCache := &dash.Cache{}
+	pool := transcoder.NewPool(db, 0, mpdCache, nil)
+
+	authH := handler.NewAuthHandler(db, testSecret)
+	userH := handler.NewUsersHandler(db, testSecret)
+	jobsH := handler.NewJobsHandler(db, pool)
+
+	r := chi.NewRouter()
+	r.Use(chimw.Recoverer)
+	r.Post("/api/v1/auth/login", authH.Login)
+	r.With(apimw.OptionalAuthenticate(testSecret)).Post("/api/v1/users", userH.CreateUser)
+	r.Group(func(r chi.Router) {
+		r.Use(apimw.Authenticate(testSecret))
+		r.With(apimw.RequireAdmin).Post("/api/v1/jobs", jobsH.CreateJob)
+		r.With(apimw.RequireAdmin).Delete("/api/v1/jobs/{id}", jobsH.CancelJob)
+	})
+	t.Cleanup(func() { _ = db.Close() })
+
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+	item := &models.MediaItem{
+		LibraryID: lib.ID, Title: "Film", MediaType: models.MediaTypeMovie,
+		FilePath: "/l/film.mkv", TranscodeStatus: models.TranscodeStatusPending,
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, item); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create admin user + log in.
+	do(t, r, http.MethodPost, "/api/v1/users",
+		jsonBody(map[string]any{"username": "admin", "email": "a@x.com", "password": "pw"}), nil)
+	loginRec := do(t, r, http.MethodPost, "/api/v1/auth/login",
+		jsonBody(map[string]string{"username": "admin", "password": "pw"}), nil)
+	var loginResp map[string]any
+	_ = json.NewDecoder(loginRec.Body).Decode(&loginResp)
+	token := loginResp["access_token"].(string)
+	auth := map[string]string{"Authorization": "Bearer " + token}
+
+	// 1. Enqueue job
+	rec := do(t, r, http.MethodPost, "/api/v1/jobs", jsonBody(map[string]any{"media_item_id": item.ID.String()}), auth)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body = %s", rec.Code, rec.Body)
+	}
+
+	var job models.TranscodeJob
+	if err := json.NewDecoder(rec.Body).Decode(&job); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	// 2. Cancel job
+	cancelRec := do(t, r, http.MethodDelete, "/api/v1/jobs/"+job.ID.String(), nil, auth)
+	if cancelRec.Code != http.StatusOK {
+		t.Fatalf("cancel status = %d, want 200; body = %s", cancelRec.Code, cancelRec.Body)
+	}
+
+	// 3. Verify status in database
+	dbJob, err := sqlite.GetTranscodeJobByID(context.Background(), db, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dbJob.Status != models.TranscodeStatusFailed {
+		t.Errorf("expected job status 'failed', got %q", dbJob.Status)
+	}
+	if dbJob.ErrorMsg == nil || *dbJob.ErrorMsg != "Cancelled" {
+		t.Errorf("expected error message 'Cancelled', got %v", dbJob.ErrorMsg)
+	}
+
+	// Check that sub-jobs are also cancelled
+	subJobs, err := sqlite.ListTranscodeSubJobsByJob(context.Background(), db, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sj := range subJobs {
+		if sj.Status != models.TranscodeStatusFailed {
+			t.Errorf("expected sub-job status 'failed', got %q", sj.Status)
+		}
+		if sj.ErrorMsg == nil || *sj.ErrorMsg != "Cancelled" {
+			t.Errorf("expected sub-job error message 'Cancelled', got %v", sj.ErrorMsg)
+		}
+	}
+}
+

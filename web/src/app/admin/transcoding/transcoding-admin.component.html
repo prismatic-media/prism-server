@@ -114,6 +114,10 @@
                   {{ job.status === 'processing' ? 'PROCESSING' : 'PENDING' }}
                 </span>
                 <span class="codec-label">{{ job.codec }}</span>
+                <span class="worker-badge flex items-center gap-1 opacity-70 text-[11px] font-mono ml-2" *ngIf="job.status === 'processing'">
+                  <span class="material-symbols-outlined text-[13px]">dns</span>
+                  {{ getWorkerName(job.worker_id) }}
+                </span>
               </div>
             </div>
 
@@ -142,9 +146,9 @@
                 <span class="material-symbols-outlined">vertical_align_top</span>
               </button>
               <button
-                class="btn-action opacity-30 cursor-not-allowed text-outline"
-                disabled
-                title="Cancel not supported by backend"
+                class="btn-action text-error hover:bg-error/10"
+                title="Cancel Job"
+                (click)="cancelJob(job.id, $event)"
               >
                 <span class="material-symbols-outlined">close</span>
               </button>
@@ -163,9 +167,9 @@
                 </span>
               </div>
               <div class="queue-subjob-status-pct font-mono">
-                <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}%</span>
-                <span *ngIf="sj.status === 'done'">DONE</span>
-                <span *ngIf="sj.status === 'failed'">FAILED</span>
+                <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}% <span class="text-[10px] opacity-50 font-sans ml-1">({{ getWorkerName(sj.worker_id) }})</span></span>
+                <span *ngIf="sj.status === 'done'">DONE <span class="text-[10px] opacity-50 font-sans ml-1" *ngIf="sj.worker_id">({{ getWorkerName(sj.worker_id) }})</span></span>
+                <span *ngIf="sj.status === 'failed'">FAILED <span class="text-[10px] opacity-50 font-sans ml-1" *ngIf="sj.worker_id">({{ getWorkerName(sj.worker_id) }})</span></span>
                 <span *ngIf="sj.status === 'pending'">PENDING</span>
               </div>
               <div class="queue-subjob-progress-bar-container" *ngIf="sj.status === 'processing'">
@@ -219,6 +223,10 @@
                 <span class="codec-label"
                   >{{ formatDateTime(job.finished_at || job.created_at) }} • {{ job.codec }}</span
                 >
+                <span class="worker-badge flex items-center gap-1 opacity-70 text-[11px] font-mono ml-2" *ngIf="job.worker_id !== undefined">
+                  <span class="material-symbols-outlined text-[13px]">dns</span>
+                  {{ getWorkerName(job.worker_id) }}
+                </span>
               </div>
             </div>
 
@@ -265,9 +273,9 @@
                 </span>
               </div>
               <div class="queue-subjob-status-pct font-mono">
-                <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}%</span>
-                <span *ngIf="sj.status === 'done'">DONE</span>
-                <span *ngIf="sj.status === 'failed'">FAILED</span>
+                <span *ngIf="sj.status === 'processing'">{{ Math.round(sj.progress) }}% <span class="text-[10px] opacity-50 font-sans ml-1">({{ getWorkerName(sj.worker_id) }})</span></span>
+                <span *ngIf="sj.status === 'done'">DONE <span class="text-[10px] opacity-50 font-sans ml-1" *ngIf="sj.worker_id">({{ getWorkerName(sj.worker_id) }})</span></span>
+                <span *ngIf="sj.status === 'failed'">FAILED <span class="text-[10px] opacity-50 font-sans ml-1" *ngIf="sj.worker_id">({{ getWorkerName(sj.worker_id) }})</span></span>
                 <span *ngIf="sj.status === 'pending'">PENDING</span>
               </div>
               <div class="queue-subjob-progress-bar-container" *ngIf="sj.status === 'processing'">

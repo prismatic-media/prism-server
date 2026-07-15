@@ -15,6 +15,7 @@ import (
 	"github.com/prismatic-media/prism-server/internal/models"
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 	"github.com/prismatic-media/prism-server/internal/transcoder"
+	"github.com/prismatic-media/prism-server/pkg/events"
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -28,10 +29,11 @@ var wsUpgrader = websocket.Upgrader{
 type JobsHandler struct {
 	db   *sql.DB
 	pool *transcoder.Pool
+	bus  *events.Bus
 }
 
-func NewJobsHandler(db *sql.DB, pool *transcoder.Pool) *JobsHandler {
-	return &JobsHandler{db: db, pool: pool}
+func NewJobsHandler(db *sql.DB, pool *transcoder.Pool, bus *events.Bus) *JobsHandler {
+	return &JobsHandler{db: db, pool: pool, bus: bus}
 }
 
 // CreateJobRequest is the payload for creating single or bulk transcode jobs.
@@ -291,6 +293,14 @@ func (h *JobsHandler) PrioritizeJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.bus != nil {
+		if job, err := sqlite.GetTranscodeJobByID(r.Context(), h.db, id); err == nil {
+			h.bus.Publish(events.EventJobUpdated, events.JobUpdatedPayload{
+				Job: job,
+			})
+		}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -370,4 +380,37 @@ func (h *JobsHandler) JobProgress(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// CancelJob handles DELETE /api/v1/jobs/{id}.
+// @Summary Cancel/Stop Transcode Job (Admin Only)
+// @Description Cancels a pending or processing transcode job, terminating local processes and notifying remote workers.
+// @Tags Transcoding Jobs
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Job ID" format(uuid)
+// @Success 200 {object} map[string]string "Returns {'status': 'ok'}"
+// @Failure 400 {object} map[string]string "Invalid job ID"
+// @Failure 401 {object} map[string]string "Unauthenticated"
+// @Failure 403 {object} map[string]string "Forbidden (requires Admin status)"
+// @Failure 404 {object} map[string]string "Job not found"
+// @Router /jobs/{id} [delete]
+func (h *JobsHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
+	id, err := uuidParam(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid job id", err)
+		return
+	}
+
+	err = h.pool.CancelJob(r.Context(), id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "job not found", err)
+		return
+	}
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "could not cancel job", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

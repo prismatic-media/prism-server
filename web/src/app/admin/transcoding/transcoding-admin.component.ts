@@ -7,6 +7,7 @@ import { Subject, Subscription, of, timer, forkJoin } from 'rxjs';
 import { debounce, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from '../../auth.service';
 import { EventService } from '../../event.service';
+import { CacheService } from '../../cache.service';
 
 export interface TranscodeJob {
   id: string;
@@ -18,6 +19,7 @@ export interface TranscodeJob {
   started_at?: string;
   finished_at?: string;
   created_at: string;
+  worker_id?: string;
 
   // Custom mapped properties
   title?: string;
@@ -142,8 +144,11 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   regeneratingMPDs = false;
 
   private eventService = inject(EventService);
-  private eventSub?: Subscription;
+  private cacheService = inject(CacheService);
   private etaIntervalId: any;
+  private moviesSub?: Subscription;
+  private episodesSub?: Subscription;
+  private jobsSub?: Subscription;
 
   ngOnInit(): void {
     this.queryParamsSub = this.route.queryParams.subscribe((params) => {
@@ -156,41 +161,41 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     });
 
-    this.fetchData();
-    this.fetchSettings();
-    this.initAutoSave();
+    this.cacheService.loadMovies();
+    this.cacheService.loadEpisodes();
+    this.cacheService.loadJobs();
 
-    this.eventSub = this.eventService.events$.subscribe((events) => {
-      let changed = false;
-      let shouldFetchData = false;
-      let shouldFetchJobs = false;
-
-      for (const evt of events) {
-        if (evt.type === 'job.progress') {
-          const res = this.handleJobProgressEvent(evt.payload);
-          if (res.changed) {
-            changed = true;
-          }
-          if (res.shouldFetchJobs) {
-            shouldFetchJobs = true;
-          }
-        } else if (
-          evt.type === 'media.updated' ||
-          evt.type === 'media.created' ||
-          evt.type === 'media.enriched'
-        ) {
-          shouldFetchData = true;
-        }
+    this.moviesSub = this.cacheService.movies$.subscribe((movies) => {
+      if (movies) {
+        movies.forEach((item) => {
+          this.mediaMap.set(item.id, { ...item, media_type: 'movie' });
+        });
+        this.mapJobsAndSplit();
       }
+    });
 
-      if (shouldFetchData) {
-        this.fetchData();
-      } else if (shouldFetchJobs) {
-        this.fetchJobs();
-      } else if (changed) {
+    this.episodesSub = this.cacheService.episodes$.subscribe((episodes) => {
+      if (episodes) {
+        episodes.forEach((item) => {
+          this.mediaMap.set(item.id, { ...item, media_type: 'episode' });
+        });
+        this.mapJobsAndSplit();
+      }
+    });
+
+    this.jobsSub = this.cacheService.jobs$.subscribe((jobs) => {
+      if (jobs) {
+        this.allJobs = jobs;
+        this.mapJobsAndSplit();
+        this.loading = false;
         this.cdr.detectChanges();
       }
     });
+
+    this.fetchWorkers();
+    this.fetchProfiles();
+    this.fetchSettings();
+    this.initAutoSave();
 
     // Start interval to update ETAs dynamically every second
     this.etaIntervalId = setInterval(() => {
@@ -202,8 +207,14 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
     if (this.queryParamsSub) {
       this.queryParamsSub.unsubscribe();
     }
-    if (this.eventSub) {
-      this.eventSub.unsubscribe();
+    if (this.moviesSub) {
+      this.moviesSub.unsubscribe();
+    }
+    if (this.episodesSub) {
+      this.episodesSub.unsubscribe();
+    }
+    if (this.jobsSub) {
+      this.jobsSub.unsubscribe();
     }
     if (this.etaIntervalId) {
       clearInterval(this.etaIntervalId);
@@ -221,59 +232,6 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
       relativeTo: this.route,
       queryParams: { tab },
       queryParamsHandling: 'merge',
-    });
-  }
-
-  fetchData(): void {
-    this.loading = true;
-    this.error = '';
-
-    // Fetch both movies and episodes in parallel to map them
-    forkJoin({
-      movies: this.http.get<any[]>('/api/v1/movies'),
-      episodes: this.http.get<any[]>('/api/v1/episodes')
-    }).subscribe({
-      next: (res) => {
-        this.mediaMap.clear();
-        const movies = res.movies || [];
-        const episodes = res.episodes || [];
-
-        movies.forEach((item) => {
-          this.mediaMap.set(item.id, { ...item, media_type: 'movie' });
-        });
-
-        episodes.forEach((item) => {
-          this.mediaMap.set(item.id, { ...item, media_type: 'episode' });
-        });
-
-        // Fetch workers
-        this.fetchWorkers();
-        // Fetch profiles
-        this.fetchProfiles();
-        // Now fetch jobs
-        this.fetchJobs();
-      },
-      error: (err) => {
-        this.error = 'Failed to load media metadata.';
-        this.loading = false;
-        this.cdr.detectChanges();
-      },
-    });
-  }
-
-  fetchJobs(): void {
-    this.http.get<TranscodeJob[]>('/api/v1/jobs').subscribe({
-      next: (jobs) => {
-        this.allJobs = jobs || [];
-        this.mapJobsAndSplit();
-        this.loading = false;
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        this.error = 'Failed to load transcode jobs.';
-        this.loading = false;
-        this.cdr.detectChanges();
-      },
     });
   }
 
@@ -371,43 +329,6 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
   getPosterUrl(job: TranscodeJob): string {
     return `/api/v1/media/${job.media_item_id}/poster`;
-  }
-
-  handleJobProgressEvent(payload: any): { changed: boolean; shouldFetchJobs: boolean } {
-    let jobChanged = false;
-    let shouldFetchJobs = false;
-
-    // Find job in active jobs
-    const activeIndex = this.activeJobs.findIndex((j) => j.id === payload.job_id);
-    if (activeIndex !== -1) {
-      const job = this.activeJobs[activeIndex];
-      job.progress = payload.progress;
-      if (payload.sub_jobs) {
-        job.sub_jobs = payload.sub_jobs;
-      }
-      if (payload.done) {
-        job.status = payload.error ? 'failed' : 'done';
-        if (payload.error) {
-          job.error_msg = payload.error;
-        }
-        job.finished_at = new Date().toISOString();
-        // Remove from active, add to completed
-        this.activeJobs.splice(activeIndex, 1);
-        this.completedJobs.unshift(job);
-      } else {
-        job.status = 'processing';
-        this.calculateETA(job);
-      }
-      jobChanged = true;
-    } else {
-      // It might be a brand new job that was just enqueued
-      const exists = this.allJobs.some((j) => j.id === payload.job_id);
-      if (!exists) {
-        shouldFetchJobs = true;
-      }
-    }
-
-    return { changed: jobChanged, shouldFetchJobs };
   }
 
   // Calculate ETA for a processing job
@@ -700,7 +621,7 @@ scratch_dir: /tmp/prism-scratch`;
       next: (res) => {
         const count = res.enqueued || 0;
         alert(`Successfully enqueued ${count} job(s) for transcode.`);
-        this.fetchJobs();
+        this.cacheService.reloadJobs();
       },
       error: (err) => {
         alert(`Failed to bulk enqueue jobs: ${err.error?.error || err.message}`);
@@ -711,11 +632,20 @@ scratch_dir: /tmp/prism-scratch`;
   prioritizeJob(jobId: string, event: MouseEvent): void {
     event.stopPropagation();
     this.http.post<any>(`/api/v1/jobs/${jobId}:prioritize`, {}).subscribe({
-      next: () => {
-        this.fetchJobs();
-      },
       error: (err) => {
         alert(`Failed to prioritize job: ${err.error?.error || err.message}`);
+      },
+    });
+  }
+
+  cancelJob(jobId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    if (!confirm('Are you sure you want to cancel this transcode job?')) {
+      return;
+    }
+    this.http.delete<any>(`/api/v1/jobs/${jobId}`).subscribe({
+      error: (err) => {
+        alert(`Failed to cancel job: ${err.error?.error || err.message}`);
       },
     });
   }
@@ -723,9 +653,6 @@ scratch_dir: /tmp/prism-scratch`;
   retranscodeMedia(mediaId: string, event: MouseEvent): void {
     event.stopPropagation();
     this.http.post<any>('/api/v1/jobs', { media_item_id: mediaId, force: true }).subscribe({
-      next: () => {
-        this.fetchJobs();
-      },
       error: (err) => {
         alert(`Failed to enqueue transcode: ${err.error?.error || err.message}`);
       },
@@ -759,6 +686,12 @@ scratch_dir: /tmp/prism-scratch`;
     if (!isoString) return '';
     const date = new Date(isoString);
     return date.toLocaleString();
+  }
+
+  getWorkerName(workerId?: string): string {
+    if (!workerId) return 'Internal Pool';
+    const worker = this.workers.find((w) => w.id === workerId);
+    return worker ? worker.name : 'Unknown Worker';
   }
 
   fetchEphemeralTokens(): void {

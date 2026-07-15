@@ -1,6 +1,6 @@
 import { Injectable, inject, OnDestroy } from '@angular/core';
 import { AuthService } from './auth.service';
-import { Subject, Subscription, Observable, bufferTime, filter } from 'rxjs';
+import { Subject, Subscription, Observable, BehaviorSubject, bufferTime, filter } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -12,6 +12,9 @@ export class EventService implements OnDestroy {
   private isDestroyed = false;
   private reconnectTimeout: any;
   private isRefreshingToken = false;
+
+  private connectedSubject = new BehaviorSubject<boolean>(false);
+  public connected$: Observable<boolean> = this.connectedSubject.asObservable();
 
   private eventSubject = new Subject<any>();
   public events$: Observable<any[]> = this.eventSubject.asObservable().pipe(
@@ -70,6 +73,10 @@ export class EventService implements OnDestroy {
 
     this.ws = new WebSocket(wsUrl);
 
+    this.ws.onopen = () => {
+      this.connectedSubject.next(true);
+    };
+
     this.ws.onmessage = (event) => {
       try {
         const evt = JSON.parse(event.data);
@@ -80,6 +87,7 @@ export class EventService implements OnDestroy {
     };
 
     this.ws.onclose = () => {
+      this.connectedSubject.next(false);
       this.ws = null;
       if (!this.isDestroyed && this.authService.isLoggedIn()) {
         clearTimeout(this.reconnectTimeout);
@@ -98,5 +106,6 @@ export class EventService implements OnDestroy {
       this.ws.close();
       this.ws = null;
     }
+    this.connectedSubject.next(false);
   }
 }

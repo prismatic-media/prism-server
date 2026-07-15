@@ -8,6 +8,10 @@ definitions:
         type: boolean
       media_item_id:
         type: string
+      tv_season_id:
+        type: string
+      tv_show_id:
+        type: string
     type: object
   handler.IndexResponse:
     properties:
@@ -95,6 +99,10 @@ definitions:
     type: object
   handler.heartbeatResponse:
     properties:
+      cancelled_jobs:
+        items:
+          type: string
+        type: array
       hwaccel:
         type: string
       job:
@@ -126,10 +134,14 @@ definitions:
     type: object
   handler.nowPlayingResponse:
     properties:
+      episode:
+        $ref: '#/definitions/models.Episode'
       history:
-        $ref: '#/definitions/models.WatchHistory'
-      media:
-        $ref: '#/definitions/models.MediaItem'
+        $ref: '#/definitions/models.WatchHistoryResponse'
+      media_type:
+        type: string
+      movie:
+        $ref: '#/definitions/models.Movie'
     type: object
   handler.progressRequest:
     properties:
@@ -262,6 +274,20 @@ definitions:
       profile_path:
         type: string
     type: object
+  models.EnrichmentStatus:
+    enum:
+    - none
+    - pending
+    - processing
+    - done
+    - failed
+    type: string
+    x-enum-varnames:
+    - EnrichmentStatusNone
+    - EnrichmentStatusPending
+    - EnrichmentStatusProcessing
+    - EnrichmentStatusDone
+    - EnrichmentStatusFailed
   models.EphemeralWorkerToken:
     properties:
       created_at:
@@ -272,6 +298,86 @@ definitions:
         type: string
       token:
         type: string
+    type: object
+  models.Episode:
+    properties:
+      audio_codec:
+        type: string
+      backdrop_path:
+        type: string
+      bundle_status:
+        type: string
+      cast:
+        items:
+          $ref: '#/definitions/models.CastMember'
+        type: array
+      created_at:
+        type: string
+      director:
+        type: string
+      duration:
+        description: seconds
+        type: number
+      enrichment_status:
+        $ref: '#/definitions/models.EnrichmentStatus'
+      episode_number:
+        type: integer
+      extra_posters:
+        items:
+          type: string
+        type: array
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      height:
+        type: integer
+      id:
+        type: string
+      library_id:
+        type: string
+      mpd_path:
+        type: string
+      overview:
+        type: string
+      poster_path:
+        type: string
+      probe_status:
+        $ref: '#/definitions/models.ProbeStatus'
+      season_number:
+        type: integer
+      source_fingerprint:
+        type: string
+      source_status:
+        type: string
+      sub_jobs:
+        items:
+          $ref: '#/definitions/models.TranscodeSubJob'
+        type: array
+      title:
+        type: string
+      tmdb_id:
+        type: integer
+      transcode_progress:
+        type: number
+      transcode_sizes:
+        $ref: '#/definitions/models.TranscodeSizesInfo'
+      transcode_status:
+        $ref: '#/definitions/models.TranscodeStatus'
+      tv_season_id:
+        type: string
+      tv_show_id:
+        type: string
+      tv_show_title:
+        type: string
+      updated_at:
+        type: string
+      video_codec:
+        type: string
+      width:
+        type: integer
+      year:
+        type: integer
     type: object
   models.Library:
     properties:
@@ -305,6 +411,8 @@ definitions:
       duration:
         description: seconds
         type: number
+      enrichment_status:
+        $ref: '#/definitions/models.EnrichmentStatus'
       episode_number:
         type: integer
       extra_posters:
@@ -329,6 +437,8 @@ definitions:
         type: string
       poster_path:
         type: string
+      probe_status:
+        $ref: '#/definitions/models.ProbeStatus'
       season_number:
         type: integer
       source_fingerprint:
@@ -402,6 +512,90 @@ definitions:
     - MediaTypeTVShow
     - MediaTypeEpisode
     - MediaTypeMusic
+  models.Movie:
+    properties:
+      audio_codec:
+        type: string
+      backdrop_path:
+        type: string
+      bundle_status:
+        type: string
+      cast:
+        items:
+          $ref: '#/definitions/models.CastMember'
+        type: array
+      created_at:
+        type: string
+      director:
+        type: string
+      duration:
+        description: seconds
+        type: number
+      enrichment_status:
+        $ref: '#/definitions/models.EnrichmentStatus'
+      extra_posters:
+        items:
+          type: string
+        type: array
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      height:
+        type: integer
+      id:
+        type: string
+      library_id:
+        type: string
+      mpd_path:
+        type: string
+      overview:
+        type: string
+      poster_path:
+        type: string
+      probe_status:
+        $ref: '#/definitions/models.ProbeStatus'
+      source_fingerprint:
+        type: string
+      source_status:
+        type: string
+      sub_jobs:
+        items:
+          $ref: '#/definitions/models.TranscodeSubJob'
+        type: array
+      title:
+        type: string
+      tmdb_id:
+        type: integer
+      transcode_progress:
+        type: number
+      transcode_sizes:
+        $ref: '#/definitions/models.TranscodeSizesInfo'
+      transcode_status:
+        $ref: '#/definitions/models.TranscodeStatus'
+      updated_at:
+        type: string
+      video_codec:
+        type: string
+      width:
+        type: integer
+      year:
+        type: integer
+    type: object
+  models.ProbeStatus:
+    enum:
+    - none
+    - pending
+    - processing
+    - done
+    - failed
+    type: string
+    x-enum-varnames:
+    - ProbeStatusNone
+    - ProbeStatusPending
+    - ProbeStatusProcessing
+    - ProbeStatusDone
+    - ProbeStatusFailed
   models.RenditionSize:
     properties:
       resolution:
@@ -671,6 +865,28 @@ definitions:
         type: string
       position:
         description: seconds
+        type: number
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.WatchHistoryResponse:
+    properties:
+      completed:
+        type: boolean
+      episode:
+        $ref: '#/definitions/models.Episode'
+      id:
+        type: string
+      media_item_id:
+        type: string
+      media_type:
+        description: '"movie" or "episode"'
+        type: string
+      movie:
+        $ref: '#/definitions/models.Movie'
+      position:
         type: number
       updated_at:
         type: string
@@ -955,6 +1171,109 @@ paths:
       summary: Serve Cast Receiver Page
       tags:
       - Cast
+  /episodes:
+    get:
+      description: Retrieve a list of all TV episodes.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Episode'
+            type: array
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List All Episodes
+      tags:
+      - TV Shows
+  /episodes/{episode_id}:
+    delete:
+      parameters:
+      - description: Episode ID
+        format: uuid
+        in: path
+        name: episode_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Episode deleted successfully
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Episode not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Episode by ID (Admin Only)
+      tags:
+      - TV Shows
+    get:
+      description: Retrieve a specific episode by its ID.
+      parameters:
+      - description: Episode ID
+        format: uuid
+        in: path
+        name: episode_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Episode'
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Episode not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Episode by ID
+      tags:
+      - TV Shows
   /fs:browse:
     get:
       description: Browse immediate subdirectories matching a partial path for autocomplete
@@ -1004,7 +1323,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/models.WatchHistory'
+              $ref: '#/definitions/models.WatchHistoryResponse'
             type: array
         "401":
           description: Unauthenticated
@@ -1033,7 +1352,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.WatchHistory'
+            $ref: '#/definitions/models.WatchHistoryResponse'
         "204":
           description: No history for this item
         "400":
@@ -1163,8 +1482,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new transcode job for a specific media item, or bulk
-        enqueues based on a filter.
+      description: Creates a new transcode job for a specific media item, TV show,
+        TV season, or bulk enqueues based on a filter.
       parameters:
       - description: Job creation parameters
         in: body
@@ -1176,8 +1495,8 @@ paths:
       - application/json
       responses:
         "200":
-          description: 'Returns number of jobs enqueued (for bulk filter): {''enqueued'':
-            N}'
+          description: 'Returns number of jobs enqueued (for bulk filter, show, or
+            season): {''enqueued'': N}'
           schema:
             additionalProperties:
               type: integer
@@ -1205,7 +1524,7 @@ paths:
               type: string
             type: object
         "404":
-          description: Media item not found
+          description: Media item, show, or season not found
           schema:
             additionalProperties:
               type: string
@@ -1216,6 +1535,54 @@ paths:
       tags:
       - Transcoding Jobs
   /jobs/{id}:
+    delete:
+      description: Cancels a pending or processing transcode job, terminating local
+        processes and notifying remote workers.
+      parameters:
+      - description: Job ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Returns {''status'': ''ok''}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid job ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Job not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel/Stop Transcode Job (Admin Only)
+      tags:
+      - Transcoding Jobs
     get:
       description: Retrieve a single transcode job by ID.
       parameters:
@@ -1690,6 +2057,125 @@ paths:
       summary: Scan Library (Admin Only)
       tags:
       - Libraries
+  /media/{media_id}/backdrop:
+    get:
+      description: Serve the cached backdrop image file for a movie or episode.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: media_id
+        required: true
+        type: string
+      produces:
+      - image/*
+      responses:
+        "200":
+          description: Backdrop image file
+          schema:
+            type: file
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item or backdrop not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Serve Media Backdrop
+      tags:
+      - Media Items
+  /media/{media_id}/extra-posters/{index}:
+    get:
+      description: Serve a cached extra poster image by index for a movie or episode.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: media_id
+        required: true
+        type: string
+      - description: Zero-based index of the extra poster
+        in: path
+        name: index
+        required: true
+        type: integer
+      produces:
+      - image/*
+      responses:
+        "200":
+          description: Extra poster image file
+          schema:
+            type: file
+        "400":
+          description: Invalid index or media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item or poster at index not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Serve Media Extra Poster
+      tags:
+      - Media Items
+  /media/{media_id}/poster:
+    get:
+      description: Serve the cached poster image file for a movie or episode.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: media_id
+        required: true
+        type: string
+      produces:
+      - image/*
+      responses:
+        "200":
+          description: Poster image file
+          schema:
+            type: file
+        "400":
+          description: Invalid media ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item or poster not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Serve Media Poster
+      tags:
+      - Media Items
   /media/{media_id}/source:
     get:
       description: Download the original raw media source file for transcoding.
@@ -1978,276 +2464,7 @@ paths:
       summary: Sync Subtitle
       tags:
       - Subtitles
-  /metadata:refresh:
-    post:
-      description: Clear metadata across all media items, TV shows, and TV seasons,
-        and re-trigger bulk background TMDB metadata enrichment.
-      produces:
-      - application/json
-      responses:
-        "202":
-          description: Returns status and count of cleared records
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Refresh All Metadata
-      tags:
-      - Metadata Administration
-  /movies:
-    get:
-      description: Lists media items (movies, episodes) with filtering/sorting capabilities.
-      parameters:
-      - description: Library ID
-        format: uuid
-        in: query
-        name: library_id
-        type: string
-      - description: Media Type
-        in: query
-        name: media_type
-        type: string
-      - description: Sort order
-        in: query
-        name: sort
-        type: string
-      - default: 20
-        description: Recent items count limit
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/models.MediaItem'
-            type: array
-        "400":
-          description: Invalid library ID
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthenticated
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: List Media Items
-      tags:
-      - Media Items
-  /movies/{id}:
-    delete:
-      parameters:
-      - description: Media ID
-        format: uuid
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: Media item deleted successfully
-        "400":
-          description: Invalid media ID
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthenticated
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "403":
-          description: Forbidden (requires Admin status)
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Media item not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Delete Media Item (Admin Only)
-      tags:
-      - Media Items
-    get:
-      parameters:
-      - description: Media ID
-        format: uuid
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.MediaItem'
-        "400":
-          description: Invalid media ID
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthenticated
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Media item not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Get Media Item
-      tags:
-      - Media Items
-  /movies/{id}/backdrop:
-    get:
-      description: Serve the cached backdrop image file for a movie.
-      parameters:
-      - description: Media ID
-        format: uuid
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - image/*
-      responses:
-        "200":
-          description: Backdrop image file
-          schema:
-            type: file
-        "400":
-          description: Invalid media ID
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Media item or backdrop not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Serve Movie Backdrop
-      tags:
-      - Media Items
-  /movies/{id}/extra-posters/{index}:
-    get:
-      description: Serve a cached extra poster image by index for a movie.
-      parameters:
-      - description: Media ID
-        format: uuid
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Zero-based index of the extra poster
-        in: path
-        name: index
-        required: true
-        type: integer
-      produces:
-      - image/*
-      responses:
-        "200":
-          description: Extra poster image file
-          schema:
-            type: file
-        "400":
-          description: Invalid index or media ID
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Media item or poster at index not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Serve Movie Extra Poster
-      tags:
-      - Media Items
-  /movies/{id}/poster:
-    get:
-      description: Serve the cached poster image file for a movie.
-      parameters:
-      - description: Media ID
-        format: uuid
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - image/*
-      responses:
-        "200":
-          description: Poster image file
-          schema:
-            type: file
-        "400":
-          description: Invalid media ID
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Media item or poster not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Serve Movie Poster
-      tags:
-      - Media Items
-  /movies/{id}/transcode-sizes:
+  /media/{media_id}/transcode-sizes:
     get:
       description: Returns the size of each resolution subdirectory and the total
         size in the media item's transcode bundle.
@@ -2255,7 +2472,7 @@ paths:
       - description: Media ID
         format: uuid
         in: path
-        name: id
+        name: media_id
         required: true
         type: string
       produces:
@@ -2288,6 +2505,152 @@ paths:
       summary: Get Media Transcode Sizes
       tags:
       - Media Items
+  /metadata:refresh:
+    post:
+      description: Clear metadata across all media items, TV shows, and TV seasons,
+        and re-trigger bulk background TMDB metadata enrichment.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Returns status and count of cleared records
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Refresh All Metadata
+      tags:
+      - Metadata Administration
+  /movies:
+    get:
+      description: Lists movie media items with filtering/sorting capabilities.
+      parameters:
+      - description: Library ID
+        format: uuid
+        in: query
+        name: library_id
+        type: string
+      - description: Sort order
+        in: query
+        name: sort
+        type: string
+      - default: 20
+        description: Recent items count limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Movie'
+            type: array
+        "400":
+          description: Invalid library ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Movies
+      tags:
+      - Movies
+  /movies/{id}:
+    delete:
+      parameters:
+      - description: Movie ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Movie deleted successfully
+        "400":
+          description: Invalid movie ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Movie not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Movie (Admin Only)
+      tags:
+      - Movies
+    get:
+      parameters:
+      - description: Movie ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Movie'
+        "400":
+          description: Invalid movie ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Movie not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Movie
+      tags:
+      - Movies
   /settings:
     get:
       description: Retrieve a dictionary of all editable server setting keys and values.
@@ -3139,7 +3502,7 @@ paths:
       - TV Shows
   /tv-shows/{id}/seasons/{number}/episodes:
     get:
-      description: Retrieve all episodes (returned as MediaItems) for a specific season
+      description: Retrieve all episodes (returned as Episodes) for a specific season
         of a show.
       parameters:
       - description: TV Show ID
@@ -3160,7 +3523,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/models.MediaItem'
+              $ref: '#/definitions/models.Episode'
             type: array
         "400":
           description: Invalid inputs
@@ -3183,6 +3546,159 @@ paths:
       security:
       - BearerAuth: []
       summary: List Episodes
+      tags:
+      - TV Shows
+  /tv-shows/{id}/seasons/{number}/episodes/{episode_id}:
+    delete:
+      parameters:
+      - description: TV Show ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Season Number
+        in: path
+        name: number
+        required: true
+        type: integer
+      - description: Episode ID
+        format: uuid
+        in: path
+        name: episode_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Episode deleted successfully
+        "400":
+          description: Invalid inputs
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden (requires Admin status)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Episode not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Episode (Admin Only)
+      tags:
+      - TV Shows
+    get:
+      description: Retrieve a specific episode details.
+      parameters:
+      - description: TV Show ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Season Number
+        in: path
+        name: number
+        required: true
+        type: integer
+      - description: Episode ID
+        format: uuid
+        in: path
+        name: episode_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Episode'
+        "400":
+          description: Invalid inputs
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Episode not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Episode
+      tags:
+      - TV Shows
+  /tv-shows/{id}/seasons/{number}/episodes/{episode_id}/next:
+    get:
+      description: Retrieve the next episode in the show sequence.
+      parameters:
+      - description: TV Show ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Season Number
+        in: path
+        name: number
+        required: true
+        type: integer
+      - description: Current Episode ID
+        format: uuid
+        in: path
+        name: episode_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Episode'
+        "400":
+          description: Invalid inputs
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Next episode not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Next Episode
       tags:
       - TV Shows
   /tv-shows/{id}/seasons/{number}/poster:
