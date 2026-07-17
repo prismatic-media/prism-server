@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
@@ -71,7 +72,38 @@ func (h *WorkerAdminHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateWorkerRequest struct {
-	HWAccel string `json:"hwaccel"`
+	Threads *int    `json:"threads"`
+	HWAccel *string `json:"hwaccel"`
+}
+
+func (req *updateWorkerRequest) UnmarshalJSON(data []byte) error {
+	type Alias updateWorkerRequest
+	aux := &struct {
+		Threads interface{} `json:"threads"`
+		*Alias
+	}{
+		Alias: (*Alias)(req),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if aux.Threads != nil {
+		switch v := aux.Threads.(type) {
+		case float64:
+			tVal := int(v)
+			req.Threads = &tVal
+		case string:
+			var val int
+			if _, err := fmt.Sscanf(v, "%d", &val); err != nil {
+				return fmt.Errorf("invalid threads value: %w", err)
+			}
+			req.Threads = &val
+		default:
+			return fmt.Errorf("invalid threads type: expected number or string")
+		}
+	}
+	return nil
 }
 
 // @Summary Update Transcode Worker Settings
@@ -94,13 +126,32 @@ func (h *WorkerAdminHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existing, err := sqlite.GetWorkerByID(r.Context(), h.db, id)
+	if errors.Is(err, sqlite.ErrNotFound) {
+		respondError(w, http.StatusNotFound, "worker not found", err)
+		return
+	} else if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to fetch worker", err)
+		return
+	}
+
 	var req updateWorkerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
-	err = sqlite.UpdateWorkerSettings(r.Context(), h.db, id, 1, req.HWAccel)
+	threads := existing.Threads
+	if req.Threads != nil {
+		threads = *req.Threads
+	}
+
+	hwaccel := existing.HWAccel
+	if req.HWAccel != nil {
+		hwaccel = *req.HWAccel
+	}
+
+	err = sqlite.UpdateWorkerSettings(r.Context(), h.db, id, threads, hwaccel)
 	if errors.Is(err, sqlite.ErrNotFound) {
 		respondError(w, http.StatusNotFound, "worker not found", err)
 		return

@@ -39,8 +39,8 @@ func newTestRouter(t *testing.T, db *sql.DB) http.Handler {
 
 	r.Group(func(r chi.Router) {
 		r.Use(apimw.Authenticate(testSecret))
-		r.Get("/api/v1/me", userH.GetMe)
-		r.Put("/api/v1/me", userH.UpdateMe)
+		r.Get("/api/v1/users/me", userH.GetMe)
+		r.Put("/api/v1/users/me", userH.UpdateMe)
 	})
 
 	return r

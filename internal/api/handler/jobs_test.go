@@ -27,7 +27,7 @@ func TestEnqueueTranscode_Success(t *testing.T) {
 
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	mediaH := handler.NewMediaHandler(db)
 
 	r := chi.NewRouter()
@@ -89,7 +89,7 @@ func TestBulkEnqueueJobs_UnknownFilter(t *testing.T) {
 	db := openTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -120,7 +120,7 @@ func TestBulkEnqueueJobs_Untranscoded(t *testing.T) {
 	db := openTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -177,7 +177,7 @@ func TestBulkEnqueueJobs_FailedFilter(t *testing.T) {
 	db := openTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -243,7 +243,7 @@ func TestPrioritizeJob_StatusCodes(t *testing.T) {
 	db := openTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -312,7 +312,7 @@ func TestEnqueueTranscode_MediaNotFound(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	mpdCache := &dash.Cache{}
 	pool := transcoder.NewPool(db, 0, mpdCache, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -343,7 +343,7 @@ func TestListJobs_Empty(t *testing.T) {
 	db := openTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -379,7 +379,7 @@ func TestGetJob_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -412,7 +412,7 @@ func TestJobProgressWS_TerminalJob(t *testing.T) {
 
 	mpdCache := &dash.Cache{}
 	pool := transcoder.NewPool(db, 0, mpdCache, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -490,7 +490,7 @@ func TestBulkEnqueueJobs_CompletedFilter(t *testing.T) {
 	db := openTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	pool := transcoder.NewPool(db, 0, &dash.Cache{}, nil)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
 
@@ -548,7 +548,7 @@ func TestEnqueueTranscode_Force(t *testing.T) {
 
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 
 	r := chi.NewRouter()
 	r.Use(chimw.Recoverer)
@@ -611,7 +611,7 @@ func TestCancelJob(t *testing.T) {
 
 	authH := handler.NewAuthHandler(db, testSecret)
 	userH := handler.NewUsersHandler(db, testSecret)
-	jobsH := handler.NewJobsHandler(db, pool)
+	jobsH := handler.NewJobsHandler(db, pool, nil)
 
 	r := chi.NewRouter()
 	r.Use(chimw.Recoverer)

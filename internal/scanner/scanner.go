@@ -271,22 +271,26 @@ func (s *Scanner) upsertFile(ctx context.Context, path string, isManual bool) er
 			}
 			if existing.MediaType == models.MediaTypeEpisode {
 				if existing.TVShowID != nil && existing.TVSeasonID != nil {
-					s.queueTask(&enrichTVEpisodeTask{
+					if s.enricher != nil {
+						s.queueTask(&enrichTVEpisodeTask{
+							enricher: s.enricher,
+							db:       s.db,
+							bus:      s.eventBus,
+							item:     existing,
+							showID:   *existing.TVShowID,
+							seasonID: *existing.TVSeasonID,
+						})
+					}
+				}
+			} else {
+				if s.enricher != nil {
+					s.queueTask(&enrichItemTask{
 						enricher: s.enricher,
 						db:       s.db,
 						bus:      s.eventBus,
 						item:     existing,
-						showID:   *existing.TVShowID,
-						seasonID: *existing.TVSeasonID,
 					})
 				}
-			} else {
-				s.queueTask(&enrichItemTask{
-					enricher: s.enricher,
-					db:       s.db,
-					bus:      s.eventBus,
-					item:     existing,
-				})
 			}
 		}
 
@@ -341,12 +345,14 @@ func (s *Scanner) upsertFile(ctx context.Context, path string, isManual bool) er
 			bus:  s.eventBus,
 			item: item,
 		})
-		s.queueTask(&enrichItemTask{
-			enricher: s.enricher,
-			db:       s.db,
-			bus:      s.eventBus,
-			item:     item,
-		})
+		if s.enricher != nil {
+			s.queueTask(&enrichItemTask{
+				enricher: s.enricher,
+				db:       s.db,
+				bus:      s.eventBus,
+				item:     item,
+			})
+		}
 	}
 	return nil
 }
@@ -390,14 +396,16 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 				_ = sqlite.UpdateMediaEnrichmentStatus(ctx, s.db, existing.ID, models.EnrichmentStatusPending)
 				existing.EnrichmentStatus = models.EnrichmentStatusPending
 			}
-			s.queueTask(&enrichTVEpisodeTask{
-				enricher: s.enricher,
-				db:       s.db,
-				bus:      s.eventBus,
-				item:     existing,
-				showID:   *existing.TVShowID,
-				seasonID: *existing.TVSeasonID,
-			})
+			if s.enricher != nil {
+				s.queueTask(&enrichTVEpisodeTask{
+					enricher: s.enricher,
+					db:       s.db,
+					bus:      s.eventBus,
+					item:     existing,
+					showID:   *existing.TVShowID,
+					seasonID: *existing.TVSeasonID,
+				})
+			}
 		}
 
 		return nil
@@ -493,14 +501,16 @@ func (s *Scanner) upsertTVEpisodeFile(ctx context.Context, path string, fileSize
 			bus:  s.eventBus,
 			item: item,
 		})
-		s.queueTask(&enrichTVEpisodeTask{
-			enricher: s.enricher,
-			db:       s.db,
-			bus:      s.eventBus,
-			item:     item,
-			showID:   show.ID,
-			seasonID: season.ID,
-		})
+		if s.enricher != nil {
+			s.queueTask(&enrichTVEpisodeTask{
+				enricher: s.enricher,
+				db:       s.db,
+				bus:      s.eventBus,
+				item:     item,
+				showID:   show.ID,
+				seasonID: season.ID,
+			})
+		}
 	}
 	return nil
 }
@@ -550,22 +560,26 @@ func (s *Scanner) processDeduplicationAndLinking(ctx context.Context, path strin
 			if err == nil && updated != nil {
 				if updated.MediaType == models.MediaTypeEpisode {
 					if updated.TVShowID != nil && updated.TVSeasonID != nil {
-						s.queueTask(&enrichTVEpisodeTask{
+						if s.enricher != nil {
+							s.queueTask(&enrichTVEpisodeTask{
+								enricher: s.enricher,
+								db:       s.db,
+								bus:      s.eventBus,
+								item:     updated,
+								showID:   *updated.TVShowID,
+								seasonID: *updated.TVSeasonID,
+							})
+						}
+					}
+				} else {
+					if s.enricher != nil {
+						s.queueTask(&enrichItemTask{
 							enricher: s.enricher,
 							db:       s.db,
 							bus:      s.eventBus,
 							item:     updated,
-							showID:   *updated.TVShowID,
-							seasonID: *updated.TVSeasonID,
 						})
 					}
-				} else {
-					s.queueTask(&enrichItemTask{
-						enricher: s.enricher,
-						db:       s.db,
-						bus:      s.eventBus,
-						item:     updated,
-					})
 				}
 			}
 			return true, nil

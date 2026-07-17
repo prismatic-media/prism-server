@@ -12,7 +12,6 @@ import (
 	"github.com/prismatic-media/prism-server/internal/store/sqlite"
 )
 
-
 func TestCreateTranscodeJob(t *testing.T) {
 	db := openTestDB(t)
 	lib := newLib("/l", models.MediaTypeMovie)
@@ -522,7 +521,6 @@ func TestUniqueTranscodeJobConstraint(t *testing.T) {
 	}
 }
 
-
 func TestBulkEnqueueCompleted(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
@@ -661,14 +659,23 @@ func TestClaimNextSubJob_Pinning(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Now that w1 is inactive, w2 should be allowed to claim a sub-job of j1 (since pinning is ignored
+	// Create w3 to claim the job. w2 is still pinned to j2, but w3 is free of any pinning.
+	w3, err := sqlite.CreateWorker(ctx, db, "Worker3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE transcode_workers SET last_heartbeat = ?, status = 'idle' WHERE id = ?", nowStr, w3.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now that w1 is inactive, w3 should be allowed to claim a sub-job of j1 (since pinning is ignored
 	// and j1 has priority).
-	claimed4, err := sqlite.ClaimNextSubJob(ctx, db, &w2.ID)
+	claimed4, err := sqlite.ClaimNextSubJob(ctx, db, &w3.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if claimed4 == nil || claimed4.JobID != j1.ID {
-		t.Fatalf("expected w2 to claim from j1 after w1 went inactive, got: %+v", claimed4)
+		t.Fatalf("expected w3 to claim from j1 after w1 went inactive, got: %+v", claimed4)
 	}
 }
 
@@ -764,7 +771,7 @@ func TestClaimNextSubJob_LocalWorkerPinningAndExhaustion(t *testing.T) {
 
 func TestCreateTranscodeJob_CapsBitrateSmart(t *testing.T) {
 	db := openTestDB(t)
-	
+
 	// Activate H.264 and AV1 profiles to verify relative scaling
 	_, err := db.Exec("UPDATE transcode_profiles SET is_active = 1 WHERE name IN ('360p', '360p (AV1)')")
 	if err != nil {
@@ -870,7 +877,8 @@ func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	lib := newLib("/l", models.MediaTypeTV)
+	// Ensure library has TVShow media type
+	lib := newLib("/l", models.MediaTypeTVShow)
 	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
 		t.Fatal(err)
 	}
@@ -879,11 +887,11 @@ func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
 	show := &models.TVShow{
 		ID:        uuid.New(),
 		LibraryID: lib.ID,
-		Title:     "Test Show",
+		Name:      "Test Show",
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}
-	if err := sqlite.CreateTVShow(ctx, db, show); err != nil {
+	if err := sqlite.UpsertTVShow(ctx, db, show); err != nil {
 		t.Fatal(err)
 	}
 
@@ -892,24 +900,25 @@ func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
 		ID:           uuid.New(),
 		TVShowID:     show.ID,
 		SeasonNumber: 1,
-		Title:        "Season 1",
 		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now().UTC(),
 	}
-	if err := sqlite.CreateTVSeason(ctx, db, season1); err != nil {
+	if err := sqlite.UpsertTVSeason(ctx, db, season1); err != nil {
 		t.Fatal(err)
 	}
 	season2 := &models.TVSeason{
 		ID:           uuid.New(),
 		TVShowID:     show.ID,
 		SeasonNumber: 2,
-		Title:        "Season 2",
 		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now().UTC(),
 	}
-	if err := sqlite.CreateTVSeason(ctx, db, season2); err != nil {
+	if err := sqlite.UpsertTVSeason(ctx, db, season2); err != nil {
 		t.Fatal(err)
 	}
+
+	e1 := 1
+	e2 := 2
 
 	// Create episodes in reverse order of how they should be processed
 	epS2E1 := &models.MediaItem{
@@ -921,7 +930,7 @@ func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
 		TVShowID:      &show.ID,
 		TVSeasonID:    &season2.ID,
 		SeasonNumber:  &season2.SeasonNumber,
-		EpisodeNumber: 1,
+		EpisodeNumber: &e1,
 	}
 	epS1E2 := &models.MediaItem{
 		ID:            uuid.New(),
@@ -932,7 +941,7 @@ func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
 		TVShowID:      &show.ID,
 		TVSeasonID:    &season1.ID,
 		SeasonNumber:  &season1.SeasonNumber,
-		EpisodeNumber: 2,
+		EpisodeNumber: &e2,
 	}
 	epS1E1 := &models.MediaItem{
 		ID:            uuid.New(),
@@ -943,7 +952,7 @@ func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
 		TVShowID:      &show.ID,
 		TVSeasonID:    &season1.ID,
 		SeasonNumber:  &season1.SeasonNumber,
-		EpisodeNumber: 1,
+		EpisodeNumber: &e1,
 	}
 
 	for _, ep := range []*models.MediaItem{epS2E1, epS1E2, epS1E1} {
@@ -954,7 +963,7 @@ func TestClaimNextSubJob_RespectsShowEpisodeOrder(t *testing.T) {
 
 	// We manually create transcode jobs with identical created_at times to force fallback sorting
 	now := time.Now().UTC()
-	
+
 	// Create jobs in database
 	jS2E1 := &models.TranscodeJob{MediaItemID: epS2E1.ID, CreatedAt: now}
 	jS1E2 := &models.TranscodeJob{MediaItemID: epS1E2.ID, CreatedAt: now}
@@ -1069,7 +1078,3 @@ func TestClaimNextSubJob_NoInterleaving(t *testing.T) {
 		t.Fatalf("expected local worker to claim subsequent sub-job from j1, got %+v", cLocal2)
 	}
 }
-
-
-
-

@@ -348,9 +348,23 @@ func TestEnricher_Movie_TitleOverwrite(t *testing.T) {
 		}},
 	})
 
+	movieDetailResp, _ := json.Marshal(map[string]any{
+		"id":           float64(27205),
+		"title":        "Inception (Official TMDB Title)",
+		"release_date": "2010-07-16",
+		"overview":     "Overview...",
+		"poster_path":  "",
+	})
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(movieResp)
+		if r.URL.Path == "/search/movie" {
+			_, _ = w.Write(movieResp)
+		} else if r.URL.Path == "/movie/27205" {
+			_, _ = w.Write(movieDetailResp)
+		} else {
+			http.Error(w, "not found", http.StatusNotFound)
+		}
 	}))
 	defer srv.Close()
 

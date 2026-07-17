@@ -581,8 +581,8 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		_ = sqlite.UpdateSubJobStatus(r.Context(), h.db, subJob.ID, models.TranscodeStatusDone, nil)
 		_ = sqlite.UpdateSubJobProgress(r.Context(), h.db, subJob.ID, 100)
+		_ = sqlite.UpdateSubJobStatus(r.Context(), h.db, subJob.ID, models.TranscodeStatusDone, nil)
 
 		if h.pool.OnWhisperDone != nil {
 			h.pool.OnWhisperDone(r.Context(), subJob.MediaItemID)
@@ -629,8 +629,8 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Update sub-job status to Done
-	_ = sqlite.UpdateSubJobStatus(r.Context(), h.db, subJob.ID, models.TranscodeStatusDone, nil)
 	_ = sqlite.UpdateSubJobProgress(r.Context(), h.db, subJob.ID, 100)
+	_ = sqlite.UpdateSubJobStatus(r.Context(), h.db, subJob.ID, models.TranscodeStatusDone, nil)
 
 	// Regenerate manifest based on completed sub-jobs
 	if err := transcoder.RegenerateManifestForJob(r.Context(), h.db, subJob.JobID, outputDir); err != nil {

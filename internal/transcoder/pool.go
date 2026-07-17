@@ -813,11 +813,11 @@ func (p *Pool) process(parentCtx context.Context, j *models.TranscodeSubJob) {
 		return
 	}
 
-	if err := sqlite.UpdateSubJobStatus(ctx, p.db, j.ID, models.TranscodeStatusDone, nil); err != nil {
-		log.Warn("could not mark sub-job done", "error", err)
-	}
 	if err := sqlite.UpdateSubJobProgress(ctx, p.db, j.ID, 100); err != nil {
 		log.Warn("could not set sub-job final progress", "error", err)
+	}
+	if err := sqlite.UpdateSubJobStatus(ctx, p.db, j.ID, models.TranscodeStatusDone, nil); err != nil {
+		log.Warn("could not mark sub-job done", "error", err)
 	}
 
 	if err := RegenerateManifestForJob(ctx, p.db, j.JobID, outputDir); err != nil {

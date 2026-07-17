@@ -385,7 +385,7 @@ func TestScanner_FileMove_ClearsTMDBAndTriggersEnrichment(t *testing.T) {
 		t.Errorf("expected FilePath to be updated to new name, got %s", updated.FilePath)
 	}
 
-	if updated.Title != "new_name" {
+	if updated.Title != "new name" {
 		t.Errorf("expected Title to be updated to parsed filename title, got %s", updated.Title)
 	}
 
