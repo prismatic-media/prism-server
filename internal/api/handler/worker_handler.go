@@ -697,7 +697,9 @@ func unzipFile(src string, dest string) error {
 	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
-		fpath := filepath.Join(dest, f.Name)
+		// Normalize backslashes to forward slashes for cross-platform compatibility
+		normalizedName := strings.ReplaceAll(f.Name, "\\", "/")
+		fpath := filepath.Join(dest, normalizedName)
 
 		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
 			return fmt.Errorf("%s: illegal file path (zip slip security violation)", f.Name)

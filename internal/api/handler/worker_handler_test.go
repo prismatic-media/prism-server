@@ -495,3 +495,49 @@ func TestWorkerAdminCRUD(t *testing.T) {
 		t.Errorf("expected empty list, got %+v", emptyList)
 	}
 }
+
+func TestUnzipFileBackslashNormalization(t *testing.T) {
+	tempDir := t.TempDir()
+	zipPath := filepath.Join(tempDir, "test.zip")
+
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zipFile.Close()
+
+	zw := zip.NewWriter(zipFile)
+	// Create a entry with a backslash
+	f, err := zw.Create("1080p\\seg_00003.m4s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.Write([]byte("segment data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw.Close()
+	zipFile.Close()
+
+	destDir := filepath.Join(tempDir, "extracted")
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := unzipFile(zipPath, destDir); err != nil {
+		t.Fatalf("unzipFile failed: %v", err)
+	}
+
+	// Verify that the file is in the directory "1080p" as "seg_00003.m4s"
+	expectedPath := filepath.Join(destDir, "1080p", "seg_00003.m4s")
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Errorf("expected file to exist at %s, but it was not found", expectedPath)
+	}
+
+	// Verify that a file with backslash in its name does not exist directly in destDir
+	badPath := filepath.Join(destDir, "1080p\\seg_00003.m4s")
+	if _, err := os.Stat(badPath); err == nil {
+		t.Errorf("found unexpected file with backslash in name: %s", badPath)
+	}
+}
+
