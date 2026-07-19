@@ -6,6 +6,8 @@
 
 Prism is a high-performance, self-hosted media server built from the ground up for **browser-native MPEG-DASH adaptive bitrate streaming**. Unlike traditional media servers, Prism pre-transcodes media into static, highly cacheable segmented fMP4 streams, delivering instant startup times, smooth adaptive resolution changes, and zero playback-time CPU overhead on the main server.
 
+Beyond this, Prism is an experiment. Every line of code in the prism ecosystem has been written by AI. At least 99% has been written by Sonnet 4.6 or Gemini 3.5 Flash, with Opus 4.6 occasionally used for planning. The goal of the project is to demonstrate what's possible (and what isn't) with current AI code generation tools, specifically without significant help from the most powerful (a.k.a. expensive) frontier models.
+
 ---
 
 ## ⚡ Why Choose Prism over Plex or Jellyfin?

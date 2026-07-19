@@ -59,6 +59,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 	profilesH := handler.NewProfilesHandler(db)
 	workerH := handler.NewWorkerHandler(db, pool, bus)
 	workerAdminH := handler.NewWorkerAdminHandler(db)
+	downloadH := handler.NewDownloadHandler(db)
 	// Artifact admin handler for indexing and relinking.
 	artifactIndexer := scanner.NewIndexer(db, bus)
 	artifactH := handler.NewArtifactHandler(db, artifactIndexer)
@@ -152,6 +153,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 
 			// Shared media operations (Phase 5 / Phase 2)
 			r.Get("/media/{media_id}/transcode-sizes", mediaH.GetTranscodeSizes)
+			r.Get("/stream/{media_id}/renditions/{quality}", downloadH.ListRenditionSegments)
 
 			// Subtitles (polymorphic)
 			r.Get("/media/{media_id}/subtitles", mediaH.ListSubtitles)
