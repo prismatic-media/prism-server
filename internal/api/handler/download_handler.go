@@ -105,7 +105,7 @@ func (h *DownloadHandler) ListRenditionSegments(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	var segments []SegmentInfo
+	segments := []SegmentInfo{}
 	var totalSize int64
 
 	for _, entry := range entries {
@@ -123,7 +123,7 @@ func (h *DownloadHandler) ListRenditionSegments(w http.ResponseWriter, r *http.R
 		totalSize += info.Size()
 	}
 
-	var subtitles []SubtitleInfo
+	subtitles := []SubtitleInfo{}
 	uploadedSubs, _ := sqlite.ListMediaSubtitles(r.Context(), h.db, item.ID)
 
 	parentEntries, err := os.ReadDir(outputDir)

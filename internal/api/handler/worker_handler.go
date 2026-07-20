@@ -537,7 +537,7 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := unzipFile(tempFile.Name(), outputDir); err != nil {
+	if err := UnzipFile(tempFile.Name(), outputDir); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to extract transcode zip", err)
 		return
 	}
@@ -689,7 +689,7 @@ func (h *WorkerHandler) UploadSubJobBundle(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func unzipFile(src string, dest string) error {
+func UnzipFile(src string, dest string) error {
 	r, err := zip.OpenReader(src)
 	if err != nil {
 		return err

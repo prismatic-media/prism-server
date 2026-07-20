@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -157,6 +158,39 @@ func TestListRenditionSegments(t *testing.T) {
 		}
 		if resp.Subtitles[0].Label != "English" {
 			t.Fatalf("expected label English, got %s", resp.Subtitles[0].Label)
+		}
+	})
+
+	t.Run("NoSubtitles_SerializedAsEmptyArray", func(t *testing.T) {
+		tempDir := t.TempDir()
+		mpdPath := filepath.Join(tempDir, "manifest.mpd")
+		_ = os.WriteFile(mpdPath, []byte("<MPD></MPD>"), 0644)
+
+		qualityDir := filepath.Join(tempDir, "720p")
+		_ = os.MkdirAll(qualityDir, 0755)
+		_ = os.WriteFile(filepath.Join(qualityDir, "init.mp4"), []byte("init content"), 0644)
+
+		mediaItem := &models.MediaItem{
+			LibraryID:       lib.ID,
+			Title:           "No Subs Movie",
+			MediaType:       models.MediaTypeMovie,
+			FilePath:        "no_subs.mp4",
+			SourceStatus:    "available",
+			TranscodeStatus: models.TranscodeStatusDone,
+			MPDPath:         &mpdPath,
+		}
+		if err := sqlite.UpsertMediaItem(context.Background(), db, mediaItem); err != nil {
+			t.Fatalf("failed to create media item: %v", err)
+		}
+
+		rec := do(t, router, http.MethodGet, "/api/v1/stream/"+mediaItem.ID.String()+"/renditions/720p", nil, headers)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		bodyStr := rec.Body.String()
+		if !strings.Contains(bodyStr, `"subtitles":[]`) {
+			t.Fatalf("expected JSON body to contain '\"subtitles\":[]', got: %s", bodyStr)
 		}
 	})
 }

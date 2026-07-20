@@ -504,7 +504,7 @@ func TestUnzipFileBackslashNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer zipFile.Close()
+	defer func() { _ = zipFile.Close() }()
 
 	zw := zip.NewWriter(zipFile)
 	// Create a entry with a backslash
@@ -516,16 +516,16 @@ func TestUnzipFileBackslashNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zw.Close()
-	zipFile.Close()
+	_ = zw.Close()
+	_ = zipFile.Close()
 
 	destDir := filepath.Join(tempDir, "extracted")
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := unzipFile(zipPath, destDir); err != nil {
-		t.Fatalf("unzipFile failed: %v", err)
+	if err := handler.UnzipFile(zipPath, destDir); err != nil {
+		t.Fatalf("UnzipFile failed: %v", err)
 	}
 
 	// Verify that the file is in the directory "1080p" as "seg_00003.m4s"
