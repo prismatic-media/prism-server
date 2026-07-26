@@ -253,6 +253,66 @@ func (c *Client) DownloadPoster(ctx context.Context, posterPath, destDir string)
 	return localPath, nil
 }
 
+// DownloadActorImage downloads a TMDB actor profile photo (e.g. "/z313...jpg" or "https://image.tmdb.org/t/p/w185/z313...jpg") into
+// destDir with an "actor_" prefix, returning the server-relative profile path "/api/v1/actors/image/{filename}".
+func (c *Client) DownloadActorImage(ctx context.Context, profilePath, destDir string) (string, error) {
+	if profilePath == "" {
+		return "", nil
+	}
+
+	cleanName := profilePath
+	if idx := strings.LastIndex(cleanName, "/"); idx != -1 {
+		cleanName = cleanName[idx+1:]
+	}
+	if cleanName == "" {
+		return "", nil
+	}
+
+	serverPath := "/api/v1/actors/image/" + cleanName
+	localName := "actor_" + cleanName
+	localPath := filepath.Join(destDir, localName)
+
+	if _, err := os.Stat(localPath); err == nil {
+		return serverPath, nil
+	}
+
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", fmt.Errorf("creating thumbs dir: %w", err)
+	}
+
+	baseURL := c.imageURL
+	if baseURL == "" {
+		baseURL = tmdbImageURL
+	}
+	imageURL := strings.TrimSuffix(baseURL, "/") + "/" + cleanName
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
+	if err != nil {
+		return "", err
+	}
+	slog.Info("TMDB GET actor image", "url", imageURL)
+	resp, err := c.do(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("TMDB image server: HTTP %d", resp.StatusCode)
+	}
+
+	f, err := os.Create(localPath)
+	if err != nil {
+		return "", fmt.Errorf("creating actor image file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		return "", fmt.Errorf("writing actor image: %w", err)
+	}
+
+	return serverPath, nil
+}
+
 // do wraps httpClient.Do and enforces TMDB API rate limits if a limiter is set.
 func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if strings.HasPrefix(req.URL.String(), c.baseURL) {
@@ -462,8 +522,9 @@ func (c *Client) GetMovieDetails(ctx context.Context, tmdbID int) (*TMDBMovieDet
 		for i := 0; i < castCount; i++ {
 			cMember := raw.Credits.Cast[i]
 			profileURL := ""
-			if cMember.ProfilePath != nil {
-				profileURL = "https://image.tmdb.org/t/p/w185" + *cMember.ProfilePath
+			if cMember.ProfilePath != nil && *cMember.ProfilePath != "" {
+				cleanName := strings.TrimPrefix(*cMember.ProfilePath, "/")
+				profileURL = "/api/v1/actors/image/" + cleanName
 			}
 			details.Cast = append(details.Cast, models.CastMember{
 				Name:        cMember.Name,
@@ -585,8 +646,9 @@ func (c *Client) GetTVDetails(ctx context.Context, tmdbID int) (*TMDBTVDetails, 
 		for i := 0; i < castCount; i++ {
 			cMember := raw.Credits.Cast[i]
 			profileURL := ""
-			if cMember.ProfilePath != nil {
-				profileURL = "https://image.tmdb.org/t/p/w185" + *cMember.ProfilePath
+			if cMember.ProfilePath != nil && *cMember.ProfilePath != "" {
+				cleanName := strings.TrimPrefix(*cMember.ProfilePath, "/")
+				profileURL = "/api/v1/actors/image/" + cleanName
 			}
 			details.Cast = append(details.Cast, models.CastMember{
 				Name:        cMember.Name,

@@ -62,6 +62,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *models.MediaItem) {
 		return
 	}
 	if item.TMDBId != nil {
+		e.backfillItemCastImages(ctx, item)
 		return
 	}
 	if item.MediaType == models.MediaTypeEpisode {
@@ -226,6 +227,15 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *models.MediaItem) {
 		}
 		director = details.Director
 		cast = details.Cast
+		if td := e.thumbsDir(ctx); td != "" {
+			for i := range cast {
+				if cast[i].ProfilePath != "" {
+					if serverPath, err := c.DownloadActorImage(ctx, cast[i].ProfilePath, td); err == nil && serverPath != "" {
+						cast[i].ProfilePath = serverPath
+					}
+				}
+			}
+		}
 		if err := sqlite.UpdateMediaMetadata(
 			ctx, e.db, item.ID, details.Title,
 			details.ID, details.Year, details.Overview, localPoster,
@@ -253,6 +263,7 @@ func (e *Enricher) EnrichTVShow(ctx context.Context, show *models.TVShow) {
 		return
 	}
 	if show.TMDBId != nil {
+		e.backfillTVShowCastImages(ctx, show)
 		return
 	}
 
@@ -335,6 +346,15 @@ func (e *Enricher) EnrichTVShow(ctx context.Context, show *models.TVShow) {
 		}
 		director = details.Director
 		cast = details.Cast
+		if td := e.thumbsDir(ctx); td != "" {
+			for i := range cast {
+				if cast[i].ProfilePath != "" {
+					if serverPath, err := c.DownloadActorImage(ctx, cast[i].ProfilePath, td); err == nil && serverPath != "" {
+						cast[i].ProfilePath = serverPath
+					}
+				}
+			}
+		}
 		if err := sqlite.UpdateTVShowMetadata(
 			ctx, e.db, show.ID, details.Name,
 			details.ID, details.Year, details.Overview, localPoster,
@@ -475,5 +495,103 @@ func (e *Enricher) EnrichTVEpisode(ctx context.Context, item *models.MediaItem, 
 
 	if err := sqlite.UpdateMediaMetadata(ctx, e.db, item.ID, epResult.Name, epResult.ID, epResult.AirYear, epResult.Overview, localStill, "", nil, "", nil); err != nil {
 		slog.Warn("storing episode metadata failed", "id", item.ID, "error", err)
+	}
+}
+
+func (e *Enricher) backfillItemCastImages(ctx context.Context, item *models.MediaItem) {
+	if len(item.Cast) == 0 {
+		return
+	}
+	c := e.client(ctx)
+	td := e.thumbsDir(ctx)
+	if c == nil || td == "" {
+		return
+	}
+	updated := false
+	castCopy := make([]models.CastMember, len(item.Cast))
+	copy(castCopy, item.Cast)
+	for i := range castCopy {
+		if castCopy[i].ProfilePath != "" {
+			serverPath, err := c.DownloadActorImage(ctx, castCopy[i].ProfilePath, td)
+			if err == nil && serverPath != "" && serverPath != castCopy[i].ProfilePath {
+				castCopy[i].ProfilePath = serverPath
+				updated = true
+			}
+		}
+	}
+	if updated {
+		var tmdbID, year int
+		if item.TMDBId != nil {
+			tmdbID = *item.TMDBId
+		}
+		if item.Year != nil {
+			year = *item.Year
+		}
+		overview := ""
+		if item.Overview != nil {
+			overview = *item.Overview
+		}
+		posterPath := ""
+		if item.PosterPath != nil {
+			posterPath = *item.PosterPath
+		}
+		director := ""
+		if item.Director != nil {
+			director = *item.Director
+		}
+		backdropPath := ""
+		if item.BackdropPath != nil {
+			backdropPath = *item.BackdropPath
+		}
+		_ = sqlite.UpdateMediaMetadata(ctx, e.db, item.ID, item.Title, tmdbID, year, overview, posterPath, director, castCopy, backdropPath, item.ExtraPosters)
+	}
+}
+
+func (e *Enricher) backfillTVShowCastImages(ctx context.Context, show *models.TVShow) {
+	if len(show.Cast) == 0 {
+		return
+	}
+	c := e.client(ctx)
+	td := e.thumbsDir(ctx)
+	if c == nil || td == "" {
+		return
+	}
+	updated := false
+	castCopy := make([]models.CastMember, len(show.Cast))
+	copy(castCopy, show.Cast)
+	for i := range castCopy {
+		if castCopy[i].ProfilePath != "" {
+			serverPath, err := c.DownloadActorImage(ctx, castCopy[i].ProfilePath, td)
+			if err == nil && serverPath != "" && serverPath != castCopy[i].ProfilePath {
+				castCopy[i].ProfilePath = serverPath
+				updated = true
+			}
+		}
+	}
+	if updated {
+		var tmdbID, year int
+		if show.TMDBId != nil {
+			tmdbID = *show.TMDBId
+		}
+		if show.FirstAirYear != nil {
+			year = *show.FirstAirYear
+		}
+		overview := ""
+		if show.Overview != nil {
+			overview = *show.Overview
+		}
+		posterPath := ""
+		if show.PosterPath != nil {
+			posterPath = *show.PosterPath
+		}
+		director := ""
+		if show.Director != nil {
+			director = *show.Director
+		}
+		backdropPath := ""
+		if show.BackdropPath != nil {
+			backdropPath = *show.BackdropPath
+		}
+		_ = sqlite.UpdateTVShowMetadata(ctx, e.db, show.ID, show.Name, tmdbID, year, overview, posterPath, director, castCopy, backdropPath, show.ExtraPosters)
 	}
 }

@@ -30,6 +30,8 @@ export interface Movie {
 
 import { AlphabetRailComponent } from '../shared/alphabet-rail/alphabet-rail.component';
 
+import { PLACEHOLDER_POSTER } from '../placeholder';
+
 @Component({
   selector: 'app-movies',
   standalone: true,
@@ -129,7 +131,7 @@ export class MoviesComponent implements OnInit, OnDestroy {
       return `/api/v1/media/${movie.id}/poster`;
     }
     // Fallback poster
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   getDirector(movie: Movie): string {

@@ -264,7 +264,7 @@
             >
               <img
                 *ngIf="member.profile_path"
-                [src]="member.profile_path"
+                [src]="getActorProfileUrl(member)"
                 alt=""
                 class="bento-cast-avatar"
               />
@@ -606,7 +606,7 @@
           >
             <img
               *ngIf="member.profile_path"
-              [src]="member.profile_path"
+              [src]="getActorProfileUrl(member)"
               alt=""
               class="bento-cast-avatar"
             />

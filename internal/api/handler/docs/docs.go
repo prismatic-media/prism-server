@@ -35,6 +35,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/actors/image/{filename}": {
+            "get": {
+                "description": "Serve the cached headshot image file for an actor by filename.",
+                "produces": [
+                    "image/*"
+                ],
+                "tags": [
+                    "Actors"
+                ],
+                "summary": "Serve Actor Image",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Actor profile filename",
+                        "name": "filename",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Actor image file",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid filename",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Actor image file not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/artifacts": {
             "get": {
                 "security": [
@@ -3232,6 +3279,84 @@ const docTemplate = `{
                 }
             }
         },
+        "/stream/{media_id}/renditions/{quality}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a checklist of individual segment paths and subtitle files for a specific rendition quality to download offline.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media Streaming"
+                ],
+                "summary": "List Rendition Segments for Download",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Media ID",
+                        "name": "media_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Rendition Quality",
+                        "name": "quality",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "schema": {
+                            "$ref": "#/definitions/handler.RenditionListingResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid media ID or parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Media item or rendition quality not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/stream/{media_id}/segments/{wildcard}": {
             "get": {
                 "security": [
@@ -5102,6 +5227,63 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.RenditionListingResponse": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "type": "number"
+                },
+                "media_id": {
+                    "type": "string"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "segments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.SegmentInfo"
+                    }
+                },
+                "subtitles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.SubtitleInfo"
+                    }
+                },
+                "total_size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.SegmentInfo": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.SubtitleInfo": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.SyncSubtitleRequest": {
             "type": "object",
             "properties": {
@@ -5426,6 +5608,9 @@ const docTemplate = `{
             "properties": {
                 "hwaccel": {
                     "type": "string"
+                },
+                "threads": {
+                    "type": "integer"
                 }
             }
         },

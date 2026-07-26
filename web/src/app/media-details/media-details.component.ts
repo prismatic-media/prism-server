@@ -8,6 +8,7 @@ import { AuthService } from '../auth.service';
 import { EventService } from '../event.service';
 import { CastService } from '../cast.service';
 import { CacheService } from '../cache.service';
+import { PLACEHOLDER_POSTER, PLACEHOLDER_BACKDROP } from '../placeholder';
 
 export interface Movie {
   id: string;
@@ -413,21 +414,37 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         return `/api/v1/tv-shows/${this.tvShow.id}/poster`;
       }
     }
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   getSeasonPosterUrl(season: TVSeason): string {
     if (season && season.poster_path && this.tvShow) {
       return `/api/v1/tv-shows/${this.tvShow.id}/seasons/${season.season_number}/poster`;
     }
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   getEpisodeStillUrl(ep: Episode): string {
     if (ep && ep.poster_path) {
       return `/api/v1/media/${ep.id}/poster`;
     }
-    return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
+  }
+
+  getActorProfileUrl(member: { profile_path?: string }): string {
+    if (!member || !member.profile_path) return '';
+    const path = member.profile_path.trim();
+    if (path.startsWith('/api/')) {
+      return path;
+    }
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      const idx = path.lastIndexOf('/');
+      if (idx !== -1) {
+        return `/api/v1/actors/image/${path.substring(idx + 1)}`;
+      }
+    }
+    const clean = path.replace(/^\//, '');
+    return `/api/v1/actors/image/${clean}`;
   }
 
   getBackLabel(): string {
@@ -605,7 +622,7 @@ export class MediaDetailsComponent implements OnInit, OnDestroy {
         return `/api/v1/tv-shows/${this.tvShow.id}/backdrop`;
       }
     }
-    return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=1600&auto=format&fit=crop';
+    return PLACEHOLDER_BACKDROP;
   }
 
   getExtraPosterUrls(): string[] {

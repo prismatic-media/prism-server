@@ -1,6 +1,7 @@
 import { Injectable, inject, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Subject } from 'rxjs';
+import { PLACEHOLDER_POSTER } from './placeholder';
 
 @Injectable({
   providedIn: 'root',
@@ -395,8 +396,7 @@ export class CastService {
             posterUrl = `${window.location.origin}/api/v1/tv-shows/${mediaItem.id}/poster`;
           }
         } else {
-          posterUrl =
-            'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+          posterUrl = PLACEHOLDER_POSTER;
         }
         metadata.images = [{ url: posterUrl }];
         mediaInfo.metadata = metadata;
@@ -601,8 +601,7 @@ export class CastService {
           posterUrl = `${window.location.origin}/api/v1/tv-shows/${mediaItem.id}/poster`;
         }
       } else {
-        posterUrl =
-          'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+        posterUrl = PLACEHOLDER_POSTER;
       }
 
       let backdropUrl = '';

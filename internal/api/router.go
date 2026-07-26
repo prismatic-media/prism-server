@@ -59,6 +59,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 	profilesH := handler.NewProfilesHandler(db)
 	workerH := handler.NewWorkerHandler(db, pool, bus)
 	workerAdminH := handler.NewWorkerAdminHandler(db)
+	actorH := handler.NewActorHandler(db)
 	downloadH := handler.NewDownloadHandler(db)
 	// Artifact admin handler for indexing and relinking.
 	artifactIndexer := scanner.NewIndexer(db, bus)
@@ -108,7 +109,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 		// OptionalAuthenticate populates claims if a valid token is present.
 		r.With(apimw.OptionalAuthenticate(rs.JWTSecret)).Post("/users", userH.CreateUser)
 
-		// Poster and backdrop images are served unauthenticated so <img> tags work without
+		// Poster, backdrop, and actor images are served unauthenticated so <img> tags work without
 		// custom headers.
 		r.Get("/media/{media_id}/poster", mediaH.ServePoster)
 		r.Get("/media/{media_id}/backdrop", mediaH.ServeBackdrop)
@@ -117,6 +118,7 @@ func NewRouter(rs *config.RuntimeSettings, db *sql.DB, enricher *metadata.Enrich
 		r.Get("/tv-shows/{id}/backdrop", tvH.ServeShowBackdrop)
 		r.Get("/tv-shows/{id}/extra-posters/{index}", tvH.ServeShowExtraPoster)
 		r.Get("/tv-shows/{id}/seasons/{number}/poster", tvH.ServeSeasonPoster)
+		r.Get("/actors/image/{filename}", actorH.ServeActorImage)
 
 		// Streaming (Phase 5) — AuthenticateStream also accepts ?cast_token=
 		// so Chromecast devices can fetch manifests and segments without

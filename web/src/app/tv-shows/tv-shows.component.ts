@@ -48,6 +48,8 @@ export interface Episode {
 
 import { AlphabetRailComponent } from '../shared/alphabet-rail/alphabet-rail.component';
 
+import { PLACEHOLDER_POSTER } from '../placeholder';
+
 @Component({
   selector: 'app-tv-shows',
   standalone: true,
@@ -127,7 +129,7 @@ export class TVShowsComponent implements OnInit, OnDestroy {
     if (show.poster_path) {
       return `/api/v1/tv-shows/${show.id}/poster`;
     }
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   trackByShowId(index: number, show: TVShow): string {

@@ -8,6 +8,7 @@ import { Router } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
 import { EventService } from '../event.service';
 import { CacheService } from '../cache.service';
+import { PLACEHOLDER_POSTER } from '../placeholder';
 
 interface WatchHistory {
   id: string;
@@ -266,7 +267,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       return `/api/v1/media/${movie.id}/poster`;
     }
     // Fallback poster
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   getShowPosterUrl(show: TVShow): string {
@@ -274,7 +275,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       return `/api/v1/tv-shows/${show.id}/poster`;
     }
     // Fallback poster
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   formatDuration(seconds: number): string {
@@ -334,7 +335,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (item.media?.poster_path) {
       return `/api/v1/media/${item.media.id}/poster`;
     }
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   resumeWatch(item: WatchHistory, event?: MouseEvent): void {

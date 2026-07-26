@@ -16,6 +16,8 @@ import { Subscription } from 'rxjs';
 import * as dashjs from 'dashjs';
 import { AuthService } from '../auth.service';
 import { CastService } from '../cast.service';
+import { CacheService } from '../cache.service';
+import { PLACEHOLDER_BACKDROP } from '../placeholder';
 
 interface MediaItem {
   id: string;
@@ -862,7 +864,7 @@ export class PlayerComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.mediaItem && this.mediaItem.backdrop_path) {
       return `/api/v1/media/${this.mediaId}/backdrop`;
     }
-    return 'https://images.unsplash.com/photo-1574267431629-2e570984a62f?q=80&w=1600&auto=format&fit=crop';
+    return PLACEHOLDER_BACKDROP;
   }
 
   formatTime(seconds: number): string {

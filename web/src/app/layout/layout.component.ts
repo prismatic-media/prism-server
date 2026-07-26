@@ -16,6 +16,8 @@ import { Subject, Subscription, of, forkJoin } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, catchError, map } from 'rxjs/operators';
 import { AuthService } from '../auth.service';
 import { CastService } from '../cast.service';
+import { EventService } from '../event.service';
+import { PLACEHOLDER_POSTER } from '../placeholder';
 import { LibraryStateService } from '../library-state.service';
 
 @Component({
@@ -197,7 +199,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
         return `/api/v1/tv-shows/${result.id}/poster`;
       }
     }
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   toggleUserDropdown(): void {
@@ -291,7 +293,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
         return `/api/v1/tv-shows/${mediaItem.id}/poster`;
       }
     }
-    return 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=400&auto=format&fit=crop';
+    return PLACEHOLDER_POSTER;
   }
 
   getCastProgressPercent(current: number | null, duration: number | null): number {

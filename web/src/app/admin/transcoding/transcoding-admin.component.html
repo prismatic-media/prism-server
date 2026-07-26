@@ -94,10 +94,7 @@
               <img
                 class="thumbnail-img"
                 [src]="getPosterUrl(job)"
-                onerror="
-                  this.src =
-                    'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200&auto=format&fit=crop'
-                "
+                (error)="onImageError($event)"
               />
               <span class="resolution-badge">{{ job.resolution }}</span>
             </div>
@@ -208,10 +205,7 @@
               <img
                 class="thumbnail-img"
                 [src]="getPosterUrl(job)"
-                onerror="
-                  this.src =
-                    'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200&auto=format&fit=crop'
-                "
+                (error)="onImageError($event)"
               />
               <span class="resolution-badge">{{ job.resolution }}</span>
             </div>

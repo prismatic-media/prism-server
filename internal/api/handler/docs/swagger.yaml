@@ -48,6 +48,43 @@ definitions:
           $ref: '#/definitions/models.TVShow'
         type: array
     type: object
+  handler.RenditionListingResponse:
+    properties:
+      duration:
+        type: number
+      media_id:
+        type: string
+      quality:
+        type: string
+      segments:
+        items:
+          $ref: '#/definitions/handler.SegmentInfo'
+        type: array
+      subtitles:
+        items:
+          $ref: '#/definitions/handler.SubtitleInfo'
+        type: array
+      total_size:
+        type: integer
+    type: object
+  handler.SegmentInfo:
+    properties:
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
+  handler.SubtitleInfo:
+    properties:
+      label:
+        type: string
+      language:
+        type: string
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
   handler.SyncSubtitleRequest:
     properties:
       offset:
@@ -257,6 +294,8 @@ definitions:
     properties:
       hwaccel:
         type: string
+      threads:
+        type: integer
     type: object
   handler.upsertHistoryRequest:
     properties:
@@ -913,6 +952,37 @@ paths:
       summary: Serve Cast Receiver Page
       tags:
       - Cast
+  /actors/image/{filename}:
+    get:
+      description: Serve the cached headshot image file for an actor by filename.
+      parameters:
+      - description: Actor profile filename
+        in: path
+        name: filename
+        required: true
+        type: string
+      produces:
+      - image/*
+      responses:
+        "200":
+          description: Actor image file
+          schema:
+            type: file
+        "400":
+          description: Invalid filename
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Actor image file not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Serve Actor Image
+      tags:
+      - Actors
   /artifacts:
     get:
       description: Retrieve current health, unmatched, and ambiguous counts of indexed
@@ -3011,6 +3081,58 @@ paths:
       security:
       - BearerAuth: []
       summary: Serve DASH Manifest
+      tags:
+      - Media Streaming
+  /stream/{media_id}/renditions/{quality}:
+    get:
+      description: Retrieve a checklist of individual segment paths and subtitle files
+        for a specific rendition quality to download offline.
+      parameters:
+      - description: Media ID
+        format: uuid
+        in: path
+        name: media_id
+        required: true
+        type: string
+      - description: Rendition Quality
+        in: path
+        name: quality
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success
+          schema:
+            $ref: '#/definitions/handler.RenditionListingResponse'
+        "400":
+          description: Invalid media ID or parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Media item or rendition quality not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Rendition Segments for Download
       tags:
       - Media Streaming
   /stream/{media_id}/segments/{wildcard}:

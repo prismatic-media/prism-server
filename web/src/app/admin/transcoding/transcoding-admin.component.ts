@@ -7,6 +7,7 @@ import { Subject, Subscription, of, timer, forkJoin } from 'rxjs';
 import { debounce, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from '../../auth.service';
 import { EventService } from '../../event.service';
+import { PLACEHOLDER_POSTER } from '../../placeholder';
 import { CacheService } from '../../cache.service';
 
 export interface TranscodeJob {
@@ -127,6 +128,7 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
   // Add Worker State
   newWorkerName = '';
   showApiKeyModal = false;
+  readonly placeholderPoster = PLACEHOLDER_POSTER;
   showRegisterModal = false;
   newWorkerRegistered = false;
   generatedApiKey = '';
@@ -329,6 +331,10 @@ export class TranscodingAdminComponent implements OnInit, OnDestroy {
 
   getPosterUrl(job: TranscodeJob): string {
     return `/api/v1/media/${job.media_item_id}/poster`;
+  }
+
+  onImageError(event: Event): void {
+    (event.target as HTMLImageElement).src = this.placeholderPoster;
   }
 
   // Calculate ETA for a processing job

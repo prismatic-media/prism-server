@@ -201,6 +201,44 @@ func TestDownloadPoster_EmptyPath(t *testing.T) {
 	}
 }
 
+func TestDownloadActorImage_Success(t *testing.T) {
+	imageData := []byte("ACTORIMAGEBYTES")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(imageData)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	c := NewClient("test-key")
+	c.imageURL = srv.URL
+
+	serverPath, err := c.DownloadActorImage(context.Background(), "/actor123.jpg", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if serverPath != "/api/v1/actors/image/actor123.jpg" {
+		t.Errorf("expected /api/v1/actors/image/actor123.jpg, got %q", serverPath)
+	}
+
+	diskFile := filepath.Join(dir, "actor_actor123.jpg")
+	got, err := os.ReadFile(diskFile)
+	if err != nil {
+		t.Fatalf("expected actor_actor123.jpg to be written: %v", err)
+	}
+	if string(got) != string(imageData) {
+		t.Errorf("content mismatch: got %q, want %q", got, imageData)
+	}
+
+	// Secondary call should skip download because file exists
+	serverPath2, err := c.DownloadActorImage(context.Background(), "/actor123.jpg", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if serverPath2 != "/api/v1/actors/image/actor123.jpg" {
+		t.Errorf("expected /api/v1/actors/image/actor123.jpg on second call, got %q", serverPath2)
+	}
+}
+
 func TestSearchTV_FiltersByYear(t *testing.T) {
 	// Return two shows: first is "Breaking Bad" (2010), second is "Breaking Bad" (2008).
 	// If we filter with 2008, it should choose the second show instead of the first show.
