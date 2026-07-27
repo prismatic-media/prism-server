@@ -19,6 +19,7 @@ export interface Library {
 export interface LibraryStats {
   moviesCount: number;
   showsCount: number;
+  episodesCount: number;
   posterCoverage: number;
   resolvedTitles: number;
   totalTitles: number;
@@ -43,6 +44,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
   stats: LibraryStats = {
     moviesCount: 0,
     showsCount: 0,
+    episodesCount: 0,
     posterCoverage: 0,
     resolvedTitles: 0,
     totalTitles: 0,
@@ -89,15 +91,16 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
     forkJoin({
       libraries: this.http.get<Library[]>('/api/v1/libraries').pipe(catchError(() => of([]))),
       mediaItems: this.http.get<any[]>('/api/v1/movies?all=true').pipe(catchError(() => of([]))),
+      episodes: this.http.get<any[]>('/api/v1/episodes').pipe(catchError(() => of([]))),
     })
       .pipe(
-        switchMap(({ libraries, mediaItems }) => {
+        switchMap(({ libraries, mediaItems, episodes }) => {
           this.libraries = libraries || [];
 
           // Identify TV libraries to fetch TV shows count
           const tvLibs = this.libraries.filter((l) => l.media_type === 'tvshow');
           if (tvLibs.length === 0) {
-            return of({ libraries, mediaItems, tvShows: [] });
+            return of({ libraries, mediaItems, tvShows: [], episodes });
           }
 
           const tvRequests = tvLibs.map((lib) =>
@@ -112,17 +115,18 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
                 (acc: any[], val: any[]) => acc.concat(val),
                 [] as any[],
               );
-              return { libraries, mediaItems, tvShows };
+              return { libraries, mediaItems, tvShows, episodes };
             }),
           );
         }),
       )
       .subscribe({
-        next: ({ mediaItems, tvShows }) => {
+        next: ({ mediaItems, tvShows, episodes }) => {
           // Calculate Movie count
-          const movies = mediaItems ? mediaItems.filter((item) => item.media_type === 'movie') : [];
+          const movies = mediaItems || [];
           this.stats.moviesCount = movies.length;
           this.stats.showsCount = tvShows ? tvShows.length : 0;
+          this.stats.episodesCount = episodes ? episodes.length : 0;
 
           // Calculate metadata coverage
           const totalItemsCount = movies.length + (tvShows ? tvShows.length : 0);
