@@ -39,7 +39,6 @@ export interface Movie {
 
 export interface TVShow {
   id: string;
-  library_id: string;
   name: string;
   tmdb_id?: number;
   overview?: string;
@@ -62,7 +61,6 @@ export interface TVSeason {
 
 export interface Episode {
   id: string;
-  library_id: string;
   title: string;
   media_type: string;
   file_path: string;

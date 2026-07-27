@@ -55,6 +55,9 @@ export class HomeComponent implements OnInit, OnDestroy {
   loading = true;
 
   ngOnInit(): void {
+    this.cacheService.loadMovies();
+    this.cacheService.loadTVShows();
+
     this.moviesSub = this.cacheService.movies$.subscribe((movies) => {
       if (movies) {
         this.stats.moviesCount = movies.length;
@@ -188,28 +191,24 @@ export class HomeComponent implements OnInit, OnDestroy {
           {
             id: '1',
             name: 'Stellar Voyager',
-            library_id: 'l1',
             first_air_year: 2021,
             overview: 'Exploring the outer bounds of the galaxy.',
           },
           {
             id: '2',
             name: 'Dark Void',
-            library_id: 'l1',
             first_air_year: 2022,
             overview: 'A journey into a mysterious cosmic anomaly.',
           },
           {
             id: '3',
             name: 'Cyber Horizon',
-            library_id: 'l1',
             first_air_year: 2023,
             overview: 'Survival in a digital dystopia.',
           },
           {
             id: '4',
             name: 'Retro Orbit',
-            library_id: 'l1',
             first_air_year: 2024,
             overview: 'Classic space adventures in a modern light.',
           },
