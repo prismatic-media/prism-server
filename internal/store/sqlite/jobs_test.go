@@ -1078,3 +1078,148 @@ func TestClaimNextSubJob_NoInterleaving(t *testing.T) {
 		t.Fatalf("expected local worker to claim subsequent sub-job from j1, got %+v", cLocal2)
 	}
 }
+
+func TestClaimNextSubJob_AscendingBitrateOrder(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/lib", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	item := newMovieItem(lib.ID, "Bitrate Test Movie", "/lib/movie.mkv")
+	item.Width = 3840
+	item.Height = 2160
+	if err := sqlite.UpsertMediaItem(ctx, db, item); err != nil {
+		t.Fatal(err)
+	}
+
+	job := &models.TranscodeJob{MediaItemID: item.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, job); err != nil {
+		t.Fatal(err)
+	}
+
+	// List sub-jobs and verify presentation order
+	subJobs, err := sqlite.ListTranscodeSubJobsByJob(ctx, db, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var videoBitrates []int
+	for _, sj := range subJobs {
+		if sj.Type == models.SubJobTypeVideo && sj.VideoBitrateK != nil {
+			videoBitrates = append(videoBitrates, *sj.VideoBitrateK)
+		}
+	}
+
+	if len(videoBitrates) < 2 {
+		t.Fatalf("expected at least 2 video sub-jobs, got %d", len(videoBitrates))
+	}
+
+	for i := 1; i < len(videoBitrates); i++ {
+		if videoBitrates[i] < videoBitrates[i-1] {
+			t.Errorf("ListTranscodeSubJobsByJob sub-jobs out of bitrate order: %v", videoBitrates)
+			break
+		}
+	}
+
+	// Claim sub-jobs and verify execution order for video sub-jobs
+	var claimedBitrates []int
+	for {
+		claimed, err := sqlite.ClaimNextSubJob(ctx, db, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if claimed == nil {
+			break
+		}
+		if claimed.Type == models.SubJobTypeVideo && claimed.VideoBitrateK != nil {
+			claimedBitrates = append(claimedBitrates, *claimed.VideoBitrateK)
+		}
+	}
+
+	if len(claimedBitrates) < 2 {
+		t.Fatalf("expected at least 2 claimed video sub-jobs, got %d", len(claimedBitrates))
+	}
+
+	for i := 1; i < len(claimedBitrates); i++ {
+		if claimedBitrates[i] < claimedBitrates[i-1] {
+			t.Errorf("ClaimNextSubJob video sub-jobs out of bitrate order: %v", claimedBitrates)
+			break
+		}
+	}
+}
+
+func TestClaimNextSubJob_MultiItemFIFOWithBitrateOrder(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	lib := newLib("/lib", models.MediaTypeMovie)
+	if err := sqlite.CreateLibrary(ctx, db, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	item1 := newMovieItem(lib.ID, "Movie 1", "/lib/movie1.mkv")
+	item1.Width = 1920
+	item1.Height = 1080
+	if err := sqlite.UpsertMediaItem(ctx, db, item1); err != nil {
+		t.Fatal(err)
+	}
+
+	item2 := newMovieItem(lib.ID, "Movie 2", "/lib/movie2.mkv")
+	item2.Width = 1920
+	item2.Height = 1080
+	if err := sqlite.UpsertMediaItem(ctx, db, item2); err != nil {
+		t.Fatal(err)
+	}
+
+	job1 := &models.TranscodeJob{MediaItemID: item1.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, job1); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	job2 := &models.TranscodeJob{MediaItemID: item2.ID}
+	if err := sqlite.CreateTranscodeJob(ctx, db, job2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Claim all sub-jobs and verify that job1's sub-jobs are claimed before job2's sub-jobs
+	var claimedJobIDs []uuid.UUID
+	var videoBitratesByJob = make(map[uuid.UUID][]int)
+
+	for {
+		claimed, err := sqlite.ClaimNextSubJob(ctx, db, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if claimed == nil {
+			break
+		}
+		claimedJobIDs = append(claimedJobIDs, claimed.JobID)
+		if claimed.Type == models.SubJobTypeVideo && claimed.VideoBitrateK != nil {
+			videoBitratesByJob[claimed.JobID] = append(videoBitratesByJob[claimed.JobID], *claimed.VideoBitrateK)
+		}
+	}
+
+	// All job1 sub-jobs should be claimed before job2 sub-jobs because job1 was created first (Category 1 / FIFO)
+	var seenJob2 bool
+	for _, jID := range claimedJobIDs {
+		if jID == job2.ID {
+			seenJob2 = true
+		} else if jID == job1.ID && seenJob2 {
+			t.Fatalf("job1 sub-job claimed after job2 sub-job, breaking FIFO queue order")
+		}
+	}
+
+	// Verify bitrate ascending order for job1 and job2 video sub-jobs
+	for jID, bitrates := range videoBitratesByJob {
+		for i := 1; i < len(bitrates); i++ {
+			if bitrates[i] < bitrates[i-1] {
+				t.Errorf("job %s video sub-jobs out of bitrate order: %v", jID, bitrates)
+			}
+		}
+	}
+}

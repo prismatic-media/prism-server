@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -538,6 +539,90 @@ func TestUnzipFileBackslashNormalization(t *testing.T) {
 	badPath := filepath.Join(destDir, "1080p\\seg_00003.m4s")
 	if _, err := os.Stat(badPath); err == nil {
 		t.Errorf("found unexpected file with backslash in name: %s", badPath)
+	}
+}
+
+func TestWorkerClaimSubJob_BitrateOrder(t *testing.T) {
+	db := openTestDB(t)
+	bus := events.NewBus()
+	pool := transcoder.NewPool(db, 0, &dash.Cache{}, bus)
+	wHandler := handler.NewWorkerHandler(db, pool, bus)
+
+	worker, err := sqlite.CreateWorker(context.Background(), db, "WorkerHostBitrate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), "UPDATE transcode_workers SET threads = 4, status = 'idle', last_heartbeat = ? WHERE id = ?", time.Now().UTC().Format(time.RFC3339), worker.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	lib := &models.Library{Path: "/l", MediaType: models.MediaTypeMovie}
+	if err := sqlite.CreateLibrary(context.Background(), db, lib); err != nil {
+		t.Fatal(err)
+	}
+	m := &models.MediaItem{
+		LibraryID:       lib.ID,
+		Title:           "Bitrate Test Movie",
+		MediaType:       models.MediaTypeMovie,
+		FilePath:        "/l/movie4k.mkv",
+		Width:           3840,
+		Height:          2160,
+		TranscodeStatus: models.TranscodeStatusNone,
+	}
+	if err := sqlite.UpsertMediaItem(context.Background(), db, m); err != nil {
+		t.Fatal(err)
+	}
+
+	job := &models.TranscodeJob{MediaItemID: m.ID}
+	if err := sqlite.CreateTranscodeJob(context.Background(), db, job); err != nil {
+		t.Fatal(err)
+	}
+
+	r := chi.NewRouter()
+	r.Use(wHandler.Authenticate)
+	r.Post("/heartbeat", wHandler.Heartbeat)
+
+	var claimedBitrates []int
+	for i := 0; i < 10; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/heartbeat", nil)
+		req.Header.Set("X-Worker-API-Key", worker.APIKey)
+		r.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rec.Code)
+		}
+
+		var resp struct {
+			Job *struct {
+				ID      uuid.UUID `json:"id"`
+				Type    string    `json:"type"`
+				Profile *struct {
+					VideoBitrateK int `json:"video_bitrate_k"`
+				} `json:"profile"`
+			} `json:"job"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+
+		if resp.Job == nil {
+			break
+		}
+
+		if resp.Job.Type == string(models.SubJobTypeVideo) && resp.Job.Profile != nil {
+			claimedBitrates = append(claimedBitrates, resp.Job.Profile.VideoBitrateK)
+		}
+	}
+
+	if len(claimedBitrates) < 2 {
+		t.Fatalf("expected at least 2 video sub-jobs claimed by worker, got %d", len(claimedBitrates))
+	}
+
+	for i := 1; i < len(claimedBitrates); i++ {
+		if claimedBitrates[i] < claimedBitrates[i-1] {
+			t.Errorf("worker claimed video sub-jobs out of bitrate order: %v", claimedBitrates)
+		}
 	}
 }
 

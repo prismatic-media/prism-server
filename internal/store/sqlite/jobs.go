@@ -889,6 +889,7 @@ func ClaimNextSubJob(ctx context.Context, db *sql.DB, workerID *uuid.UUID) (*mod
 					   j.priority,
 					   j.created_at,
 					   s.type,
+					   s.video_bitrate_k,
 					   jp.pinned_worker_id,
 					   m.season_number,
 					   m.episode_number,
@@ -918,6 +919,7 @@ func ClaimNextSubJob(ctx context.Context, db *sql.DB, workerID *uuid.UUID) (*mod
 				COALESCE(season_number, 0) ASC,
 				COALESCE(episode_number, 0) ASC,
 				type DESC,
+				COALESCE(video_bitrate_k, 0) ASC,
 				sub_job_id ASC
 			LIMIT 1
 		)
@@ -1159,7 +1161,7 @@ func ListTranscodeSubJobsByJob(ctx context.Context, db *sql.DB, jobID uuid.UUID)
 
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, job_id, worker_id, type, profile_id, profile_name, width, height, video_bitrate_k, audio_bitrate_k, codec, status, progress, error_msg, started_at, finished_at, created_at
-		FROM transcode_sub_jobs WHERE job_id = ? ORDER BY type DESC, id ASC`, jobID.String())
+		FROM transcode_sub_jobs WHERE job_id = ? ORDER BY type DESC, COALESCE(video_bitrate_k, 0) ASC, id ASC`, jobID.String())
 	if err != nil {
 		return nil, fmt.Errorf("listing transcode sub-jobs: %w", err)
 	}
