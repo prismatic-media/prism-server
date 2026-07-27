@@ -3,9 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
-import { forkJoin, of, Subscription } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
-import { EventService } from '../../event.service';
+import { combineLatest, forkJoin, of, Subscription } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { CacheService } from '../../cache.service';
 import { DirectoryInputComponent } from '../../directory-input/directory-input.component';
 
 export interface Library {
@@ -37,8 +37,8 @@ export interface LibraryStats {
 export class LibraryAdminComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
-  private eventService = inject(EventService);
-  private eventSub?: Subscription;
+  private cacheService = inject(CacheService);
+  private mediaSub?: Subscription;
 
   libraries: Library[] = [];
   stats: LibraryStats = {
@@ -64,106 +64,83 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
   modalError = '';
 
   ngOnInit(): void {
-    this.fetchData();
-    this.eventSub = this.eventService.events$.subscribe((events) => {
-      const shouldRefresh = events.some(
-        (evt) =>
-          evt.type === 'media.created' ||
-          evt.type === 'media.updated' ||
-          evt.type === 'media.enriched',
-      );
-      if (shouldRefresh) {
-        this.fetchData();
+    this.fetchLibraries();
+    this.cacheService.loadMovies();
+    this.cacheService.loadTVShows();
+    this.cacheService.loadEpisodes();
+
+    this.mediaSub = combineLatest([
+      this.cacheService.movies$,
+      this.cacheService.tvShows$,
+      this.cacheService.episodes$,
+    ]).subscribe(([movies, tvShows, episodes]) => {
+      if (movies !== null || tvShows !== null || episodes !== null) {
+        this.updateStats(movies || [], tvShows || [], episodes || []);
+        this.loading = false;
+        this.cdr.detectChanges();
       }
     });
   }
 
   ngOnDestroy(): void {
-    if (this.eventSub) {
-      this.eventSub.unsubscribe();
+    if (this.mediaSub) {
+      this.mediaSub.unsubscribe();
     }
   }
 
-  fetchData(): void {
-    this.loading = true;
+  fetchLibraries(): void {
     this.error = '';
-
-    forkJoin({
-      libraries: this.http.get<Library[]>('/api/v1/libraries').pipe(catchError(() => of([]))),
-      mediaItems: this.http.get<any[]>('/api/v1/movies?all=true').pipe(catchError(() => of([]))),
-      episodes: this.http.get<any[]>('/api/v1/episodes').pipe(catchError(() => of([]))),
-    })
-      .pipe(
-        switchMap(({ libraries, mediaItems, episodes }) => {
-          this.libraries = libraries || [];
-
-          // Identify TV libraries to fetch TV shows count
-          const tvLibs = this.libraries.filter((l) => l.media_type === 'tvshow');
-          if (tvLibs.length === 0) {
-            return of({ libraries, mediaItems, tvShows: [], episodes });
-          }
-
-          const tvRequests = tvLibs.map((lib) =>
-            this.http
-              .get<any[]>(`/api/v1/tv-shows?library_id=${lib.id}`)
-              .pipe(catchError(() => of([]))),
-          );
-
-          return forkJoin(tvRequests).pipe(
-            map((tvShowsArrays) => {
-              const tvShows = tvShowsArrays.reduce(
-                (acc: any[], val: any[]) => acc.concat(val),
-                [] as any[],
-              );
-              return { libraries, mediaItems, tvShows, episodes };
-            }),
-          );
-        }),
-      )
+    this.http
+      .get<Library[]>('/api/v1/libraries')
+      .pipe(catchError(() => of([])))
       .subscribe({
-        next: ({ mediaItems, tvShows, episodes }) => {
-          // Calculate Movie count
-          const movies = mediaItems || [];
-          this.stats.moviesCount = movies.length;
-          this.stats.showsCount = tvShows ? tvShows.length : 0;
-          this.stats.episodesCount = episodes ? episodes.length : 0;
-
-          // Calculate metadata coverage
-          const totalItemsCount = movies.length + (tvShows ? tvShows.length : 0);
-          this.stats.totalTitles = totalItemsCount;
-
-          if (totalItemsCount > 0) {
-            const withPosterMovies = movies.filter((m) => m.poster_path).length;
-            const withPosterShows = tvShows ? tvShows.filter((s) => s.poster_path).length : 0;
-            const totalWithPoster = withPosterMovies + withPosterShows;
-
-            this.stats.resolvedTitles = totalWithPoster;
-            this.stats.posterCoverage = Math.round((totalWithPoster / totalItemsCount) * 1000) / 10;
-          } else {
-            this.stats.resolvedTitles = 0;
-            this.stats.posterCoverage = 0;
-          }
-
-          // Subtitle indexing calculations (mocking/deriving based on transcode bundle status or source availability)
-          if (movies.length > 0) {
-            const transcodedCount = movies.filter((m) => m.transcode_status === 'done').length;
-            this.stats.subtitleCoverage =
-              Math.round((transcodedCount / movies.length) * 1000) / 10 || 74.5;
-            this.stats.missingLocalAssetsCount = movies.length - transcodedCount;
-          } else {
-            this.stats.subtitleCoverage = 74.5;
-            this.stats.missingLocalAssetsCount = 0;
-          }
-
-          this.loading = false;
+        next: (libs) => {
+          this.libraries = libs || [];
           this.cdr.detectChanges();
         },
-        error: (err) => {
+        error: () => {
           this.error = 'Failed to load library data.';
-          this.loading = false;
           this.cdr.detectChanges();
         },
       });
+  }
+
+  fetchData(): void {
+    this.fetchLibraries();
+    this.cacheService.reloadMovies();
+    this.cacheService.reloadTVShows();
+    this.cacheService.reloadEpisodes();
+  }
+
+  private updateStats(movies: any[], tvShows: any[], episodes: any[]): void {
+    this.stats.moviesCount = movies.length;
+    this.stats.showsCount = tvShows.length;
+    this.stats.episodesCount = episodes.length;
+
+    const totalItemsCount = movies.length + tvShows.length;
+    this.stats.totalTitles = totalItemsCount;
+
+    if (totalItemsCount > 0) {
+      const withPosterMovies = movies.filter((m) => m.poster_path).length;
+      const withPosterShows = tvShows.filter((s) => s.poster_path).length;
+      const totalWithPoster = withPosterMovies + withPosterShows;
+
+      this.stats.resolvedTitles = totalWithPoster;
+      this.stats.posterCoverage = Math.round((totalWithPoster / totalItemsCount) * 1000) / 10;
+    } else {
+      this.stats.resolvedTitles = 0;
+      this.stats.posterCoverage = 0;
+    }
+
+    if (movies.length > 0) {
+      const transcodedCount = movies.filter((m) => m.transcode_status === 'done').length;
+      this.stats.subtitleCoverage =
+        Math.round((transcodedCount / movies.length) * 1000) / 10 || 74.5;
+      this.stats.missingLocalAssetsCount = movies.length - transcodedCount;
+    } else {
+      this.stats.subtitleCoverage = 74.5;
+      this.stats.missingLocalAssetsCount = 0;
+    }
   }
 
   // Filter libraries by media type for sections
@@ -177,7 +154,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
     this.http.post(`/api/v1/libraries/${libId}:scan`, {}).subscribe({
       next: () => {
         alert('Scan triggered successfully for the library.');
-        this.fetchData();
+        this.fetchLibraries();
       },
       error: (err) => {
         alert(`Failed to start library scan: ${err.error?.error || err.message}`);
@@ -200,12 +177,12 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
       next: () => {
         this.isScanningAll = false;
         alert('Manual scan triggered for all directories.');
-        this.fetchData();
+        this.fetchLibraries();
       },
       error: (err) => {
         this.isScanningAll = false;
         alert('Some scans failed to trigger.');
-        this.fetchData();
+        this.fetchLibraries();
       },
     });
   }
@@ -219,7 +196,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
     ) {
       this.http.delete(`/api/v1/libraries/${libId}`).subscribe({
         next: () => {
-          this.fetchData();
+          this.fetchLibraries();
         },
         error: (err) => {
           alert(`Failed to delete library mapping: ${err.error?.error || err.message}`);
@@ -257,7 +234,7 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
       next: () => {
         this.isSaving = false;
         this.isAddModalOpen = false;
-        this.fetchData();
+        this.fetchLibraries();
       },
       error: (err) => {
         this.isSaving = false;
@@ -269,3 +246,4 @@ export class LibraryAdminComponent implements OnInit, OnDestroy {
     });
   }
 }
+
