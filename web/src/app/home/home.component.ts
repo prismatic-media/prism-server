@@ -6,7 +6,6 @@ import { Movie } from '../movies/movies.component';
 import { TVShow } from '../tv-shows/tv-shows.component';
 import { Router } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
-import { EventService } from '../event.service';
 import { CacheService } from '../cache.service';
 import { PLACEHOLDER_POSTER } from '../placeholder';
 
@@ -39,9 +38,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
-  private eventService = inject(EventService);
   private cacheService = inject(CacheService);
-  private eventSub?: Subscription;
   private moviesSub?: Subscription;
   private tvShowsSub?: Subscription;
 
@@ -58,9 +55,6 @@ export class HomeComponent implements OnInit, OnDestroy {
   loading = true;
 
   ngOnInit(): void {
-    this.cacheService.loadMovies();
-    this.cacheService.loadTVShows();
-
     this.moviesSub = this.cacheService.movies$.subscribe((movies) => {
       if (movies) {
         this.stats.moviesCount = movies.length;
@@ -76,23 +70,9 @@ export class HomeComponent implements OnInit, OnDestroy {
     });
 
     this.fetchDashboardData();
-    this.eventSub = this.eventService.events$.subscribe((events) => {
-      const shouldRefresh = events.some(
-        (evt) =>
-          evt.type === 'media.created' ||
-          evt.type === 'media.updated' ||
-          evt.type === 'media.enriched',
-      );
-      if (shouldRefresh) {
-        this.fetchDashboardData(true);
-      }
-    });
   }
 
   ngOnDestroy(): void {
-    if (this.eventSub) {
-      this.eventSub.unsubscribe();
-    }
     if (this.moviesSub) {
       this.moviesSub.unsubscribe();
     }
@@ -121,6 +101,12 @@ export class HomeComponent implements OnInit, OnDestroy {
             media: media
           };
         });
+        if (this.stats.moviesCount === 0 && this.recentMovies.length > 0) {
+          this.stats.moviesCount = this.recentMovies.length;
+        }
+        if (this.stats.showsCount === 0 && this.recentShows.length > 0) {
+          this.stats.showsCount = this.recentShows.length;
+        }
         this.loading = false;
         this.cdr.detectChanges();
       },

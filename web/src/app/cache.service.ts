@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, Subscription } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, shareReplay, finalize, retry } from 'rxjs/operators';
 import { EventService } from './event.service';
 import { AuthService } from './auth.service';
 import { Movie } from './movies/movies.component';
@@ -21,6 +21,11 @@ export class CacheService {
   private tvShowsStore = new BehaviorSubject<Map<string, TVShow> | null>(null);
   private episodesStore = new BehaviorSubject<Map<string, Episode> | null>(null);
   private jobsStore = new BehaviorSubject<Map<string, TranscodeJob> | null>(null);
+
+  private loadingMovies$: Observable<Movie[]> | null = null;
+  private loadingTVShows$: Observable<TVShow[]> | null = null;
+  private loadingEpisodes$: Observable<Episode[]> | null = null;
+  private loadingJobs$: Observable<TranscodeJob[]> | null = null;
 
   public movies$: Observable<Movie[] | null> = this.moviesStore.asObservable().pipe(
     map((map) => (map ? Array.from(map.values()) : null)),
@@ -60,12 +65,22 @@ export class CacheService {
   }
 
   public loadMovies(): void {
-    if (this.moviesStore.getValue() !== null) return;
+    if (this.moviesStore.getValue() !== null || this.loadingMovies$ !== null) return;
     this.reloadMovies();
   }
 
   public reloadMovies(): void {
-    this.http.get<Movie[]>('/api/v1/movies').subscribe({
+    if (this.loadingMovies$ !== null) return;
+
+    this.loadingMovies$ = this.http.get<Movie[]>('/api/v1/movies').pipe(
+      retry({ count: 1, delay: 2000 }),
+      shareReplay(1),
+      finalize(() => {
+        this.loadingMovies$ = null;
+      }),
+    );
+
+    this.loadingMovies$.subscribe({
       next: (movies) => {
         const map = new Map<string, Movie>();
         (movies || []).forEach((m) => map.set(m.id, m));
@@ -76,12 +91,22 @@ export class CacheService {
   }
 
   public loadTVShows(): void {
-    if (this.tvShowsStore.getValue() !== null) return;
+    if (this.tvShowsStore.getValue() !== null || this.loadingTVShows$ !== null) return;
     this.reloadTVShows();
   }
 
   public reloadTVShows(): void {
-    this.http.get<TVShow[]>('/api/v1/tv-shows').subscribe({
+    if (this.loadingTVShows$ !== null) return;
+
+    this.loadingTVShows$ = this.http.get<TVShow[]>('/api/v1/tv-shows').pipe(
+      retry({ count: 1, delay: 2000 }),
+      shareReplay(1),
+      finalize(() => {
+        this.loadingTVShows$ = null;
+      }),
+    );
+
+    this.loadingTVShows$.subscribe({
       next: (shows) => {
         const map = new Map<string, TVShow>();
         (shows || []).forEach((s) => map.set(s.id, s));
@@ -92,12 +117,22 @@ export class CacheService {
   }
 
   public loadEpisodes(): void {
-    if (this.episodesStore.getValue() !== null) return;
+    if (this.episodesStore.getValue() !== null || this.loadingEpisodes$ !== null) return;
     this.reloadEpisodes();
   }
 
   public reloadEpisodes(): void {
-    this.http.get<Episode[]>('/api/v1/episodes').subscribe({
+    if (this.loadingEpisodes$ !== null) return;
+
+    this.loadingEpisodes$ = this.http.get<Episode[]>('/api/v1/episodes').pipe(
+      retry({ count: 1, delay: 2000 }),
+      shareReplay(1),
+      finalize(() => {
+        this.loadingEpisodes$ = null;
+      }),
+    );
+
+    this.loadingEpisodes$.subscribe({
       next: (episodes) => {
         const map = new Map<string, Episode>();
         (episodes || []).forEach((e) => map.set(e.id, e));
@@ -108,12 +143,22 @@ export class CacheService {
   }
 
   public loadJobs(): void {
-    if (this.jobsStore.getValue() !== null) return;
+    if (this.jobsStore.getValue() !== null || this.loadingJobs$ !== null) return;
     this.reloadJobs();
   }
 
   public reloadJobs(): void {
-    this.http.get<TranscodeJob[]>('/api/v1/jobs').subscribe({
+    if (this.loadingJobs$ !== null) return;
+
+    this.loadingJobs$ = this.http.get<TranscodeJob[]>('/api/v1/jobs').pipe(
+      retry({ count: 1, delay: 2000 }),
+      shareReplay(1),
+      finalize(() => {
+        this.loadingJobs$ = null;
+      }),
+    );
+
+    this.loadingJobs$.subscribe({
       next: (jobs) => {
         const map = new Map<string, TranscodeJob>();
         (jobs || []).forEach((j) => map.set(j.id, j));
@@ -130,7 +175,15 @@ export class CacheService {
     if (this.jobsStore.getValue() !== null) this.reloadJobs();
   }
 
+  private clearInFlight(): void {
+    this.loadingMovies$ = null;
+    this.loadingTVShows$ = null;
+    this.loadingEpisodes$ = null;
+    this.loadingJobs$ = null;
+  }
+
   private clearAll(): void {
+    this.clearInFlight();
     this.moviesStore.next(null);
     this.tvShowsStore.next(null);
     this.episodesStore.next(null);
