@@ -1,11 +1,15 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -48,16 +52,62 @@ func (h *ActorHandler) ServeActorImage(w http.ResponseWriter, r *http.Request) {
 	// Actor images are saved with "actor_" prefix on disk
 	localPath := filepath.Join(thumbsDir, "actor_"+filename)
 	if _, err := os.Stat(localPath); os.IsNotExist(err) {
-		// Fallback: check without actor_ prefix if saved under original filename
+		// Fallback 1: check without actor_ prefix if saved under original filename
 		fallbackPath := filepath.Join(thumbsDir, filename)
 		if _, err := os.Stat(fallbackPath); err == nil {
 			localPath = fallbackPath
 		} else {
-			respondError(w, http.StatusNotFound, "actor image file not found", nil)
-			return
+			// Fallback 2: on-the-fly fetch from TMDB and cache locally
+			if err := fetchAndSaveActorImage(r.Context(), filename, localPath); err != nil {
+				respondError(w, http.StatusNotFound, "actor image file not found", err)
+				return
+			}
 		}
 	}
 
 	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	http.ServeFile(w, r, localPath)
+}
+
+func fetchAndSaveActorImage(ctx context.Context, filename, destPath string) error {
+	cleanName := filename
+	if strings.HasPrefix(cleanName, "actor_") {
+		cleanName = strings.TrimPrefix(cleanName, "actor_")
+	}
+	if cleanName == "" {
+		return fmt.Errorf("invalid filename")
+	}
+
+	imageURL := "https://image.tmdb.org/t/p/w185/" + cleanName
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
+	if err != nil {
+		return err
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("TMDB image fetch returned %d", resp.StatusCode)
+	}
+
+	dir := filepath.Dir(destPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		_ = os.Remove(destPath)
+		return err
+	}
+	return nil
 }
